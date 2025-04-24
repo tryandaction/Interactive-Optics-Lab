@@ -33,6 +33,17 @@ let cameraOffset = new Vector(0, 0); // Current pan offset (canvas origin relati
 let isPanning = false;       // Flag: Is the user currently panning?
 let lastPanMousePos = null;  // Mouse position at the start of panning
 
+
+let historyManager = new HistoryManager(); // <<<--- 添加这一行
+let lastRecordedMoveState = null; // <<<--- 添加: 用于合并拖动操作
+let lastRecordedRotateState = null; // <<<--- 添加: 用于合并旋转操作
+let lastRecordedPropertyState = null; // <<<--- 添加: 用于合并属性修改
+let ongoingActionState = null; // { type: 'move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
+// --- Alignment Guides State ---
+let activeGuides = []; // Array to store currently active guide lines to draw
+const SNAP_THRESHOLD = 5.0; // Pixel distance threshold for snapping/showing guides (in logical coords)
+const GUIDE_COLOR = 'rgba(0, 255, 255, 0.75)'; // 亮青色 (Cyan)
+const GUIDE_DASH = [3, 3]; // 可以尝试不同的虚线模式，或设置为空数组 
 // --- Simulation Settings ---
 let showGrid = true;
 window.maxRaysPerSource = 1001; // Default: Allow up to 1001 rays
@@ -366,6 +377,31 @@ function draw() {
             console.error(`Error drawing component ${comp?.label}:`, e, comp);
         }
     }); // End drawing components loop
+
+    // --- Draw Alignment Guides ---
+    if (isDragging && activeGuides.length > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save();
+        ctx.strokeStyle = GUIDE_COLOR;
+        ctx.lineWidth = 1 / dpr; // Thin line
+        ctx.setLineDash(GUIDE_DASH.map(d => d / dpr)); // Scale dash pattern
+
+        activeGuides.forEach(guide => {
+            ctx.beginPath();
+            if (guide.type === 'vertical') {
+                ctx.moveTo(guide.x, guide.y1);
+                ctx.lineTo(guide.x, guide.y2);
+            } else if (guide.type === 'horizontal') {
+                ctx.moveTo(guide.x1, guide.y);
+                ctx.lineTo(guide.x2, guide.y);
+            }
+            ctx.stroke();
+        });
+
+        ctx.restore(); // Restore line dash and style
+    }
+    // --- End Draw Alignment Guides ---
+
 
     // --- Draw Image AFTER components in Lens Imaging Mode ---
     // Note: drawLensImagingDiagram currently handles drawing the image itself.
@@ -1361,60 +1397,137 @@ function updateInspector() {
 }
 
 
-
-// Helper function to handle property changes from inspector inputs
-function handlePropertyChange(propName, rawValue, forceUpdate = false) {
+// --- REPLACEMENT for handlePropertyChange (V4 - Handles isFinalChange for Undo/Redo Refined) ---
+function handlePropertyChange(propName, rawValue, isFinalChange = false) {
     if (!selectedComponent) return;
+    // Limit logging for noisy 'input' events
+    // if (isFinalChange) {
+    //     console.log(`handlePropertyChange: prop=${propName}, rawValue=${rawValue}, isFinal=${isFinalChange}`);
+    // }
+
+    // --- Get/Set Initial State ---
+    let commandOldValue;
+    let startValueForOngoingAction; // Value when the continuous action started
+
+    if (!isFinalChange && ongoingActionState && ongoingActionState.type === 'property' &&
+        ongoingActionState.component === selectedComponent &&
+        ongoingActionState.propName === propName) {
+        // Continue existing 'input' sequence
+        startValueForOngoingAction = ongoingActionState.startValue;
+        commandOldValue = ongoingActionState.startValue; // Command reverts to the start
+        // if (isFinalChange) console.log(`  -> Continuing action for ${propName}, startValue=${startValueForOngoingAction}`);
+    } else {
+        // Start new action or discrete 'change'
+        try {
+            // Get current value before this change attempt
+            if (propName === 'angleDeg') commandOldValue = selectedComponent.angleRad;
+            else if (propName === 'transmissionAxisAngleDeg') commandOldValue = selectedComponent.transmissionAxisRad;
+            else if (propName === 'fastAxisAngleDeg') commandOldValue = selectedComponent.fastAxisRad;
+            else if (propName === 'outputAngleDeg' && selectedComponent instanceof OpticalFiber) commandOldValue = selectedComponent.outputAngleRad;
+            else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) commandOldValue = selectedComponent.outputPos?.clone();
+            else commandOldValue = selectedComponent[propName]; // Direct access
+
+            if (commandOldValue instanceof Vector) commandOldValue = commandOldValue.clone();
+        } catch (e) {
+            console.warn(`  -> Failed to get current value for ${propName} directly, using fallback.`);
+            try { commandOldValue = selectedComponent.getProperties()[propName]?.value; } catch { commandOldValue = null; }
+        }
+        startValueForOngoingAction = commandOldValue; // For new/discrete, start is current
+        // if (isFinalChange) console.log(`  -> Starting new/discrete change for ${propName}, oldValue/startValue=${commandOldValue}`);
+
+        // If starting an 'input' sequence, record state
+        if (!isFinalChange) {
+            ongoingActionState = { type: 'property', component: selectedComponent, propName: propName, startValue: startValueForOngoingAction };
+            // if (isFinalChange) console.log(`  -> Recorded ongoingActionState for ${propName}`);
+        } else {
+            // If it's a final change, clear any *previous* different ongoing state
+            ongoingActionState = null;
+        }
+    }
+    // --- End Initial State ---
+
+    // --- Value Conversion & Validation ---
     const currentProps = selectedComponent.getProperties();
-    const originalType = typeof currentProps[propName]?.value;
-
+    const originalType = typeof commandOldValue;
+    const inputTypeHint = currentProps[propName]?.type;
     let newValue = rawValue;
-    // Attempt type conversion based on original type or input type hint
-    if (originalType === 'number' || currentProps[propName]?.type === 'number' || currentProps[propName]?.type === 'range') {
-        newValue = parseFloat(rawValue);
-        // If parsing fails, only update on 'change' (forceUpdate=true) or revert
-        if (isNaN(newValue)) {
-            if (forceUpdate) { // Revert on final change if invalid
-                // Find the input element and reset its value
-                const inputEl = document.getElementById(`prop-${propName}-${selectedComponent.id}`);
-                if (inputEl) inputEl.value = currentProps[propName].value;
-                console.warn(`Invalid number input for ${propName}, reverting.`);
-                return; // Don't call setProperty with NaN
-            } else {
-                return; // Don't update during 'input' if it's not a valid number yet
-            }
-        }
-    } else if (originalType === 'boolean') { // Checkboxes already pass boolean
-        newValue = !!rawValue;
-    }
-    // Text ('string') values are used directly
-
     try {
-        selectedComponent.setProperty(propName, newValue);
-        sceneModified = true;
-        ;
-        // Optionally, refresh just the single input value if setProperty modified it (e.g., clamping)
-        // This prevents the whole inspector rebuilding on every input event
-        if (!forceUpdate && document.activeElement?.id === `prop-${propName}-${selectedComponent.id}`) {
-            // Maybe only update if value *actually* changed after setProperty?
-            // const finalValue = selectedComponent.getProperties()[propName].value;
-            // if (document.activeElement.value != finalValue) { // Loose comparison
-            //     document.activeElement.value = finalValue;
-            // }
-        } else if (forceUpdate) {
-            // On final 'change', force inspector update to show clamped/final value
-            updateInspector();
+        if (inputTypeHint === 'number' || inputTypeHint === 'range' || originalType === 'number') {
+            newValue = parseFloat(rawValue);
+            if (isNaN(newValue)) {
+                if (isFinalChange) { console.warn(`Invalid number for ${propName}, reverting.`); updateInspector(); }
+                return; // Stop invalid number processing
+            }
+        } else if (inputTypeHint === 'checkbox' || originalType === 'boolean') {
+            newValue = !!rawValue;
+        } else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) {
+            if (!(newValue instanceof Vector)) { console.error("Expected Vector for outputPos", newValue); return; }
         }
+    } catch (convError) { console.error(`Value conversion error for ${propName}:`, convError); if (isFinalChange) updateInspector(); return; }
+    // --- End Conversion ---
 
-        // needsRetrace should be set within setProperty if needed
+    // --- Set Property & Handle History ---
+    try {
+        // Apply property change
+        let propertySet = false;
+        if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber && newValue instanceof Vector) {
+            selectedComponent.outputPos.set(newValue.x, newValue.y);
+            if (typeof selectedComponent._updateGeometry === 'function') { selectedComponent._updateGeometry(); }
+            needsRetrace = true; sceneModified = true; propertySet = true;
+        } else if (propName === 'outputAngleRad' && selectedComponent instanceof OpticalFiber && typeof newValue === 'number') {
+            selectedComponent.outputAngleRad = newValue;
+            if (typeof selectedComponent._updateGeometry === 'function') { selectedComponent._updateGeometry(); }
+            needsRetrace = true; sceneModified = true; propertySet = true;
+        } else {
+            // Use standard setProperty
+            selectedComponent.setProperty(propName, newValue);
+            // Assume setProperty handles needsRetrace/sceneModified correctly
+            propertySet = true;
+        }
+        if (!propertySet) { console.warn(`Property ${propName} not set.`); if (isFinalChange) updateInspector(); return; }
+
+        // --- Add Command to History (Only on Final Change) ---
+        if (isFinalChange) {
+            let finalValue = null;
+            try { // Get actual value after potential clamping/modification
+                if (propName === 'angleDeg') finalValue = selectedComponent.angleRad;
+                else if (propName === 'transmissionAxisAngleDeg') finalValue = selectedComponent.transmissionAxisRad;
+                else if (propName === 'fastAxisAngleDeg') finalValue = selectedComponent.fastAxisRad;
+                else if (propName === 'outputAngleDeg' && selectedComponent instanceof OpticalFiber) finalValue = selectedComponent.outputAngleRad;
+                else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) finalValue = selectedComponent.outputPos?.clone();
+                else finalValue = selectedComponent[propName];
+                if (finalValue instanceof Vector) finalValue = finalValue.clone();
+            } catch { finalValue = newValue; }
+
+            // Compare initial value (startValueForOngoingAction) with final value
+            let valueChanged = false;
+            if (typeof startValueForOngoingAction === 'number' && typeof finalValue === 'number' && !isNaN(startValueForOngoingAction) && !isNaN(finalValue)) { valueChanged = Math.abs(startValueForOngoingAction - finalValue) > 1e-6; }
+            else if (startValueForOngoingAction instanceof Vector && finalValue instanceof Vector) { valueChanged = !startValueForOngoingAction.equals(finalValue, 1e-4); }
+            else { valueChanged = startValueForOngoingAction !== finalValue; }
+
+            if (valueChanged) {
+                if (isFinalChange) console.log(`属性 ${propName} 最终更改: ${JSON.stringify(startValueForOngoingAction)} -> ${JSON.stringify(finalValue)}`);
+                const commandPropName = (propName === 'outputAngleDeg') ? 'outputAngleRad' : propName;
+                historyManager.addCommand(new SetPropertyCommand(selectedComponent, commandPropName, startValueForOngoingAction, finalValue));
+                updateUndoRedoUI();
+                if (isFinalChange) console.log(`添加 Property Change (${propName}) 命令 (Final)`);
+                // sceneModified = true; // Should be set by setProperty or above
+            } else {
+                if (isFinalChange) console.log(`属性 ${propName} 未发生显著变化 (Final)，不添加命令`);
+            }
+
+            ongoingActionState = null; // Clear ongoing state after final change
+            updateInspector(); // Refresh inspector after final change
+        } // --- End of isFinalChange block ---
+
     } catch (e) {
-        console.error(`Error setting property ${propName}:`, e);
-        // Optionally revert UI on error
-        if (forceUpdate) updateInspector();
+        console.error(`Error in setProperty/history for ${propName}:`, e);
+        if (isFinalChange) updateInspector(); // Revert UI on error
+        ongoingActionState = null; // Clear state on error
     }
+    // --- End Property Set & History ---
 }
-
-
+// --- END OF REPLACEMENT for handlePropertyChange ---
 
 
 // --- Update User Interface (Top Right) ---
@@ -1505,138 +1618,147 @@ function getMousePos(canvasElement, event) {
 }
 // --- END OF REPLACEMENT ---
 
+// --- REPLACEMENT for handleMouseDown (V4 - Undo/Redo Start Logic Refined) ---
 function handleMouseDown(event) {
 
-    // --- Add this block inside handleMouseDown, BEFORE processing left-click ---
-    if (event.button === 1) { // Button 1 is usually the middle mouse button
-        event.preventDefault(); // Prevent default middle-click actions (like auto-scroll)
+    // --- Middle-click panning start ---
+    if (event.button === 1) {
+        event.preventDefault();
         isPanning = true;
-        lastPanMousePos = new Vector(event.clientX, event.clientY); // Use clientX/Y for panning delta
-        canvas.style.cursor = 'grabbing'; // Change cursor to indicate panning
-        return; // Stop processing other mousedown logic if panning starts
+        lastPanMousePos = new Vector(event.clientX, event.clientY);
+        canvas.style.cursor = 'grabbing';
+        ongoingActionState = null; // Ensure panning doesn't interfere
+        return;
     }
     // --- End of middle-click panning start ---
-
-    // The existing left-click logic (if event.button === 0) follows...
-
 
     if (event.button !== 0) return; // Only main button
     mouseIsDown = true;
     mousePos = getMousePos(canvas, event);
     isDragging = false;
     draggingComponent = null;
-    dragStartMousePos = mousePos.clone(); // Store start position
+    dragStartMousePos = mousePos.clone();
+    ongoingActionState = null; // Clear any previous ongoing action state
 
     let clickedComponent = null;
     let clickedAngleHandle = false;
+    let clickedFiberOutputPos = false;
+    let clickedFiberOutputAngle = false;
 
     // --- Determine what was clicked ---
+    // 1. Check handles of the CURRENTLY selected component FIRST
+    if (selectedComponent) {
+        if (selectedComponent.isPointOnAngleHandle && selectedComponent.isPointOnAngleHandle(mousePos)) {
+            clickedComponent = selectedComponent;
+            clickedAngleHandle = true;
+        } else if (selectedComponent instanceof OpticalFiber) {
+            if (selectedComponent._isPointOnOutputAngleHandle && selectedComponent._isPointOnOutputAngleHandle(mousePos)) {
+                clickedComponent = selectedComponent;
+                clickedFiberOutputAngle = true; // Specific flag
+            } else if (selectedComponent.outputPos && mousePos.distanceSquaredTo(selectedComponent.outputPos) <= 8 * 8) {
+                clickedComponent = selectedComponent;
+                clickedFiberOutputPos = true; // Specific flag
+            }
+        }
+    }
 
-    // 1. Check if the angle handle of the CURRENTLY selected component was clicked FIRST
-    //    This ensures handles remain clickable even if overlapping other components.
-    if (selectedComponent && selectedComponent.isPointOnAngleHandle(mousePos)) {
-        clickedComponent = selectedComponent;
-        clickedAngleHandle = true;
-        console.log("Clicked angle handle of selected component:", selectedComponent.label);
-    } else {
-        // 2. If handle wasn't clicked, find ALL component bodies under the mouse cursor
+    // 2. If no selected handle hit, find component bodies/points under mouse
+    if (!clickedComponent) {
         const componentsUnderMouse = [];
         for (let i = components.length - 1; i >= 0; i--) {
             const comp = components[i];
             try {
-                // Use the body check directly, ignore angle handle here for finding overlaps
                 if (comp._containsPointBody(mousePos)) {
-                    componentsUnderMouse.push(comp);
+                    if (!componentsUnderMouse.includes(comp)) componentsUnderMouse.push(comp);
                 }
-            } catch (e) { console.error(`Error in _containsPointBody for ${comp?.label}:`, e); }
+                // Check fiber output point separately if not body hit
+                if (comp instanceof OpticalFiber && comp.outputPos && mousePos.distanceSquaredTo(comp.outputPos) <= 8 * 8) {
+                    if (!componentsUnderMouse.includes(comp)) componentsUnderMouse.push(comp);
+                }
+            } catch (e) { console.error(`Error checking containsPoint for ${comp?.label}:`, e); }
         }
-        // Debug log removed for brevity, uncomment if needed:
-        // console.log(`Components under mouse: ${componentsUnderMouse.map(c => c.label).join(', ')}`);
 
-        // 3. Prioritize which component was "really" clicked among overlaps
-        if (componentsUnderMouse.length > 0) { // Check if any components were found
-            if (componentsUnderMouse.length === 1) {
-                // Only one component found, this is the one clicked
-                clickedComponent = componentsUnderMouse[0];
-            } else {
-                // Multiple components overlap - Prioritization logic:
-                // a) Prioritize non-DielectricBlock/non-Screen components ("smaller" items)
-                //    Find the first non-block/screen item in the list (list is visually top->bottom)
-                clickedComponent = componentsUnderMouse.find(comp =>
-                    !(comp instanceof DielectricBlock) && !(comp instanceof Screen) // Add other large area components if needed
-                );
+        // Prioritize which component was clicked
+        if (componentsUnderMouse.length > 0) {
+            clickedComponent = componentsUnderMouse.find(comp =>
+                !(comp instanceof DielectricBlock) && !(comp instanceof Screen)
+            ) || componentsUnderMouse[0]; // Pick first non-large, or topmost if only large
 
-                // b) If only Blocks/Screens overlap (or no "smaller" item found), pick the topmost one visually
-                //    (which is the first one in componentsUnderMouse because the loop went backwards)
-                if (!clickedComponent) {
-                    clickedComponent = componentsUnderMouse[0];
+            // Now check if the click on this prioritized component was actually on a handle
+            if (clickedComponent === selectedComponent) { // Handles only interactive if selected usually
+                if (clickedComponent.isPointOnAngleHandle && clickedComponent.isPointOnAngleHandle(mousePos)) {
+                    clickedAngleHandle = true;
+                } else if (clickedComponent instanceof OpticalFiber) {
+                    if (clickedComponent._isPointOnOutputAngleHandle && clickedComponent._isPointOnOutputAngleHandle(mousePos)) {
+                        clickedFiberOutputAngle = true;
+                    } else if (clickedComponent.outputPos && mousePos.distanceSquaredTo(clickedComponent.outputPos) <= 8 * 8) {
+                        clickedFiberOutputPos = true; // Click on output position point
+                    }
                 }
-                // Debug log removed for brevity, uncomment if needed:
-                // console.log("Clicked overlapping area, prioritized:", clickedComponent.label);
+            } else if (clickedComponent instanceof OpticalFiber && clickedComponent.outputPos && mousePos.distanceSquaredTo(clickedComponent.outputPos) <= 8 * 8) {
+                // If clicking directly on the output pos point of a non-selected fiber
+                clickedFiberOutputPos = true;
             }
-        } // End of the if (componentsUnderMouse.length > 0) block for prioritization
-
-        // 4. After determining the 'clickedComponent', check if its angle handle was clicked
-        //    This handles the case where the prioritized component's handle overlaps its own body or another component.
-        //    We only check if the component is *already* selected, as handles are usually only interactive then.
-        if (clickedComponent && clickedComponent === selectedComponent && clickedComponent.isPointOnAngleHandle(mousePos)) {
-            clickedAngleHandle = true;
-            // Debug log removed for brevity, uncomment if needed:
-            // console.log("Clicked angle handle of prioritized component:", clickedComponent.label);
         }
-
-    } // End of finding clicked component logic (step 1 vs steps 2-4)
+    } // End finding clicked component
 
     // --- Process Click Result ---
-
-    if (clickedComponent) { // A component body or handle was determined to be clicked
-        // Select the clicked component if it's not already selected
+    if (clickedComponent) {
         if (selectedComponent !== clickedComponent) {
-            if (selectedComponent) selectedComponent.selected = false; // Deselect previous
+            if (selectedComponent) selectedComponent.selected = false;
             selectedComponent = clickedComponent;
             selectedComponent.selected = true;
-            updateInspector(); // Update inspector for the newly selected component
-            // if (onlyShowSelectedSourceArrow) arrowAnimationStates.clear(); // Clear arrows if filter active and deselecting
-            // if (onlyShowSelectedSourceArrow) resetAllArrowDistances();
-            // Debug log removed for brevity, uncomment if needed:
-            // console.log("Selected component:", selectedComponent.label);
-        }
-
-        // Start dragging (either angle or position)
-        draggingComponent = selectedComponent; // Drag the one that is now selected
-        draggingComponent.startDrag(mousePos); // startDrag method checks internally if it's angle or body drag based on mousePos
-        isDragging = true;
-        canvas.style.cursor = 'grabbing';
-
-        // Prevent adding new component if dragging existing one
-        componentToAdd = null;
-        clearToolbarSelection();
-
-    } else { // Clicked empty space (no component body or selected handle was clicked)
-
-        // 1. Deselect current component if one was selected
-        // Inside handleMouseDown -> else (Clicked empty space)
-        if (selectedComponent) {
-            console.log("Clicked empty space, deselecting:", selectedComponent.label);
-            // Ensure any specific handle state is cleared on deselect
-            if (selectedComponent instanceof OpticalFiber) { // Check if it's a fiber
-                selectedComponent.selectedHandle = null;
-                selectedComponent.endDrag(); // Call endDrag too for safety
-            }
-            selectedComponent.selected = false;
-            selectedComponent = null;
             updateInspector();
         }
 
-        // 2. If a tool is active from the toolbar, place the new component
+        // Start dragging
+        draggingComponent = selectedComponent;
+        // Let startDrag determine the specific drag type internally
+        draggingComponent.startDrag(mousePos); // This might set dragging, isDraggingAngle, draggingOutput, draggingOutputAngle on the component
+
+        // --- Record initial state for Undo/Redo based on determined drag type ---
+        if (draggingComponent.dragging) { // Main body position drag
+            ongoingActionState = { type: 'move', component: draggingComponent, startValue: draggingComponent.pos.clone() };
+            console.log("开始 Move 操作记录, 起始:", ongoingActionState.startValue);
+        } else if (draggingComponent.isDraggingAngle) { // Main angle handle drag
+            ongoingActionState = { type: 'rotate', component: draggingComponent, startValue: draggingComponent.angleRad };
+            console.log("开始 Rotate 操作记录, 起始:", ongoingActionState.startValue);
+        } else if (draggingComponent instanceof OpticalFiber) { // Check fiber specific drags
+            if (draggingComponent.draggingOutput) {
+                ongoingActionState = { type: 'move_fiber_output', component: draggingComponent, startValue: draggingComponent.outputPos.clone() };
+                console.log("开始 Fiber Output Move 操作记录, 起始:", ongoingActionState.startValue);
+            } else if (draggingComponent.draggingOutputAngle) {
+                ongoingActionState = { type: 'rotate_fiber_output', component: draggingComponent, startValue: draggingComponent.outputAngleRad };
+                console.log("开始 Fiber Output Rotate 操作记录, 起始:", ongoingActionState.startValue);
+            } else {
+                ongoingActionState = null; // Should be impossible if startDrag worked correctly
+            }
+        } else {
+            ongoingActionState = null; // Not a drag type we track for history
+        }
+        // --- End Recording Initial State ---
+
+        isDragging = true; // Set global dragging flag
+        canvas.style.cursor = 'grabbing';
+        componentToAdd = null;
+        clearToolbarSelection();
+
+    } else { // Clicked empty space
+        if (selectedComponent) {
+            console.log("Clicked empty space, deselecting:", selectedComponent.label);
+            if (selectedComponent instanceof OpticalFiber) selectedComponent.endDrag();
+            selectedComponent.selected = false;
+            selectedComponent = null;
+            updateInspector();
+            ongoingActionState = null;
+        }
+
         if (componentToAdd) {
-            // Debug log removed for brevity, uncomment if needed:
-            // console.log(`Adding ${componentToAdd} at`, mousePos.x.toFixed(1), mousePos.y.toFixed(1));
             let newComp = null;
             try {
                 const compPos = mousePos.clone();
-                // Use switch statement to create the component instance
-                switch (componentToAdd) {
+                // --- Component Creation Switch ---
+                switch (componentToAdd) { // (Keep list complete)
                     case 'LaserSource': newComp = new LaserSource(compPos); break;
                     case 'FanSource': newComp = new FanSource(compPos); break;
                     case 'LineSource': newComp = new LineSource(compPos); break;
@@ -1644,204 +1766,325 @@ function handleMouseDown(event) {
                     case 'SphericalMirror': newComp = new SphericalMirror(compPos); break;
                     case 'ParabolicMirror': newComp = new ParabolicMirror(compPos); break;
                     case 'Screen': newComp = new Screen(compPos); break;
-                    case 'ThinLens':
-                        newComp = new ThinLens(compPos); // Uses constructor defaults
-                        break;
+                    case 'ThinLens': newComp = new ThinLens(compPos); break;
                     case 'Aperture': newComp = new Aperture(compPos); break;
                     case 'Polarizer': newComp = new Polarizer(compPos); break;
                     case 'BeamSplitter': newComp = new BeamSplitter(compPos); break;
                     case 'DielectricBlock': newComp = new DielectricBlock(compPos); break;
                     case 'Photodiode': newComp = new Photodiode(compPos); break;
-                    case 'OpticalFiber':
-                        newComp = new OpticalFiber(compPos); // pos is input, output calculated internally
-                        break;
-                    case 'Prism':
-                        newComp = new Prism(compPos); // Create a default Prism
-                        break;
-                    case 'WhiteLightSource':
-                        newComp = new WhiteLightSource(compPos);
-                        break;
-                    case 'DiffractionGrating':
-                        newComp = new DiffractionGrating(compPos);
-                        break;
-                    case 'HalfWavePlate':
-                        newComp = new HalfWavePlate(compPos);
-                        break;
-                    case 'QuarterWavePlate':
-                        newComp = new QuarterWavePlate(compPos);
-                        break;
-                    case 'AcoustoOpticModulator':
-                        newComp = new AcoustoOpticModulator(compPos);
-                        break;
-                    case 'ConcaveMirror':
-                        // Create a SphericalMirror with a default positive radius (concave)
-                        newComp = new SphericalMirror(compPos, 200, 90, 0); // Default R=200, 90deg arc, facing right
-                        break;
-                    case 'ConvexMirror':
-                        // Create a SphericalMirror with a default negative radius (convex)
-                        newComp = new SphericalMirror(compPos, -200, 90, 0); // Default R=-200, 90deg arc, facing right
-                        break;
-                    case 'ParabolicMirrorToolbar': // Use the button's data-type here
-                        // Create a ParabolicMirror
-                        newComp = new ParabolicMirror(compPos, 100, 100, 0); // Default f=100, diameter=100, facing right
-                        break;
-                    default: console.warn("Unknown component type to add:", componentToAdd);
+                    case 'OpticalFiber': newComp = new OpticalFiber(compPos); break;
+                    case 'Prism': newComp = new Prism(compPos); break;
+                    case 'WhiteLightSource': newComp = new WhiteLightSource(compPos); break;
+                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos); break;
+                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos); break;
+                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos); break;
+                    case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos); break;
+                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 0); break;
+                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 0); break;
+                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0); break;
+                    default: console.warn("Unknown component type:", componentToAdd);
                 }
+                // --- End Component Switch ---
             } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
 
             if (newComp) {
                 components.push(newComp);
-                selectedComponent = newComp; // Select the newly added component
+                // --- Add Command for Add Component ---
+                historyManager.addCommand(new AddComponentCommand(newComp, components));
+                updateUndoRedoUI();
+                // --- End Add Command ---
+                selectedComponent = newComp;
                 selectedComponent.selected = true;
                 updateInspector();
-                needsRetrace = true; // Need to retrace after adding
+                needsRetrace = true;
                 sceneModified = true;
-                ;
-                // Debug log removed for brevity, uncomment if needed:
-                // console.log("Added and selected:", newComp.label);
             }
-            // Deactivate tool after placement attempt
             componentToAdd = null;
             clearToolbarSelection();
         }
-    } // End processing click result (component clicked vs empty space)
+    } // End processing click result
+}
+// --- END OF REPLACEMENT for handleMouseDown ---
 
 
-
-} // End handleMouseDown function
-
-// --- REPLACEMENT for handleMouseMove (with Cursor Update Logic) ---
+// --- REPLACEMENT for handleMouseMove (V4 - No History Added Here, Includes Snapping) ---
 function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
 
-    // --- Panning Cursor ---
+    // --- Panning Cursor & Logic ---
     if (isPanning) {
-        // Grabbing cursor is already set in handleMouseDown for panning
-        // Process panning movement
         if (lastPanMousePos) {
             const currentPanClientPos = new Vector(event.clientX, event.clientY);
             const delta = currentPanClientPos.subtract(lastPanMousePos);
             cameraOffset = cameraOffset.add(delta);
             lastPanMousePos = currentPanClientPos;
-            needsRetrace = true;
+            needsRetrace = true; // Panning requires redraw (affects view)
         }
-        // Make sure other cursor logic doesn't override grabbing during pan
         if (canvas.style.cursor !== 'grabbing') {
             canvas.style.cursor = 'grabbing';
         }
         return; // Stop further processing during pan
     }
 
-    // --- Component Dragging Cursor & Logic ---
+    // --- Component Dragging Logic ---
     if (isDragging && draggingComponent) {
-        canvas.style.cursor = 'grabbing'; // Use grabbing cursor while dragging
+        canvas.style.cursor = 'grabbing';
         try {
+            // Let the component update its internal state based on mouse first
             draggingComponent.drag(currentMousePos);
-            sceneModified = true;
-            ;
+
+            // --- Alignment Guide Detection & Snapping ---
+            activeGuides = []; // Clear previous guides
+            let snapX = null;
+            let snapY = null;
+            let minSnapDistX = SNAP_THRESHOLD;
+            let minSnapDistY = SNAP_THRESHOLD;
+            let guidesToShow = []; // Store all potential guides first
+
+            if (draggingComponent.pos instanceof Vector) {
+                const currentCenter = draggingComponent.pos; // Use position *before* potential snapping for detection
+
+                components.forEach(otherComp => {
+                    if (otherComp !== draggingComponent && otherComp.pos instanceof Vector && !isNaN(otherComp.pos.x)) {
+                        const otherCenter = otherComp.pos;
+                        const dx = Math.abs(currentCenter.x - otherCenter.x);
+                        const dy = Math.abs(currentCenter.y - otherCenter.y);
+
+                        // Check Vertical Alignment (X coordinates)
+                        if (dx < SNAP_THRESHOLD) {
+                            // Store guide info regardless of snapping first
+                            guidesToShow.push({ type: 'vertical', x: otherCenter.x, y1: Math.min(currentCenter.y, otherCenter.y) - 20, y2: Math.max(currentCenter.y, otherCenter.y) + 20 });
+                            // Check if this is the closest snap target so far
+                            if (dx < minSnapDistX) {
+                                minSnapDistX = dx;
+                                snapX = otherCenter.x; // Potential snap target
+                            }
+                        }
+
+                        // Check Horizontal Alignment (Y coordinates)
+                        if (dy < SNAP_THRESHOLD) {
+                            guidesToShow.push({ type: 'horizontal', y: otherCenter.y, x1: Math.min(currentCenter.x, otherCenter.x) - 20, x2: Math.max(currentCenter.x, otherCenter.x) + 20 });
+                            if (dy < minSnapDistY) {
+                                minSnapDistY = dy;
+                                snapY = otherCenter.y; // Potential snap target
+                            }
+                        }
+                    }
+                });
+
+                // --- Apply Snapping ---
+                let snapped = false;
+                const originalX = draggingComponent.pos.x;
+                const originalY = draggingComponent.pos.y;
+                let newPosX = originalX; // Start with current position
+                let newPosY = originalY;
+
+                if (snapX !== null) { // Snap X if a target was found within threshold
+                    newPosX = snapX;
+                    snapped = true;
+                    console.log(`Snapping X to ${snapX.toFixed(1)} (dist: ${minSnapDistX.toFixed(1)})`); // Debug
+                }
+                if (snapY !== null) { // Snap Y if a target was found within threshold
+                    newPosY = snapY;
+                    snapped = true;
+                    console.log(`Snapping Y to ${snapY.toFixed(1)} (dist: ${minSnapDistY.toFixed(1)})`); // Debug
+                }
+
+                // Apply the snapped position *only if* snapping occurred
+                if (snapped) {
+                    draggingComponent.pos.set(newPosX, newPosY); // Directly set the snapped position
+
+                    // Check if the position actually changed after setting
+                    if (Math.abs(newPosX - originalX) > 1e-6 || Math.abs(newPosY - originalY) > 1e-6) {
+                        // Update geometry only if position changed
+                        if (typeof draggingComponent.onPositionChanged === 'function') {
+                            try { draggingComponent.onPositionChanged(); } catch (e) { console.error("Error in onPositionChanged after snap:", e); }
+                        }
+                        if (typeof draggingComponent._updateGeometry === 'function') {
+                            try { draggingComponent._updateGeometry(); } catch (e) { console.error("Error in _updateGeometry after snap:", e); }
+                        }
+                    }
+
+                    // Filter guides to show only the active snapped ones
+                    activeGuides = guidesToShow.filter(guide =>
+                        (snapX !== null && guide.type === 'vertical' && Math.abs(guide.x - newPosX) < 1e-6) ||
+                        (snapY !== null && guide.type === 'horizontal' && Math.abs(guide.y - newPosY) < 1e-6)
+                    );
+                } else {
+                    // If no snapping occurred, show all potential guides within threshold
+                    activeGuides = guidesToShow;
+                }
+
+            } // End if(draggingComponent.pos instanceof Vector)
+            // --- End Alignment & Snapping ---
+
+            needsRetrace = true; // Dragging always needs retrace
+            sceneModified = true; // Mark as modified
         } catch (e) {
             console.error(`Error during drag for ${draggingComponent?.label}:`, e);
-            isDragging = false; draggingComponent.endDrag(); draggingComponent = null;
-            canvas.style.cursor = 'default'; // Revert cursor on error
+            // Reset state on error
+            isDragging = false;
+            if (draggingComponent.endDrag) draggingComponent.endDrag();
+            draggingComponent = null;
+            ongoingActionState = null;
+            activeGuides = [];
+            canvas.style.cursor = 'default';
         }
         return; // Stop further cursor checks if dragging
-    }
+    } // End if isDragging
 
     // --- Hover Cursor Logic (only if not panning or dragging) ---
-    let newCursor = 'default'; // Start with default cursor
-
+    let newCursor = 'default';
     if (componentToAdd) {
-        // If a tool is selected for placement
-        newCursor = 'pointer';
+        newCursor = 'crosshair';
     } else {
-        // Check hover state on components
         let hoveredComponent = null;
-        let hoveredAngleHandle = false;
+        let hoverType = 'body';
 
-        // Check angle handle of the *selected* component first
-        if (selectedComponent && selectedComponent.isPointOnAngleHandle(currentMousePos)) {
-            hoveredComponent = selectedComponent;
-            hoveredAngleHandle = true;
-            newCursor = 'pointer'; // Or 'rotate' if you defined a custom one
-        } else {
-            // Check component bodies (iterate top-down visually)
+        // Check handles of selected component first
+        if (selectedComponent) {
+            if (selectedComponent.isPointOnAngleHandle && selectedComponent.isPointOnAngleHandle(currentMousePos)) {
+                hoveredComponent = selectedComponent; hoverType = 'angle';
+            } else if (selectedComponent instanceof OpticalFiber && selectedComponent._isPointOnOutputAngleHandle && selectedComponent._isPointOnOutputAngleHandle(currentMousePos)) {
+                hoveredComponent = selectedComponent; hoverType = 'output_angle';
+            } else if (selectedComponent instanceof OpticalFiber && selectedComponent.outputPos && currentMousePos.distanceSquaredTo(selectedComponent.outputPos) <= 8 * 8) {
+                hoveredComponent = selectedComponent; hoverType = 'output_pos';
+            }
+        }
+
+        // If no selected handle hit, check component bodies/points
+        if (!hoveredComponent) {
             for (let i = components.length - 1; i >= 0; i--) {
                 const comp = components[i];
                 try {
-                    // Check body first
-                    if (comp._containsPointBody(currentMousePos)) {
-                        hoveredComponent = comp;
-                        // If it's the selected component, check its angle handle again (safety)
-                        if (comp === selectedComponent && comp.isPointOnAngleHandle(currentMousePos)) {
-                            hoveredAngleHandle = true;
+                    if (comp._containsPointBody && comp._containsPointBody(currentMousePos)) {
+                        hoveredComponent = comp; hoverType = 'body';
+                        // Re-check handles if hovering over selected component's body
+                        if (comp === selectedComponent) {
+                            if (comp.isPointOnAngleHandle && comp.isPointOnAngleHandle(currentMousePos)) hoverType = 'angle';
+                            else if (comp instanceof OpticalFiber && comp._isPointOnOutputAngleHandle && comp._isPointOnOutputAngleHandle(currentMousePos)) hoverType = 'output_angle';
                         }
-                        break; // Found the topmost component under the mouse
+                        break;
                     }
-                    // Check other interactive parts (like fiber output handle)
-                    if (comp instanceof OpticalFiber && comp.selected) {
-                        if (comp._isPointOnOutputAngleHandle(currentMousePos)) {
-                            hoveredComponent = comp;
-                            hoveredAngleHandle = true; // Treat it like an angle handle
-                            break;
-                        }
-                        const handleRadius = 8; // Match radius used in containsPoint/startDrag
-                        if (comp.outputPos && currentMousePos.distanceSquaredTo(comp.outputPos) <= handleRadius * handleRadius) {
-                            hoveredComponent = comp; // Hovering over fiber output point
-                            hoveredAngleHandle = false; // It's a position handle
-                            break;
-                        }
+                    if (comp instanceof OpticalFiber && comp.outputPos && currentMousePos.distanceSquaredTo(comp.outputPos) <= 8 * 8) {
+                        hoveredComponent = comp; hoverType = 'output_pos'; break;
                     }
-
-                } catch (e) { console.error(`Error checking hover for ${comp?.label}:`, e); }
+                } catch (e) { /* Ignore errors during hover check */ }
             }
         }
 
-        // Determine cursor based on hover state
+        // Determine cursor
         if (hoveredComponent) {
-            if (hoveredAngleHandle) {
-                newCursor = 'pointer'; // Or 'rotate'
-            } else {
-                newCursor = 'move'; // Or 'grab'
-            }
+            if (hoverType === 'angle' || hoverType === 'output_angle') newCursor = 'pointer'; // Or rotate
+            else if (hoverType === 'output_pos') newCursor = 'move';
+            else newCursor = 'move'; // Or grab
         } else {
-            newCursor = 'default'; // Hovering over empty space
+            newCursor = 'default';
         }
     }
 
-    // Apply the new cursor if it changed
     if (canvas.style.cursor !== newCursor) {
         canvas.style.cursor = newCursor;
     }
-
-    // Placement preview update is handled in draw() based on mousePos
+    // --- End Hover Logic ---
 }
-// --- END OF REPLACEMENT ---
+// --- END OF REPLACEMENT for handleMouseMove ---
 
+
+// --- REPLACEMENT for handleMouseUp (V4 - Undo/Redo End Logic Refined) ---
 function handleMouseUp(event) {
 
-    // --- Add this block inside handleMouseUp, BEFORE processing left-click release ---
-    if (event.button === 1 && isPanning) { // Middle button release while panning
+    // --- Middle button release while panning ---
+    if (event.button === 1 && isPanning) {
         isPanning = false;
         lastPanMousePos = null;
-        canvas.style.cursor = 'default'; // Restore default cursor
-        console.log("Panning finished. Final Offset:", cameraOffset); // Debug log
-        return; // Stop processing other mouseup logic
+        canvas.style.cursor = 'default';
+        ongoingActionState = null;
+        return;
     }
     // --- End of middle-click panning stop ---
 
-    // The existing left-click release logic follows...
-
-    if (event.button !== 0) return;
+    if (event.button !== 0) return; // Only main button release
     mouseIsDown = false;
+    let dragJustEnded = false; // Flag to track if we processed a drag end
 
     if (isDragging && draggingComponent) {
-        try { draggingComponent.endDrag(); } catch (e) { console.error("Error in endDrag:", e); }
-        // Don't reset draggingComponent here, keep it selected
-    }
+        dragJustEnded = true; // Mark that a drag operation finished
+        console.log(`Drag ended for ${draggingComponent.label}. Current action state:`, ongoingActionState);
+        try {
+            // --- Finalize Action and Add Command ---
+            // Check if we were tracking an action for this component
+            if (ongoingActionState && ongoingActionState.component === draggingComponent) {
+                let commandToAdd = null; // Prepare command variable
+
+                // Determine final state and create command based on action type
+                if (ongoingActionState.type === 'move') {
+                    const finalPos = draggingComponent.pos.clone();
+                    if (!finalPos.equals(ongoingActionState.startValue, 1e-3)) {
+                        commandToAdd = new MoveComponentCommand(draggingComponent, ongoingActionState.startValue, finalPos);
+                        console.log("准备添加 Move 命令 (拖动结束)");
+                    } else { console.log("Move 未发生显著变化，不添加命令"); }
+                } else if (ongoingActionState.type === 'rotate') {
+                    const finalAngle = draggingComponent.angleRad;
+                    if (Math.abs(finalAngle - ongoingActionState.startValue) > 1e-4) {
+                        commandToAdd = new RotateComponentCommand(draggingComponent, ongoingActionState.startValue, finalAngle);
+                        console.log("准备添加 Rotate 命令 (角度拖动结束)");
+                    } else { console.log("Rotate 未发生显著变化，不添加命令"); }
+                } else if (ongoingActionState.type === 'move_fiber_output' && draggingComponent instanceof OpticalFiber) {
+                    const finalOutputPos = draggingComponent.outputPos.clone();
+                    if (!finalOutputPos.equals(ongoingActionState.startValue, 1e-3)) {
+                        // Adapt SetProperty for fiber output position change
+                        commandToAdd = new SetPropertyCommand(draggingComponent, 'outputPos', ongoingActionState.startValue, finalOutputPos);
+                        console.log("准备添加 Fiber Output Move 命令");
+                    } else { console.log("Fiber Output Move 未发生显著变化，不添加命令"); }
+                } else if (ongoingActionState.type === 'rotate_fiber_output' && draggingComponent instanceof OpticalFiber) {
+                    const finalOutputAngle = draggingComponent.outputAngleRad;
+                    if (Math.abs(finalOutputAngle - ongoingActionState.startValue) > 1e-4) {
+                        // Adapt SetProperty for fiber output angle change
+                        commandToAdd = new SetPropertyCommand(draggingComponent, 'outputAngleRad', ongoingActionState.startValue, finalOutputAngle);
+                        console.log("准备添加 Fiber Output Rotate 命令");
+                    } else { console.log("Fiber Output Rotate 未发生显著变化，不添加命令"); }
+                }
+
+                // Add the command if one was created
+                if (commandToAdd) {
+                    historyManager.addCommand(commandToAdd);
+                    updateUndoRedoUI();
+                    // sceneModified was likely set during drag, ensure it's true
+                    sceneModified = true;
+                }
+            } else {
+                // This case might happen if mouseup occurs without a proper mousedown drag start for history
+                console.warn("Drag ended but no matching ongoing action state found.");
+            }
+            // --- End Finalize Action ---
+
+            // Call endDrag after potentially adding command
+            draggingComponent.endDrag();
+
+        } catch (e) {
+            console.error("Error in endDrag or command adding:", e);
+            if (draggingComponent && draggingComponent.endDrag) draggingComponent.endDrag();
+        }
+    } // End if isDragging
+
+    // Clear dragging state AFTER processing the potential command
     isDragging = false;
-    canvas.style.cursor = 'default';
+    draggingComponent = null; // Keep component selected, but stop tracking drag state
+    ongoingActionState = null; // Clear action state tracker
+
+    // Clear alignment guides if drag just ended
+    if (dragJustEnded && activeGuides.length > 0) {
+        activeGuides = [];
+        needsRetrace = true; // Need redraw to remove guides
+    }
+
+    // Restore default cursor if not hovering over something interactive
+    handleMouseMove(event); // Re-evaluate cursor based on final position
 }
+// --- END OF REPLACEMENT for handleMouseUp ---
+
 
 // --- REPLACEMENT for handleMouseLeave function ---
 function handleMouseLeave(event) {
@@ -1872,160 +2115,210 @@ function handleMouseLeave(event) {
 // --- END OF REPLACEMENT ---
 // --- End Corrected handleMouseLeave ---
 
-// --- New function for Handling Mouse Wheel Zoom ---
+// --- REPLACEMENT for handleWheelZoom (V4 - Undo/Redo for Rotation Refined) ---
 function handleWheelZoom(event) {
     event.preventDefault(); // Prevent default page scrolling
-    // --- Check if rotating selected component instead of zooming ---
-    if (selectedComponent && mouseIsDown === false) { // Only rotate if mouse button is NOT down and a component is selected
 
-        // Optional: Check if mouse is roughly over the selected component's bounding box
-        // This prevents accidental rotation when scrolling over empty space while component is selected far away.
+    // --- Component Rotation Logic ---
+    if (selectedComponent && mouseIsDown === false) {
         const bounds = selectedComponent.getBoundingBox();
-        const currentMousePos = getMousePos(canvas, event); // Get logical mouse pos
+        const currentMousePos = getMousePos(canvas, event);
         let mouseOverComponent = false;
         if (bounds && currentMousePos) {
             mouseOverComponent = currentMousePos.x >= bounds.x && currentMousePos.x <= bounds.x + bounds.width &&
                 currentMousePos.y >= bounds.y && currentMousePos.y <= bounds.y + bounds.height;
         }
-        // --- End Optional Check ---
 
-        // --- CONDITION TO ROTATE: selectedComponent exists AND (mouse is over it OR always rotate if selected) ---
-        if (selectedComponent && mouseOverComponent) {// Now checks for both selection AND mouse hover
-
-            const scrollDirection = event.deltaY < 0 ? 1 : -1; // +1 for scroll up/forward, -1 for scroll down/backward
-
-            // Determine rotation step size
-            const baseRotateStepDeg = 2.0; // Rotate 2 degrees per scroll step normally
-            const fineRotateStepDeg = 0.5; // Rotate 0.5 degrees if Shift is pressed
+        if (mouseOverComponent) { // Rotate only if mouse is over the selected component
+            const scrollDirection = event.deltaY < 0 ? 1 : -1;
+            const baseRotateStepDeg = 2.0;
+            const fineRotateStepDeg = 0.5;
             const angleDeltaDeg = event.shiftKey ? (fineRotateStepDeg * scrollDirection) : (baseRotateStepDeg * scrollDirection);
-
-            // Get current angle and apply delta
-            const currentAngleDeg = selectedComponent.angleRad * (180 / Math.PI);
+            const currentAngleRad = selectedComponent.angleRad; // Record angle BEFORE change
+            const currentAngleDeg = currentAngleRad * (180 / Math.PI);
             const newAngleDeg = currentAngleDeg + angleDeltaDeg;
+            const newAngleRad = newAngleDeg * (Math.PI / 180);
 
-            // Use setProperty to apply the change (handles updates and retrace)
-            // Make sure handlePropertyChange exists and works correctly
+            // Directly set the angleRad property
+            selectedComponent.angleRad = newAngleRad;
+
             try {
-                selectedComponent.setProperty('angleDeg', newAngleDeg);
-                // Optionally, update inspector immediately if needed, though setProperty might trigger retrace anyway
-                // updateInspector();
+                // Manually trigger component updates
+                if (typeof selectedComponent.onAngleChanged === 'function') {
+                    selectedComponent.onAngleChanged();
+                } else if (typeof selectedComponent._updateGeometry === 'function') {
+                    selectedComponent._updateGeometry();
+                }
+                needsRetrace = true;
+                sceneModified = true;
+
+                // --- Add Rotate Command ---
+                // Add a command for each distinct rotation step
+                if (Math.abs(newAngleRad - currentAngleRad) > 1e-4) {
+                    ongoingActionState = null; // Clear other ongoing states
+                    historyManager.addCommand(new RotateComponentCommand(selectedComponent, currentAngleRad, newAngleRad));
+                    updateUndoRedoUI();
+                    console.log("添加 Wheel Rotate 命令 (简化)");
+                }
+                // --- End Add Command ---
+
+                updateInspector(); // Update inspector immediately
+
             } catch (e) {
-                console.error("Error setting angle via scroll:", e);
+                console.error("Error setting angle via scroll or adding command:", e);
+                selectedComponent.angleRad = currentAngleRad; // Revert on error
+                if (typeof selectedComponent.onAngleChanged === 'function') { try { selectedComponent.onAngleChanged(); } catch { } }
+                else if (typeof selectedComponent._updateGeometry === 'function') { try { selectedComponent._updateGeometry(); } catch { } }
             }
 
-            return; // IMPORTANT: Stop further execution (don't zoom the canvas)
+            return; // Stop further execution (don't zoom)
         }
-    }
+    } // --- End Component Rotation ---
 
-    const zoomIntensity = 0.1; // How much to zoom per scroll step
-    const minScale = 0.1;     // Minimum zoom level
-    const maxScale = 10.0;    // Maximum zoom level
-
-    const mousePosBeforeZoom = getMousePos(canvas, event); // Logical coords before zoom
-
-    // Determine zoom direction (positive deltaY means scrolling down/out)
-    const scroll = event.deltaY < 0 ? 1 : -1; // +1 for zoom in, -1 for zoom out
+    // --- Canvas Zooming Logic ---
+    const zoomIntensity = 0.1;
+    const minScale = 0.1;
+    const maxScale = 10.0;
+    const mousePosBeforeZoom = getMousePos(canvas, event);
+    const scroll = event.deltaY < 0 ? 1 : -1;
     const zoomFactor = Math.exp(scroll * zoomIntensity);
-
-    // Calculate new scale, clamped between min/max
     const newScale = Math.max(minScale, Math.min(maxScale, cameraScale * zoomFactor));
-
-    // Calculate the change in scale
-    const scaleChange = newScale / cameraScale;
-
-    // Update the camera scale
     cameraScale = newScale;
-
-    // Adjust camera offset to keep the mouse position fixed relative to the logical content
-    // Formula: newOffsetX = mouseCssX - (mouseLogicalX * newScale)
-    // Formula: newOffsetY = mouseCssY - (mouseLogicalY * newScale)
     const rect = canvas.getBoundingClientRect();
     const mouseCssX = event.clientX - rect.left;
     const mouseCssY = event.clientY - rect.top;
-
     cameraOffset.x = mouseCssX - mousePosBeforeZoom.x * cameraScale;
     cameraOffset.y = mouseCssY - mousePosBeforeZoom.y * cameraScale;
-
-
-    needsRetrace = true; // Zooming might affect ray paths if components move relative to view center? Better safe.
-    // No need to call draw() here, the game loop will handle it.
+    needsRetrace = true;
+    // --- End Canvas Zooming ---
 }
-// --- End of handleWheelZoom function ---
+// --- END OF REPLACEMENT for handleWheelZoom ---
 
 
+// --- REPLACEMENT for handleKeyDown (V4 - Undo/Redo Shortcuts & Corrected 'r' key logic) ---
 function handleKeyDown(event) {
-    // Ignore keydowns if typing in an input field
-    if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT') {
-        return;
+    // Ignore keydowns if typing in an input field or modal is open
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT' || activeElement.tagName === 'TEXTAREA');
+    const isModalVisible = Array.from(document.querySelectorAll('.modal-overlay.visible')).length > 0;
+
+    if (isInputFocused || isModalVisible) {
+        return; // Don't process shortcuts
     }
 
-    // Delete selected component
+    // --- Undo/Redo Shortcuts ---
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const undoPressed = (isMac && event.metaKey && !event.shiftKey && event.key === 'z') || (!isMac && event.ctrlKey && event.key === 'z');
+    const redoPressed = (isMac && event.metaKey && event.shiftKey && event.key === 'z') || (!isMac && event.ctrlKey && event.key === 'y');
+
+    if (undoPressed) {
+        event.preventDefault();
+        if (historyManager.canUndo()) {
+            historyManager.undo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Undo (快捷键)");
+        } return;
+    }
+    if (redoPressed) {
+        event.preventDefault();
+        if (historyManager.canRedo()) {
+            historyManager.redo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Redo (快捷键)");
+        } return;
+    }
+    // --- End Undo/Redo Shortcuts ---
+
+    // --- Delete selected component ---
     if ((event.key === 'Delete' || event.key === 'Backspace') && selectedComponent) {
-        event.preventDefault(); // Prevent browser back navigation on Backspace
+        event.preventDefault();
         deleteComponent(selectedComponent);
-        sceneModified = true;
-        ;
     }
 
-    // Rotate selected component (R key, Shift+R for reverse)
-    if (event.key.toLowerCase() === 'r' && selectedComponent) {
+    // --- Rotate selected component (R key, Shift+R for reverse) ---
+    else if (event.key.toLowerCase() === 'r' && selectedComponent) {
         event.preventDefault();
-        const angleDeltaDeg = event.shiftKey ? -5 : 5; // 5 degrees step
-        const currentAngleDeg = selectedComponent.angleRad * (180 / Math.PI);
-        // Use handlePropertyChange to ensure UI updates correctly if needed
-        handlePropertyChange('angleDeg', currentAngleDeg + angleDeltaDeg, true); // Force update
-        sceneModified = true;
-        ;
-    }
+        const angleDeltaDeg = event.shiftKey ? -5 : 5;
+        const currentAngleRad = selectedComponent.angleRad;
+        const currentAngleDeg = currentAngleRad * (180 / Math.PI);
+        const newAngleDeg = currentAngleDeg + angleDeltaDeg;
+        const newAngleRad = newAngleDeg * (Math.PI / 180);
 
-    // Toggle enabled state for sources (Space key)
-    if (event.code === 'Space' && selectedComponent && selectedComponent.hasOwnProperty('enabled')) {
-        event.preventDefault();
-        // if (onlyShowSelectedSourceArrow) arrowAnimationStates.clear(); // Clear arrows if filter active before delete
-        handlePropertyChange('enabled', !selectedComponent.enabled, true);
-        sceneModified = true;
-        ;
-    }
+        selectedComponent.angleRad = newAngleRad; // Directly set radian value
 
-    // Deselect component (Escape key)
-    if (event.key === 'Escape') {
-        if (selectedComponent) {
-            selectedComponent.selected = false;
-            selectedComponent = null;
-            updateInspector();
-            // if (onlyShowSelectedSourceArrow) arrowAnimationStates.clear(); // Clear arrows if filter active on escape deselect
-            // if (onlyShowSelectedSourceArrow) resetAllArrowDistances();
+        try {
+            // Manually trigger updates
+            if (typeof selectedComponent.onAngleChanged === 'function') selectedComponent.onAngleChanged();
+            else if (typeof selectedComponent._updateGeometry === 'function') selectedComponent._updateGeometry();
+            needsRetrace = true;
+            sceneModified = true;
+
+            // Add Command (discrete action)
+            if (Math.abs(newAngleRad - currentAngleRad) > 1e-4) {
+                ongoingActionState = null; // Clear any other action
+                historyManager.addCommand(new RotateComponentCommand(selectedComponent, currentAngleRad, newAngleRad));
+                updateUndoRedoUI();
+                console.log("添加 Key Rotate 命令");
+            }
+            updateInspector(); // Refresh UI
+
+        } catch (e) {
+            console.error("Error handling 'r' key rotation:", e);
+            selectedComponent.angleRad = currentAngleRad; // Revert on error
+            if (typeof selectedComponent.onAngleChanged === 'function') { try { selectedComponent.onAngleChanged(); } catch { } }
+            else if (typeof selectedComponent._updateGeometry === 'function') { try { selectedComponent._updateGeometry(); } catch { } }
         }
+    } // --- End 'r' key rotation ---
+
+    // --- Toggle enabled state for sources (Space key) ---
+    else if (event.code === 'Space' && selectedComponent && selectedComponent.hasOwnProperty('enabled')) {
+        event.preventDefault();
+        handlePropertyChange('enabled', !selectedComponent.enabled, true); // Use property change handler
+    }
+
+    // --- Deselect component / Cancel tool (Escape key) ---
+    else if (event.key === 'Escape') {
         if (componentToAdd) {
-            componentToAdd = null;
-            clearToolbarSelection();
-            canvas.style.cursor = 'default';
+            componentToAdd = null; clearToolbarSelection(); canvas.style.cursor = 'default'; console.log("Tool cancelled (Escape).");
+        } else if (selectedComponent) {
+            selectedComponent.selected = false; selectedComponent = null; updateInspector(); ongoingActionState = null; console.log("Deselected (Escape).");
         }
     }
 }
+// --- END OF REPLACEMENT for handleKeyDown ---
 
+
+// --- REPLACEMENT for deleteComponent (V3 - Undo/Redo Aware) ---
 function deleteComponent(componentToDelete) {
     if (!componentToDelete) return;
     console.log("Attempting to delete:", componentToDelete.label, componentToDelete.id);
     const index = components.indexOf(componentToDelete);
     if (index > -1) {
-        components.splice(index, 1);
-        sceneModified = true;
-        ;
-        if (selectedComponent === componentToDelete) {
+        const wasSelected = (selectedComponent === componentToDelete);
+
+        // --- Add Command BEFORE actual deletion ---
+        ongoingActionState = null; // <<-- Clear any potential ongoing action state first
+        historyManager.addCommand(new DeleteComponentCommand(componentToDelete, components, index));
+        updateUndoRedoUI();
+        // --- End Add Command ---
+
+        components.splice(index, 1); // Actual deletion
+        sceneModified = true; // Mark modified AFTER command is added
+
+        if (wasSelected) {
             selectedComponent = null;
             updateInspector();
-            // if (onlyShowSelectedSourceArrow) arrowAnimationStates.clear(); // Clear arrows if filter active after delete
         }
         needsRetrace = true;
-        console.log("Component deleted.");
+        console.log("Component deleted and DeleteCommand added.");
+
     } else {
         console.warn("Component to delete not found in array.");
-        if (selectedComponent === componentToDelete) { // Still clear selection if it was selected
-            selectedComponent = null; updateInspector();
+        if (selectedComponent === componentToDelete) { // Cleanup selection if needed
+            selectedComponent = null;
+            updateInspector();
+            ongoingActionState = null;
         }
     }
 }
+// --- END OF REPLACEMENT for deleteComponent ---
+
 
 function clearToolbarSelection() {
     const buttons = toolbar?.querySelectorAll('button[data-type]');
@@ -2443,6 +2736,35 @@ function updateSavedScenesList() {
 // --- END Update Saved Scenes List ---
 
 
+// --- REPLACEMENT for updateUndoRedoUI (V2 - Handles Buttons & Menu Items) ---
+function updateUndoRedoUI() {
+    const undoBtn = document.getElementById('undo-button');
+    const redoBtn = document.getElementById('redo-button');
+    const undoMenuItem = document.getElementById('menu-undo');
+    const redoMenuItem = document.getElementById('menu-redo');
+
+    // Update Undo Button and Menu Item
+    if (historyManager.canUndo()) {
+        if (undoBtn) { undoBtn.classList.remove('disabled'); undoBtn.title = "撤销 (Ctrl+Z)"; }
+        if (undoMenuItem) { undoMenuItem.classList.remove('disabled-link'); }
+    } else {
+        if (undoBtn) { undoBtn.classList.add('disabled'); undoBtn.title = "无法撤销"; }
+        if (undoMenuItem) { undoMenuItem.classList.add('disabled-link'); }
+    }
+
+    // Update Redo Button and Menu Item
+    if (historyManager.canRedo()) {
+        if (redoBtn) { redoBtn.classList.remove('disabled'); redoBtn.title = "重做 (Ctrl+Y)"; }
+        if (redoMenuItem) { redoMenuItem.classList.remove('disabled-link'); }
+    } else {
+        if (redoBtn) { redoBtn.classList.add('disabled'); redoBtn.title = "无法重做"; }
+        if (redoMenuItem) { redoMenuItem.classList.add('disabled-link'); }
+    }
+}
+// --- End of REPLACEMENT for updateUndoRedoUI ---
+
+
+
 // --- NEW Helper to Generate Scene Data Object ---
 // (Extracts logic used by both export and save as)
 function generateSceneDataObject() {
@@ -2851,6 +3173,75 @@ function setupEventListeners() {
         }
     });
 
+
+
+    // 在 Edit Menu 部分
+    document.getElementById('menu-undo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (historyManager.canUndo()) {
+            historyManager.undo();
+            updateUndoRedoUI();
+            needsRetrace = true; // 撤销/重做通常需要重新计算
+            updateInspector(); // 更新检查器以反映状态变化
+            console.log("执行 Undo 操作");
+        }
+    });
+    document.getElementById('menu-redo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (historyManager.canRedo()) {
+            historyManager.redo();
+            updateUndoRedoUI();
+            needsRetrace = true;
+            updateInspector();
+            console.log("执行 Redo 操作");
+        }
+    });
+    // 同时启用菜单项（移除 disabled-link class）
+    document.getElementById('menu-undo')?.classList.remove('disabled-link');
+    document.getElementById('menu-redo')?.classList.remove('disabled-link');
+
+
+    // 在 setupEventListeners 函数中:
+
+    // --- Undo/Redo Buttons (Top Bar) ---
+    document.getElementById('undo-button')?.addEventListener('click', () => {
+        if (historyManager.canUndo()) {
+            historyManager.undo();
+            updateUndoRedoUI();
+            needsRetrace = true;
+            updateInspector(); // Update inspector after undo/redo
+            console.log("执行 Undo (按钮)");
+        }
+    });
+
+    document.getElementById('redo-button')?.addEventListener('click', () => {
+        if (historyManager.canRedo()) {
+            historyManager.redo();
+            updateUndoRedoUI();
+            needsRetrace = true;
+            updateInspector(); // Update inspector after undo/redo
+            console.log("执行 Redo (按钮)");
+        }
+    });
+    // --- End Undo/Redo Buttons ---
+
+    // 保持原来的菜单项监听器，但它们现在是次要的
+    document.getElementById('menu-undo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (historyManager.canUndo()) { // 调用与按钮相同的逻辑
+            historyManager.undo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Undo (菜单)");
+        }
+    });
+    document.getElementById('menu-redo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (historyManager.canRedo()) { // 调用与按钮相同的逻辑
+            historyManager.redo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Redo (菜单)");
+        }
+    });
+    // 移除菜单项的 disabled-link 类（如果之前添加了）
+    document.getElementById('menu-undo')?.classList.remove('disabled-link');
+    document.getElementById('menu-redo')?.classList.remove('disabled-link');
+
     console.log("Event listeners setup complete.");
 }
 // --- END OF REPLACEMENT ---
@@ -3037,7 +3428,7 @@ function hideModeHint() {
     }
 }
 
-// --- REPLACEMENT for initialize function (V3 - New UI) ---
+// --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
     // --- Prevent multiple initializations ---
     if (initialized) {
@@ -3051,35 +3442,13 @@ function initialize() {
     console.log("开始初始化光学实验室...");
     loadSettings(); // Load saved settings first
 
-    // // --- Load First Available Scene from Local Storage at Startup ---
-    // console.log("Checking for saved scenes in localStorage...");
-    // const savedNames = getSavedSceneNames(); // Get list of all saved scenes
-    // let loadedFromStorage = false;
-    // if (savedNames.length > 0) {
-    //     const firstSceneName = savedNames[0]; // Load the first one found (alphabetically)
-    //     console.log(`Attempting to load first saved scene: '${firstSceneName}'`);
-    //     const sceneData = loadSceneDataFromStorage(firstSceneName);
-    //     if (sceneData) {
-    //         if (loadSceneFromData(sceneData)) { // Use the helper to load
-    //             loadedFromStorage = true;
-    //             // sceneModified is set to false inside loadSceneFromData
-    //         } else {
-    //             console.error(`Failed to load components for scene '${firstSceneName}'.`);
-    //         }
-    //     } else {
-    //         console.error(`Failed to load data for scene '${firstSceneName}' despite key existing.`);
-    //     }
-    // } else {
-    //     console.log("No saved scenes found in localStorage.");
-    // }
-    // if (!loadedFromStorage) {
-    //     components = []; // Start empty if nothing loaded
-    // }
-    // // --- End Loading Scene ---
-
     // --- Start with an Empty Scene ---
     console.log("Initializing with an empty scene.");
     components = []; // Always start with no components loaded
+    selectedComponent = null;
+    draggingComponent = null;
+    ongoingActionState = null; // Initialize action state tracker
+    historyManager.clear();   // Clear history on new initialization
     sceneModified = false; // Initial state is unmodified
     loadedFromStorage = false; // Explicitly set flag
     // --- End Start Empty ---
@@ -3105,6 +3474,8 @@ function initialize() {
         modeHintElement.id = 'mode-hint';
         simulationArea.appendChild(modeHintElement);
     }
+    // Assign arrow speed slider (needed by setupEventListeners)
+    arrowSpeedSlider = document.getElementById('arrow-speed');
 
     // Get canvas context
     ctx = canvas.getContext('2d');
@@ -3120,6 +3491,7 @@ function initialize() {
     updateUserUI();        // Set initial user UI state based on currentUser
     activateTab('properties-tab'); // Activate properties tab by default
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
+    updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace
     lastTimestamp = performance.now(); // Get starting time
     requestAnimationFrame(gameLoop); // Start the main loop
@@ -3127,7 +3499,6 @@ function initialize() {
     console.log("初始化完成，主循环已启动。");
 }
 // --- END OF REPLACEMENT for initialize ---
-
 // --- DOMContentLoaded ---
 // Ensures the DOM is fully loaded before running initialization code.
 document.addEventListener('DOMContentLoaded', () => {

@@ -127,12 +127,18 @@ body {
 
 .dropdown-content a.disabled-link {
     color: #adb5bd;
+    /* 淡灰色文字 */
     cursor: not-allowed;
-    background-color: transparent;
+    /* 禁止光标 */
+    background-color: transparent !important;
+    /* 确保背景透明，覆盖悬停效果 */
+    opacity: 0.6;
+    /* 可选：进一步降低透明度 */
 }
 
 .dropdown-content a.disabled-link:hover {
-    background-color: transparent;
+    background-color: transparent !important;
+    /* 明确禁止悬停效果 */
 }
 
 .dropdown-content hr {
@@ -538,3 +544,44 @@ hr.thin-hr {
 
 /* Cursor Styles (Keep existing) */
 /* canvas.cursor-* ... */
+
+
+/* General style for icon buttons in the menubar */
+.menubar-icon-button {
+    background-color: transparent;
+    border: none;
+    padding: 5px 8px;
+    /* Adjust padding for icon buttons */
+    margin-left: 4px;
+    /* Spacing between icon buttons */
+    margin-right: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+    vertical-align: middle;
+    /* Align icon vertically */
+    line-height: 1;
+    /* Ensure icon height is contained */
+    color: var(--text-color);
+    /* Icon color */
+}
+
+.menubar-icon-button:hover {
+    background-color: var(--menu-hover-bg);
+}
+
+/* Disabled state for icon buttons */
+.menubar-icon-button.disabled {
+    color: #adb5bd;
+    /* Use the same disabled color as menu links */
+    opacity: 0.5;
+    /* Make it visually faded */
+    cursor: not-allowed;
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+.menubar-icon-button svg {
+    display: block;
+    /* Remove extra space below SVG */
+}

@@ -1007,7 +1007,8 @@ class LineSource extends GameObject {
 
 class WhiteLightSource extends GameObject {
     constructor(pos, angleDeg = 0, intensity = 75.0, rayCount = 41, spreadDeg = 0, enabled = true, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) { // Updated Defaults
-        super(pos, angleDeg, "白光光源(高斯)"); // Updated Label slightly
+        // Determine initial label based on default gaussianEnabled = true
+        super(pos, angleDeg, "白光光源(高斯)"); // Default label assumes Gaussian
 
         this.baseIntensity = Math.max(0, intensity);
         this.rayCount = Math.max(1, rayCount); // User-set desired number of rays/directions
@@ -1020,24 +1021,20 @@ class WhiteLightSource extends GameObject {
         this.initialBeamWaist = initialBeamWaist; // w0, used in Gaussian mode
         this.gaussianEnabled = true; // <<< DEFAULT to Gaussian mode ON
 
-        // Update label based on initial mode
+        // Ensure the label is correct based on the initial gaussianEnabled state
         this.label = this.gaussianEnabled ? "白光光源(高斯)" : "白光光源(几何)";
 
         // --- Spectrum Definition ---
+        // (Using a slightly smoother distribution)
         this.componentWavelengths = [
-            { wl: 380, factor: 0.1 }, { wl: 390, factor: 0.15 }, { wl: 400, factor: 0.2 },
-            { wl: 410, factor: 0.3 }, { wl: 420, factor: 0.5 }, { wl: 430, factor: 0.7 },
-            { wl: 440, factor: 0.9 }, { wl: 450, factor: 1.0 }, { wl: 460, factor: 1.05 },
-            { wl: 470, factor: 1.1 }, { wl: 480, factor: 1.1 }, { wl: 490, factor: 1.15 },
-            { wl: 500, factor: 1.2 }, { wl: 510, factor: 1.25 }, { wl: 520, factor: 1.3 },
-            { wl: 530, factor: 1.35 }, { wl: 540, factor: 1.4 }, { wl: 550, factor: 1.4 },
-            { wl: 560, factor: 1.35 }, { wl: 570, factor: 1.3 }, { wl: 580, factor: 1.25 },
-            { wl: 590, factor: 1.2 }, { wl: 600, factor: 1.15 }, { wl: 610, factor: 1.1 },
-            { wl: 620, factor: 1.0 }, { wl: 630, factor: 0.95 }, { wl: 640, factor: 0.9 },
-            { wl: 650, factor: 0.85 }, { wl: 660, factor: 0.75 }, { wl: 670, factor: 0.65 },
-            { wl: 680, factor: 0.55 }, { wl: 690, factor: 0.45 }, { wl: 700, factor: 0.35 },
-            { wl: 710, factor: 0.25 }, { wl: 720, factor: 0.15 }, { wl: 730, factor: 0.1 },
-            { wl: 740, factor: 0.05 }
+            { wl: 380, factor: 0.05 }, { wl: 400, factor: 0.2 }, { wl: 420, factor: 0.5 },
+            { wl: 440, factor: 0.9 }, { wl: 460, factor: 1.05 }, { wl: 480, factor: 1.1 },
+            { wl: 500, factor: 1.2 }, { wl: 520, factor: 1.3 }, { wl: 540, factor: 1.4 },
+            { wl: 555, factor: 1.4 }, // Peak slightly shifted
+            { wl: 570, factor: 1.3 }, { wl: 590, factor: 1.2 }, { wl: 610, factor: 1.1 },
+            { wl: 630, factor: 0.95 }, { wl: 650, factor: 0.8 }, { wl: 670, factor: 0.6 },
+            { wl: 690, factor: 0.4 }, { wl: 710, factor: 0.2 }, { wl: 730, factor: 0.1 },
+            { wl: 750, factor: 0.05 } // Include edge
         ];
         this.numWavelengths = this.componentWavelengths.length;
         this._updateCumulativeDistribution(); // Calculate distribution table
@@ -1082,7 +1079,7 @@ class WhiteLightSource extends GameObject {
         return this.cumulativeDistribution[this.cumulativeDistribution.length - 1].wl;
     }
 
-    // --- REPLACEMENT for WhiteLightSource.generateRays (V4 - FORCE Accurate Mode for Debugging Color) ---
+    // --- REPLACEMENT for WhiteLightSource.generateRays (V4 - Implements Fast Mode & Gaussian) ---
     generateRays(RayClass) {
         // Limit number of directions/points by global setting
         const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001);
@@ -1091,68 +1088,98 @@ class WhiteLightSource extends GameObject {
             return [];
         }
 
-        console.log(`[WLS ${this.id}] Generating ${actualRayCount} directions * ${this.numWavelengths} wavelengths (Forced Accurate Mode)`); // Log mode
+        // Check the global fast mode setting
+        const useFastMode = window.fastWhiteLightMode === true; // Explicitly check boolean true
+
+        // Log mode being used
+        console.log(`[WLS ${this.id}] Generating rays. Mode: ${useFastMode ? 'Fast (Random WL)' : 'Accurate (All WL)'}. Directions: ${actualRayCount}. Gaussian: ${this.gaussianEnabled}.`);
 
         const rays = [];
         const halfSpreadRad = this.spreadRad / 2;
         const startAngle = this.angleRad - halfSpreadRad;
         const angleStep = (actualRayCount > 1 && this.spreadRad > 1e-9) ? this.spreadRad / (actualRayCount - 1) : 0;
 
-        // Intensity per direction point
+        // Intensity per direction point (used differently in fast vs accurate)
         const intensityPerPoint = this.baseIntensity > 0 && actualRayCount > 0 ? this.baseIntensity / actualRayCount : 0;
 
-        // Ensure totalIntensityFactorSum is valid
-        if (this.totalIntensityFactorSum <= 1e-9) {
-            console.error(`WLS ${this.id}: Invalid totalIntensityFactorSum (${this.totalIntensityFactorSum}). Cannot generate rays.`);
+        // Ensure totalIntensityFactorSum is valid for accurate mode intensity calculation
+        if (!useFastMode && this.totalIntensityFactorSum <= 1e-9) {
+            console.error(`WLS ${this.id}: Invalid totalIntensityFactorSum (${this.totalIntensityFactorSum}) in Accurate Mode. Cannot generate rays.`);
             return [];
         }
 
-
-        for (let i = 0; i < actualRayCount; i++) { // Loop through directions
+        for (let i = 0; i < actualRayCount; i++) { // Loop through directions/points
             const angle = (actualRayCount === 1) ? this.angleRad : startAngle + i * angleStep;
             const direction = Vector.fromAngle(angle);
-            if (isNaN(direction.x)) continue;
+            if (isNaN(direction.x)) continue; // Skip invalid directions
             const origin = this.pos.clone();
-            if (isNaN(origin.x)) continue;
+            if (isNaN(origin.x)) continue; // Skip invalid origins
 
-            // === ACCURATE MODE: Emit all wavelengths per direction ===
-            this.componentWavelengths.forEach(compWl => {
-                // Intensity for this specific wavelength, normalized by factor sum
-                const finalIntensity = intensityPerPoint * (compWl.factor / this.totalIntensityFactorSum);
-                // --- DEBUG: Log intensity calculation ---
-                // if (i === 0) { // Log only for the first direction
-                //     console.log(`  wl: ${compWl.wl}nm, factor: ${compWl.factor}, intensity: ${finalIntensity.toExponential(2)}`);
-                // }
-                // --- End Debug ---
-                if (finalIntensity < MIN_RAY_INTENSITY * 0.01 && !this.ignoreDecay) return; // Skip very very dim
+            // --- Determine Gaussian Parameters (Common Logic) ---
+            let useGaussian = this.gaussianEnabled && this.initialBeamWaist !== null && this.initialBeamWaist > 1e-6;
+            let baseBeamWaist = useGaussian ? this.initialBeamWaist : null; // w0
 
-                let rayBeamWaist = null, rayZR = null;
-                let useGaussian = this.gaussianEnabled && this.initialBeamWaist !== null && this.initialBeamWaist > 1e-6;
-                if (useGaussian) {
-                    rayBeamWaist = this.initialBeamWaist;
-                    const lambda_meters = compWl.wl * 1e-9;
-                    if (lambda_meters > 1e-12) { rayZR = (Math.PI * rayBeamWaist * rayBeamWaist) / lambda_meters; if (isNaN(rayZR)) useGaussian = false; }
-                    else useGaussian = false;
-                    if (!useGaussian) { rayBeamWaist = null; rayZR = null; }
+            // --- Helper to get zR for a specific wavelength ---
+            const calculateZR = (wavelengthNm) => {
+                if (!useGaussian || baseBeamWaist === null) return null;
+                const lambda_meters = wavelengthNm * 1e-9;
+                if (lambda_meters <= 1e-12) return null; // Invalid wavelength
+                const zR = (Math.PI * baseBeamWaist * baseBeamWaist) / lambda_meters;
+                return isNaN(zR) ? null : zR;
+            };
+            // --- End Helper ---
+
+
+            // === Branch based on Mode ===
+            if (useFastMode) {
+                // --- FAST MODE: One random ray per direction ---
+                const randomWavelength = this._selectWavelength();
+                const finalIntensity = intensityPerPoint; // Use average intensity for this point
+
+                if (finalIntensity >= MIN_RAY_INTENSITY || this.ignoreDecay) {
+                    const rayZR = calculateZR(randomWavelength);
+                    try {
+                        const newRay = new RayClass(
+                            origin.clone(), direction.clone(), randomWavelength,
+                            Math.max(0, finalIntensity), 0.0, // Phase 0.0
+                            0, N_AIR, this.id, null, this.ignoreDecay, null,
+                            this.beamDiameter, // Pass geometric diameter (Ray handles width calc)
+                            baseBeamWaist, // Pass w0 if Gaussian
+                            rayZR // Pass zR if Gaussian
+                        );
+                        if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x)) continue;
+                        rays.push(newRay);
+                    } catch (e) { console.error(`WLS (${this.id}) Error Fast Mode Ray (idx=${i}):`, e); }
                 }
 
-                try {
-                    const newRay = new RayClass(
-                        origin.clone(), direction.clone(), compWl.wl, // Use component wavelength
-                        Math.max(0, finalIntensity), 0.0, // Phase 0.0
-                        0, N_AIR, this.id, null, this.ignoreDecay, null,
-                        this.beamDiameter, useGaussian ? rayBeamWaist : null, useGaussian ? rayZR : null
-                    );
-                    if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x)) return;
-                    rays.push(newRay);
-                } catch (e) { console.error(`WLS (${this.id}) Error Accurate Mode Ray (wl=${compWl.wl}, idx=${i}):`, e); }
-            }); // End wavelength loop
+            } else {
+                // --- ACCURATE MODE: All wavelengths per direction ---
+                this.componentWavelengths.forEach(compWl => {
+                    // Intensity for this specific wavelength, normalized by factor sum
+                    const finalIntensity = intensityPerPoint * (compWl.factor / this.totalIntensityFactorSum);
+
+                    if (finalIntensity >= MIN_RAY_INTENSITY || this.ignoreDecay) {
+                        const rayZR = calculateZR(compWl.wl); // Calculate zR for this specific wavelength
+                        try {
+                            const newRay = new RayClass(
+                                origin.clone(), direction.clone(), compWl.wl, // Use component wavelength
+                                Math.max(0, finalIntensity), 0.0, // Phase 0.0
+                                0, N_AIR, this.id, null, this.ignoreDecay, null,
+                                this.beamDiameter, // Pass geometric diameter
+                                baseBeamWaist, // Pass w0 if Gaussian
+                                rayZR // Pass specific zR if Gaussian
+                            );
+                            if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x)) return; // Skip if invalid ray created
+                            rays.push(newRay);
+                        } catch (e) { console.error(`WLS (${this.id}) Error Accurate Mode Ray (wl=${compWl.wl}, idx=${i}):`, e); }
+                    }
+                }); // End wavelength loop (Accurate Mode)
+            } // End Mode Branch
         } // End direction loop
 
-        console.log(`[WhiteLightSource ${this.id}] Generated ${rays.length} total rays (Forced Accurate Mode).`);
+        console.log(`[WhiteLightSource ${this.id}] Generated ${rays.length} total rays.`);
         return rays;
     }
-    // --- END OF REPLACEMENT ---
 
     // Draw representation (simple white/gray circle)
     draw(ctx) {
@@ -1194,74 +1221,89 @@ class WhiteLightSource extends GameObject {
         return point.distanceSquaredTo(this.pos) < 18 * 18; // Click radius
     }
 
-    // Get properties for inspector
+    // Get properties for inspector (V3 - Conditional Gaussian/Geometric Params)
     getProperties() {
-        const baseProps = super.getProperties();
+        const baseProps = super.getProperties(); // Gets posX, posY, angleDeg
 
         const props = {
             ...baseProps,
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
-            intensity: { value: (typeof this.baseIntensity === 'number' ? this.baseIntensity.toFixed(2) : '75.00'), label: '总强度', type: 'number', min: 0, max: 200, step: 1 }, // Increased max
-            rayCount: { value: this.rayCount ?? 41, label: '#光线总数', type: 'number', min: 1, max: 1001, step: 10 },
+            intensity: { value: (typeof this.baseIntensity === 'number' ? this.baseIntensity.toFixed(2) : '75.00'), label: '总强度', type: 'number', min: 0, max: 200, step: 1 },
+            rayCount: { value: this.rayCount ?? 41, label: '#方向/点数', type: 'number', min: 1, max: 1001, step: 10, title: '每个方向的光谱分量数取决于精确/快速模式' }, // Updated label slightly
             spreadDeg: { value: (typeof this.spreadRad === 'number' ? (this.spreadRad * 180 / Math.PI).toFixed(1) : '0.0'), label: '发散角 (°)', type: 'number', min: 0, max: 180, step: 1 },
             ignoreDecay: { value: !!this.ignoreDecay, label: '强度不衰减', type: 'checkbox' },
+            // --- Gaussian Mode Toggle ---
             gaussianEnabled: { value: !!this.gaussianEnabled, label: '高斯光束模式', type: 'checkbox' },
         };
 
+        // --- Conditionally add beam geometry properties ---
         if (this.gaussianEnabled) {
             props.initialBeamWaist = {
                 value: (typeof this.initialBeamWaist === 'number' && !isNaN(this.initialBeamWaist) ? this.initialBeamWaist.toFixed(2) : '5.00'),
                 label: '↳ 腰半径 w₀ (px)', type: 'number', min: 0.1, step: 0.1, placeholder: '输入正数'
             };
+            // DO NOT show beamDiameter when Gaussian is enabled
         } else {
             props.beamDiameter = {
                 value: (typeof this.beamDiameter === 'number' ? this.beamDiameter.toFixed(1) : '10.0'),
                 label: '光束直径 (px)', type: 'number', min: 0, step: 0.5
             };
+            // DO NOT show initialBeamWaist when Gaussian is disabled
         }
+
+        // Read-only info about the spectrum simulation
         props.wavelengthInfo = { value: `${this.numWavelengths}波长(模拟光谱)`, label: '光谱模拟', type: 'text', readonly: true };
 
         return props;
     }
 
-    // Set properties from inspector
+    // Set properties from inspector (V3 - Handle Gaussian Toggle and Params)
     setProperty(propName, value) {
+        // Let base class handle pos/angle first
         if (super.setProperty(propName, value)) { return true; }
 
-        let needsRayUpdate = false;
+        let needsRayUpdate = false; // Flag if ray generation logic needs re-run
+        let needsInspectorRefresh = false; // Flag if UI needs update (e.g., label change)
 
         switch (propName) {
             case 'enabled': const ne = !!value; if (this.enabled !== ne) { this.enabled = ne; needsRayUpdate = true; } break;
             case 'intensity': const ni = parseFloat(value); if (!isNaN(ni)) { const c = Math.max(0, ni); if (Math.abs(c - this.baseIntensity) > 1e-6) { this.baseIntensity = c; needsRayUpdate = true; } } break;
-            case 'rayCount': const nc = parseInt(value); if (!isNaN(nc)) { const c = Math.max(1, Math.min(1001, nc)); if (c !== this.rayCount) { this.rayCount = c; needsRayUpdate = true; } } break; // Store user pref
+            case 'rayCount': const nc = parseInt(value); if (!isNaN(nc)) { const c = Math.max(1, Math.min(1001, nc)); if (c !== this.rayCount) { this.rayCount = c; needsRayUpdate = true; } } break;
             case 'spreadDeg': const ns = parseFloat(value); if (!isNaN(ns)) { const r = Math.max(0, Math.min(180, ns)) * Math.PI / 180; if (Math.abs(r - this.spreadRad) > 1e-6) { this.spreadRad = r; needsRayUpdate = true; } } break;
             case 'ignoreDecay': const nd = !!value; if (this.ignoreDecay !== nd) { this.ignoreDecay = nd; needsRayUpdate = true; } break;
-            case 'gaussianEnabled':
+            case 'gaussianEnabled': // --- Handle Gaussian Toggle ---
                 const newGaussianState = !!value;
                 if (this.gaussianEnabled !== newGaussianState) {
                     this.gaussianEnabled = newGaussianState;
                     this.label = this.gaussianEnabled ? "白光光源(高斯)" : "白光光源(几何)"; // Update label
                     needsRayUpdate = true;
-                    if (selectedComponent === this) updateInspector(); // Refresh UI
+                    needsInspectorRefresh = true; // Need to refresh UI to show/hide correct params
                 }
                 break;
-            case 'initialBeamWaist': // Logic copied from LaserSource setProperty
+            case 'initialBeamWaist': // --- Handle Waist Input (only relevant if Gaussian enabled) ---
                 let newWaistValue = null;
                 const trimmedValueWaist = String(value).trim();
-                if (trimmedValueWaist === '') { newWaistValue = null; }
-                else { const bw = parseFloat(trimmedValueWaist); if (!isNaN(bw) && bw > 1e-6) { newWaistValue = bw; } else { return false; } }
-                if (this.initialBeamWaist !== newWaistValue) { if (!(typeof this.initialBeamWaist === 'number' && typeof newWaistValue === 'number' && Math.abs(this.initialBeamWaist - newWaistValue) < 1e-6)) { this.initialBeamWaist = newWaistValue; needsRayUpdate = true; } }
+                if (trimmedValueWaist === '') { newWaistValue = null; /* Or maybe default: 5.0? */ }
+                else { const bw = parseFloat(trimmedValueWaist); if (!isNaN(bw) && bw > 1e-6) { newWaistValue = bw; } else { return false; /* Invalid input */ } }
+                if (this.initialBeamWaist !== newWaistValue) { if (!(typeof this.initialBeamWaist === 'number' && typeof newWaistValue === 'number' && Math.abs(this.initialBeamWaist - newWaistValue) < 1e-6)) { this.initialBeamWaist = newWaistValue; if (this.gaussianEnabled) needsRayUpdate = true; } }
                 break;
-            case 'beamDiameter': // Logic copied from LaserSource setProperty
+            case 'beamDiameter': // --- Handle Diameter Input (only relevant if Gaussian disabled) ---
                 const bd = parseFloat(value);
                 if (!isNaN(bd) && bd >= 0) { if (Math.abs(bd - this.beamDiameter) > 1e-6) { this.beamDiameter = bd; if (!this.gaussianEnabled) needsRayUpdate = true; } }
                 break;
-            case 'wavelengthInfo': return true; // Read-only
-            default: return false;
+            case 'wavelengthInfo': return true; // Read-only property
+            default: return false; // Property not handled here
         }
 
+        // If ray generation parameters changed, flag for retrace
         if (needsRayUpdate) { needsRetrace = true; }
-        return true;
+
+        // If inspector needs refresh (due to label change or conditional props), update it
+        if (needsInspectorRefresh && selectedComponent === this) {
+            updateInspector();
+        }
+
+        return true; // Indicate property was handled
     }
 }
 
@@ -2594,20 +2636,22 @@ class ThinLens extends OpticalComponent {
         return [];
     }
 
-    // --- REVISED interact METHOD for Correct Physics ---
+    // --- REVISED interact METHOD for ThinLens (V4 - Wavelength-dependent focal length / Chromatic Aberration) ---
     interact(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const f_user = this.focalLength; // User-set focal length
+        const f_user = this.focalLength; // User-set focal length (at base wavelength)
+        const n_base = this.baseRefractiveIndex; // Refractive index at base wavelength
         const incidentDirection = ray.direction;
         const incidentWavelength = ray.wavelengthNm;
 
         // --- Basic validation ---
-        if (!(hitPoint instanceof Vector) || !(incidentDirection instanceof Vector) || isNaN(hitPoint.x) || isNaN(incidentDirection.x)) {
-            console.error(`ThinLens (${this.id}): Invalid geometry for interact.`);
+        if (!(hitPoint instanceof Vector) || !(incidentDirection instanceof Vector) || isNaN(hitPoint.x) || isNaN(incidentDirection.x) ||
+            isNaN(f_user) || isNaN(n_base)) { // Added checks for f_user and n_base
+            console.error(`ThinLens (${this.id}): Invalid geometry, f, or n_base for interact.`);
             ray.terminate('invalid_geom_interact_lens'); return [];
         }
 
-        // --- Handle flat lens (f = Infinity) ---
+        // --- Handle flat lens (f = Infinity) - No chromatic aberration needed ---
         if (Math.abs(f_user) === Infinity) {
             // Simple pass-through (assuming negligible reflection/absorption for flat plate)
             const transmittedIntensity = ray.intensity * this.quality; // Apply basic quality factor
@@ -2620,7 +2664,7 @@ class ThinLens extends OpticalComponent {
                         Math.min(ray.intensity, transmittedIntensity), ray.phase,
                         ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId,
                         ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()]),
-                        ray.beamDiameter
+                        ray.beamDiameter // Pass beam diameter
                     );
                 } catch (e) { console.error(`Flat Lens (${this.id}) pass-through error:`, e); }
             }
@@ -2628,40 +2672,82 @@ class ThinLens extends OpticalComponent {
             return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
         }
 
-        // --- Handle curved lens ---
+        // --- Calculate Wavelength-Dependent Effective Focal Length (f_actual) ---
+        let f_actual = f_user; // Default to user value
+        let n_wl = n_base; // Default index
+        try {
+            n_wl = this.getRefractiveIndex(incidentWavelength); // Get index for current wavelength
+            if (isNaN(n_wl) || n_wl < 1.0) n_wl = n_base; // Validate n_wl
+
+            // Calculate f_actual using n_wl, n_base, and f_user
+            // Formula: f_actual = f_user * (n_base - 1) / (n_wl - 1)
+            // Handle edge cases where denominators are zero or near zero
+            const n_base_minus_1 = n_base - 1.0;
+            const n_wl_minus_1 = n_wl - 1.0;
+
+            if (Math.abs(n_wl_minus_1) < 1e-9) {
+                // If n(wl) is 1, the lens has no power at this wavelength (behaves like flat glass)
+                f_actual = Infinity;
+            } else if (Math.abs(n_base_minus_1) < 1e-9) {
+                // If n_base was 1, C cannot be determined, lens was effectively flat anyway
+                f_actual = Infinity;
+            } else {
+                // Normal calculation
+                f_actual = f_user * (n_base_minus_1 / n_wl_minus_1);
+            }
+
+            // Safety check for f_actual
+            if (!isFinite(f_actual)) {
+                f_actual = Infinity; // Treat NaN/Inf as flat
+            }
+
+        } catch (e) {
+            console.error(`ThinLens (${this.id}): Error calculating refractive index or f_actual for wl=${incidentWavelength}nm. Using f_user.`, e);
+            f_actual = f_user; // Fallback to user-set focal length on error
+        }
+        // If f_actual becomes effectively infinite, handle as flat lens pass-through
+        if (Math.abs(f_actual) === Infinity) {
+            const transmittedIntensity = ray.intensity * this.quality;
+            const transmitOrigin = hitPoint.add(incidentDirection.multiply(1e-6));
+            let transmittedRay = null;
+            if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
+                try {
+                    transmittedRay = new RayClass(transmitOrigin, incidentDirection, incidentWavelength, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()]), ray.beamDiameter);
+                } catch (e) { /* ignore */ }
+            }
+            ray.terminate('pass_flat_lens_chromatic');
+            return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
+        }
+        // --- End Effective Focal Length Calculation ---
+
+        // --- Proceed with Ray Deviation Calculation using f_actual ---
         const lensCenter = this.pos;
         const axisDir = this.axisDirection;   // Optical axis direction (Vector)
         const lensPlaneDir = this.lensDir;    // Direction along the lens plane (Vector)
 
-        // Calculate ray height 'h' from the optical axis (signed projection onto lens plane direction)
+        // Calculate ray height 'h' from the optical axis
         const vecCenterToHit = hitPoint.subtract(lensCenter);
-        const h = vecCenterToHit.dot(lensPlaneDir);
+        const h = vecCenterToHit.dot(lensPlaneDir); // Project onto lens plane direction
 
         // Calculate incident angle relative to the OPTICAL AXIS
-        const axisAngle = axisDir.angle(); // Angle of the optical axis in world coords
-        const incidentWorldAngle = incidentDirection.angle(); // Angle of the incident ray in world coords
-        // Ensure angle difference is calculated correctly in range [-PI, PI]
+        const axisAngle = axisDir.angle();
+        const incidentWorldAngle = incidentDirection.angle();
         const incidentAngleRelAxis = Math.atan2(Math.sin(incidentWorldAngle - axisAngle), Math.cos(incidentWorldAngle - axisAngle));
 
-        // --- Calculate Deviation Angle (Paraxial Thin Lens Approximation) ---
-        // Deviation angle 'delta' ≈ -h / f (for small angles)
-        // This is the *change* in angle relative to the axis.
-        // f > 0 (convex): if h > 0 (above axis), deviation is negative (bends down towards axis)
-        // f < 0 (concave): if h > 0 (above axis), deviation is positive (bends up away from axis)
-        const deviation = (Math.abs(f_user) < 1e-9) ? 0 : -h / f_user;
+        // Calculate Deviation Angle using f_actual
+        const deviation = (Math.abs(f_actual) < 1e-9) ? 0 : -h / f_actual;
 
         // Calculate the output angle relative to the optical axis
         const outputAngleRelAxis = incidentAngleRelAxis + deviation;
 
         // Convert the output angle relative to axis back to a world angle
         const outputWorldAngle = axisAngle + outputAngleRelAxis;
-        // Normalize the world angle just in case
         const normalizedOutputWorldAngle = Math.atan2(Math.sin(outputWorldAngle), Math.cos(outputWorldAngle));
         const newDirection = Vector.fromAngle(normalizedOutputWorldAngle);
 
         // --- Validate new direction ---
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
-            console.error(`ThinLens (${this.id}): NaN/zero direction calculated. h=${h.toFixed(2)}, f=${f_user}, dev=${deviation.toFixed(4)}. Fallback to pass-through.`);
+            console.error(`ThinLens (${this.id}): NaN/zero direction calculated (wl=${incidentWavelength}nm). h=${h.toFixed(2)}, f_actual=${f_actual.toFixed(2)}, dev=${deviation.toFixed(4)}. Fallback.`);
             // Fallback: transmit without deviation
             const fallbackDirection = incidentDirection.clone();
             const newOrigin = hitPoint.add(fallbackDirection.multiply(1e-6));
@@ -2670,14 +2756,12 @@ class ThinLens extends OpticalComponent {
             if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
                 try { transmittedRay = new RayClass(newOrigin, fallbackDirection, incidentWavelength, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]), ray.beamDiameter); } catch (e) {/*ignore*/ }
             }
-            ray.terminate('refract_error_lens');
+            ray.terminate('refract_error_lens_chromatic');
             return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
         }
 
         // --- Create transmitted ray ---
         let transmittedIntensity = ray.intensity * this.quality; // Apply quality factor
-        // Coating effect could slightly increase transmission, but keep it simple:
-        // if (this.coated) { transmittedIntensity = Math.min(ray.intensity, transmittedIntensity * 1.05); }
         const nextBounces = ray.bouncesSoFar + 1;
         let transmittedRay = null;
 
@@ -2686,7 +2770,8 @@ class ThinLens extends OpticalComponent {
             try {
                 transmittedRay = new RayClass(
                     newOrigin, newDirection, incidentWavelength, transmittedIntensity,
-                    ray.phase, nextBounces, ray.mediumRefractiveIndex, ray.sourceId,
+                    ray.phase, // Phase change through thin lens often ignored, or can be complex
+                    nextBounces, ray.mediumRefractiveIndex, ray.sourceId,
                     ray.polarizationAngle, // Assume polarization unchanged by simple lens
                     ray.ignoreDecay, ray.history.concat([newOrigin.clone()]),
                     ray.beamDiameter // Pass beam diameter along
@@ -2694,11 +2779,9 @@ class ThinLens extends OpticalComponent {
             } catch (e) { console.error(`Error creating transmitted Ray in Lens (${this.id}):`, e); }
         }
 
-        ray.terminate('refracted_lens'); // Terminate the original ray segment
+        ray.terminate('refracted_lens_chromatic'); // Terminate the original ray segment
         return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : []; // Return array with the new ray
     }
-    // --- END OF REVISED interact METHOD ---
-
 
     // Get properties for the inspector panel (Updated layout and labels)
     getProperties() {

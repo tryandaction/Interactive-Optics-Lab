@@ -167,38 +167,44 @@ class Ray {
 
         // Apply intensity adjustments and gamma correction
         // Map intensity more linearly to brightness for visual clarity at low intensities
-        const intensity = Math.min(this.intensity, 1.5); // Clamp max intensity effect for color calculation
-        const brightness = 0.2 + 0.8 * Math.pow(intensity, 0.5); // sqrt mapping, start from 0.2 brightness
+        // Clamp max intensity effect for color calculation to avoid excessive brightness
+        const intensityForColor = Math.min(this.intensity, 1.5);
+        // Start brightness from 0.2, use sqrt mapping for better low-intensity visibility
+        const brightness = 0.2 + 0.8 * Math.pow(intensityForColor, 0.5);
 
         R = Math.pow(R * factor, gamma) * brightness;
         G = Math.pow(G * factor, gamma) * brightness;
         B = Math.pow(B * factor, gamma) * brightness;
 
         // --- Alpha based on Intensity ---
-        // Make alpha more sensitive to low intensity, max out sooner
-        const alphaIntensity = this.intensity; // Use original intensity for alpha
-        const MIN_ALPHA = 0.02; // Lower minimum alpha
-        const MAX_ALPHA = 0.85; // Slightly lower max alpha
-        let alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.tanh(alphaIntensity * 2.0); // Use tanh for faster saturation
-        alpha = Math.max(0, Math.min(1, alpha)); // Clamp alpha
+        // Make alpha more sensitive to low intensity, max out sooner for clarity
+        const intensityForAlpha = this.intensity; // Use original intensity for alpha calculation
+        const MIN_ALPHA = 0.02; // Lower minimum alpha for very faint rays
+        const MAX_ALPHA = 0.85; // Slightly lower max alpha to avoid dense look
+        // Use tanh for a smooth curve that saturates faster than linear or sqrt
+        let alpha = MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * Math.tanh(intensityForAlpha * 2.0);
+        alpha = Math.max(0, Math.min(1, alpha)); // Clamp alpha strictly between 0 and 1
 
-        // Convert to 0-255 range and clamp
+        // Convert RGB to 0-255 range and clamp
         const rInt = Math.min(255, Math.max(0, Math.round(R * 255)));
         const gInt = Math.min(255, Math.max(0, Math.round(G * 255)));
         const bInt = Math.min(255, Math.max(0, Math.round(B * 255)));
 
-        // Handle non-visible range explicitly making it very dim gray/invisible alpha
+        // Handle non-visible range explicitly making it very dim gray/nearly invisible
         if (wl < 380 || wl > 750) {
-            // return `rgba(80, 80, 80, ${alpha * 0.1})`; // Very dim gray option
+            // Option 1: Very dim gray (might still be visually confusing)
+            // return `rgba(80, 80, 80, ${alpha * 0.1})`; 
+            // Option 2: Use calculated color but make it extremely transparent
             alpha = alpha * 0.05; // Make non-visible nearly transparent
-            return `rgba(${rInt},${gInt},${bInt},${alpha.toFixed(3)})`; // Return color but very transparent
+            return `rgba(${rInt},${gInt},${bInt},${alpha.toFixed(3)})`;
         }
 
+        // Return the final RGBA color string
         return `rgba(${rInt},${gInt},${bInt},${alpha.toFixed(3)})`;
     }
     // --- END OF REPLACEMENT ---
 
-    
+
     // --- REPLACEMENT for calculateLineWidth method in Ray class (V4 - Simpler Gaussian Width Display) ---
     calculateLineWidth() {
         let baseWidth;
