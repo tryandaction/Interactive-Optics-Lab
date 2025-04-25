@@ -1449,10 +1449,15 @@ class Mirror extends OpticalComponent {
         return reflectedRay ? [reflectedRay] : []; // Return array with the new ray if created
     }
 
+    // --- REPLACEMENT for Mirror.getProperties ---
     getProperties() {
-        const baseProps = super.getProperties();
-        return { ...baseProps, length: { value: this.length.toFixed(1), label: '长度', type: 'number', min: 1, step: 1 } };
+        const baseProps = super.getProperties(); // posX, posY, angleDeg
+        return {
+            ...baseProps,
+            length: { value: this.length.toFixed(1), label: '长度 (L)', type: 'number', min: 1, step: 1, title: '平面反射镜的长度' }
+        };
     }
+    // --- END REPLACEMENT ---
 
     setProperty(propName, value) {
         const handledByBase = super.setProperty(propName, value);
@@ -1783,21 +1788,29 @@ class SphericalMirror extends OpticalComponent {
         return reflectedRay ? [reflectedRay] : [];
     }
 
+    // --- REPLACEMENT for SphericalMirror.getProperties ---
     getProperties() {
-        const baseProps = super.getProperties();
+        const baseProps = super.getProperties(); // posX, posY, angleDeg
         return {
             ...baseProps,
             radiusOfCurvature: {
                 value: Math.abs(this.radiusOfCurvature) === Infinity ? 'Infinity' : this.radiusOfCurvature.toFixed(1),
-                label: '曲率半径', type: 'text',
-                placeholder: 'Inf, >0凹, <0凸'
+                label: '曲率半径 (R)', type: 'number', // Use number input
+                step: 10, // Sensible step
+                title: '球面镜的曲率半径 (R > 0: 凹面镜, R < 0: 凸面镜, Infinity: 平面镜)',
+                placeholder: 'R>0凹, R<0凸, Infinity'
             },
             centralAngleDeg: {
                 value: (this.centralAngleRad * (180 / Math.PI)).toFixed(1),
-                label: '圆心角 (°)', type: 'number', min: 1, max: 360, step: 1 // Use 1-360 range
+                label: '弧度角 (°)', type: 'number', min: 1, max: 360, step: 1, title: '镜面弧线对应的圆心角 (1°-360°)'
+            },
+            focalLength: { // Display calculated focal length (read-only)
+                value: (Math.abs(this.radiusOfCurvature) === Infinity || Math.abs(this.radiusOfCurvature) < 1e-6) ? '∞' : (this.radiusOfCurvature / 2.0).toFixed(1),
+                label: '焦距 (f=R/2)', type: 'text', readonly: true, title: '球面镜的焦距 (近似值 f=R/2)'
             }
         };
     }
+    // --- END REPLACEMENT ---
 
     setProperty(propName, value) {
         const handledByBase = super.setProperty(propName, value);
@@ -2419,15 +2432,17 @@ class Screen extends OpticalComponent {
     // --- END OF REPLACEMENT ---
 
 
+    // --- REPLACEMENT for Screen.getProperties ---
     getProperties() {
-        const baseProps = super.getProperties();
+        const baseProps = super.getProperties(); // posX, posY, angleDeg
         return {
             ...baseProps,
-            length: { value: this.length.toFixed(1), label: '长度', type: 'number', min: 10, step: 1 },
-            numBins: { value: this.numBins, label: '#单元格', type: 'number', min: 1, max: 1000, step: 1 },
-            showPattern: { value: this.showPattern, label: '显示图样', type: 'checkbox' }
+            length: { value: this.length.toFixed(1), label: '长度 (L)', type: 'number', min: 10, step: 1, title: '屏幕的长度' },
+            numBins: { value: this.numBins, label: '像素单元数', type: 'number', min: 1, max: 1000, step: 1, title: '用于计算强度分布的分格数量' },
+            showPattern: { value: this.showPattern, label: '显示强度图样', type: 'checkbox', title: '是否在屏幕旁边绘制计算出的光强分布图' }
         };
     }
+    // --- END REPLACEMENT ---
 
     setProperty(propName, value) {
         const handledByBase = super.setProperty(propName, value);
@@ -2783,48 +2798,53 @@ class ThinLens extends OpticalComponent {
         return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : []; // Return array with the new ray
     }
 
-    // Get properties for the inspector panel (Updated layout and labels)
+    // --- REPLACEMENT for ThinLens.getProperties (V4 - Structure & Clarity) ---
     getProperties() {
+        // Base position and angle
         const baseProps = super.getProperties();
 
-        // Basic Geometric Properties first
+        // Geometric Properties
         const geomProps = {
-            posX: { value: this.pos.x.toFixed(1), label: '位置 X', type: 'number', step: 1 },
-            posY: { value: this.pos.y.toFixed(1), label: '位置 Y', type: 'number', step: 1 },
-            angleDeg: { value: (this.angleRad * 180 / Math.PI).toFixed(1), label: '摆放角度(°)', type: 'number', step: 1 },
-            diameter: { value: this.diameter.toFixed(1), label: '直径 (px)', type: 'number', min: 10, step: 1 },
+            diameter: { value: this.diameter.toFixed(1), label: '直径 (D)', type: 'number', min: 10, step: 1, title: '透镜的物理直径' },
         };
 
-        // Core Optical Property: Focal Length
+        // Core Optical Property
         const coreOpticalProps = {
             focalLength: {
                 value: Math.abs(this.focalLength) === Infinity ? 'Infinity' : this.focalLength.toFixed(1),
-                label: '焦距 f (px)', // Clarify units and meaning
-                type: 'number',
-                step: 10,
-                placeholder: 'f>0 凸, f<0 凹'
+                label: '焦距 (f)', // Standard label
+                type: 'number', // Keep as number for input ease
+                step: 10, // Sensible step
+                title: '透镜焦距 (f > 0: 凸透镜, f < 0: 凹透镜, Infinity: 平板)',
+                placeholder: 'f>0凸, f<0凹, Infinity' // Guide user
             },
         };
 
-        // Advanced / Physical Properties (Consider grouping later)
+        // Advanced Physical Properties
         const advancedOpticalProps = {
-            baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '基准折射率 n₀', type: 'number', min: 1.0, step: 0.01 },
-            dispersionCoeffB: { value: this.dispersionCoeffB.toFixed(0), label: '色散系数 B (nm²)', type: 'number', min: 0, step: 100 },
-            chromaticAberration: { value: this.chromaticAberration.toFixed(3), label: '色差因子', type: 'number', min: 0, max: 0.1, step: 0.001 },
-            sphericalAberration: { value: this.sphericalAberration.toFixed(3), label: '球差因子', type: 'number', min: 0, max: 0.1, step: 0.001 },
-            quality: { value: this.quality.toFixed(2), label: '透过率因子', type: 'number', min: 0.1, max: 1.0, step: 0.01 },
-            coated: { value: this.coated, label: '镀增透膜', type: 'checkbox' },
-            isThickLens: { value: this.isThickLens, label: '厚透镜(视觉)', type: 'checkbox' },
-            // thickLensThickness: { value: this.thickLensThickness.toFixed(1), label: '厚度(视觉)', type: 'number', min: 1, max: 50, step: 1, visible: this.isThickLens } // Visibility logic in updateInspector
+            baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '基准折射率 (n₀@550nm)', type: 'number', min: 1.0, step: 0.01, title: '在 550nm 波长下的折射率' },
+            dispersionCoeffB: { value: this.dispersionCoeffB.toFixed(0), label: '色散系数 (B)', type: 'number', min: 0, step: 100, title: '柯西色散公式 B 项 (nm²)' },
+            // chromaticAberration: { value: this.chromaticAberration.toFixed(3), label: '色差因子', type: 'number', min: 0, max: 0.1, step: 0.001 },
+            // sphericalAberration: { value: this.sphericalAberration.toFixed(3), label: '球差因子', type: 'number', min: 0, max: 0.1, step: 0.001 },
+            quality: { value: this.quality.toFixed(2), label: '透过率', type: 'number', min: 0.1, max: 1.0, step: 0.01, title: '光线通过透镜后的强度比例 (0.1 - 1.0)' },
+            // coated: { value: this.coated, label: '镀增透膜', type: 'checkbox' }, // Keep if implemented
+        };
+
+        // Visual Property
+        const visualProps = {
+            isThickLens: { value: this.isThickLens, label: '厚透镜视觉效果', type: 'checkbox', title: '切换透镜绘制为较厚的视觉样式（不影响计算）' },
         };
 
         // Combine in desired order
         return {
+            ...baseProps, // posX, posY, angleDeg
             ...geomProps,
             ...coreOpticalProps,
-            ...advancedOpticalProps
+            ...advancedOpticalProps,
+            ...visualProps
         };
     }
+    // --- END REPLACEMENT ---
 
     // Set properties from the inspector (Ensure updates trigger necessary recalculations)
     setProperty(propName, value) {
@@ -3071,16 +3091,19 @@ class Aperture extends OpticalComponent {
         return [];
     }
 
+    // --- REPLACEMENT for Aperture.getProperties ---
     getProperties() {
-        const baseProps = super.getProperties();
+        const baseProps = super.getProperties(); // posX, posY, angleDeg
+        const isGrating = this.numberOfSlits > 2;
         return {
             ...baseProps,
-            length: { value: this.length.toFixed(1), label: '总宽度', type: 'number', min: 1, step: 1 },
-            numberOfSlits: { value: this.numberOfSlits, label: '#狭缝', type: 'number', min: 1, max: 20, step: 1 }, // Max 20 slits?
-            slitWidth: { value: this.slitWidth.toFixed(2), label: '缝宽', type: 'number', min: 0.1, step: 0.1 },
-            slitSeparation: { value: this.slitSeparation.toFixed(2), label: '缝间距', type: 'number', min: 0.1, step: 0.1 } // Center-to-center
+            length: { value: this.length.toFixed(1), label: '总宽度', type: 'number', min: 1, step: 1, title: '整个光阑/光栅结构的总宽度' },
+            numberOfSlits: { value: this.numberOfSlits, label: isGrating ? '# 狭缝 (光栅)' : '# 狭缝', type: 'number', min: 1, max: 100, step: 1, title: '开口(狭缝)的数量 (>=1)' }, // Increased max
+            slitWidth: { value: this.slitWidth.toFixed(2), label: '缝宽 (a)', type: 'number', min: 0.01, step: 0.1, title: '每个狭缝的宽度' },
+            slitSeparation: { value: this.slitSeparation.toFixed(2), label: '缝间距 (d)', type: 'number', min: 0.01, step: 0.1, title: '相邻狭缝中心之间的距离 (d ≥ a)' }
         };
     }
+    // --- END REPLACEMENT ---
 
     setProperty(propName, value) {
         const handledByBase = super.setProperty(propName, value);
@@ -5018,16 +5041,18 @@ class Prism extends OpticalComponent {
         return newRays;
     }
 
+    // --- REPLACEMENT for Prism.getProperties ---
     getProperties() {
-        const baseProps = super.getProperties();
+        const baseProps = super.getProperties(); // posX, posY, angleDeg
         return {
             ...baseProps,
-            baseLength: { value: this.baseLength.toFixed(1), label: '底边长度', type: 'number', min: 10, step: 1 },
-            apexAngleDeg: { value: (this.apexAngleRad * 180 / Math.PI).toFixed(1), label: '顶角 (°)', type: 'number', min: 1, max: 178, step: 1 },
-            baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '折射率 (n₀)', type: 'number', min: 1.0, step: 0.01 },
-            dispersionCoeffB: { value: this.dispersionCoeffB.toFixed(0), label: '色散系数 B', type: 'number', min: 0, step: 100 } // Example step
+            baseLength: { value: this.baseLength.toFixed(1), label: '底边长度', type: 'number', min: 10, step: 1, title: '棱镜底边的长度' },
+            apexAngleDeg: { value: (this.apexAngleRad * 180 / Math.PI).toFixed(1), label: '顶角 (α)', type: 'number', min: 1, max: 178, step: 1, title: '棱镜顶部的角度 (1°-178°)' },
+            baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '基准折射率 (n₀@550nm)', type: 'number', min: 1.0, step: 0.01, title: '在 550nm 波长下的折射率' },
+            dispersionCoeffB: { value: this.dispersionCoeffB.toFixed(0), label: '色散系数 (B)', type: 'number', min: 0, step: 100, title: '柯西色散公式 B 项 (nm²)，控制色散强度' }
         };
     }
+    // --- END REPLACEMENT ---
 
     setProperty(propName, value) {
         if (super.setProperty(propName, value)) { return true; } // Base handles pos/angle

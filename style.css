@@ -75,19 +75,36 @@ body {
 /* Reduce right margin slightly */
 
 .dropbtn {
-    /* Menu titles */
     background-color: transparent;
     color: var(--text-color);
     padding: 8px 10px;
-    /* Adjust padding */
+    /* Adjust padding if needed */
     font-size: 14px;
     border: none;
     cursor: pointer;
-    margin: 0;
+    margin: 0 1px;
     border-radius: 4px;
     transition: background-color 0.2s ease;
+    display: inline-flex;
+    /* Use flex for alignment */
+    align-items: center;
+    /* Vertically center icon and text */
+    gap: 6px;
+    /* Space between icon and text */
 }
 
+.dropbtn svg {
+    /* Style for SVGs within dropbtn */
+    width: 16px;
+    /* Match SVG size */
+    height: 16px;
+    flex-shrink: 0;
+    /* Prevent icon from shrinking */
+    vertical-align: middle;
+    /* Might help alignment */
+}
+
+/* Keep the :hover style as is */
 .dropbtn:hover {
     background-color: var(--menu-hover-bg);
 }
@@ -102,43 +119,54 @@ body {
     display: none;
     position: absolute;
     background-color: var(--dropdown-bg);
-    min-width: 200px;
-    box-shadow: 0px 4px 12px var(--dropdown-shadow);
+    min-width: 220px;
+    /* Slightly wider dropdown */
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.12);
+    /* Refined shadow */
     z-index: 101;
     border: 1px solid var(--dropdown-border);
-    border-radius: 4px;
-    padding: 6px 0;
-    margin-top: 1px;
-    /* Align below button */
+    border-radius: 5px;
+    /* Slightly more rounded */
+    padding: 8px 0;
+    /* Increased vertical padding */
+    margin-top: 3px;
+    /* Small gap below button */
+    overflow: hidden;
+    /* Ensure rounded corners clip content */
 }
 
 .dropdown-content a {
     color: var(--text-color);
-    padding: 8px 15px;
+    padding: 9px 18px;
+    /* Increased padding */
     text-decoration: none;
     display: block;
-    font-size: 13px;
+    font-size: 13.5px;
+    /* Slightly larger font */
     white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    /* Smooth transition */
 }
 
 .dropdown-content a:hover {
-    background-color: var(--dropdown-hover);
+    background-color: #007bff;
+    /* Use primary color for hover background */
+    color: white;
+    /* White text on hover */
 }
 
 .dropdown-content a.disabled-link {
     color: #adb5bd;
-    /* 淡灰色文字 */
     cursor: not-allowed;
-    /* 禁止光标 */
     background-color: transparent !important;
-    /* 确保背景透明，覆盖悬停效果 */
     opacity: 0.6;
-    /* 可选：进一步降低透明度 */
 }
 
 .dropdown-content a.disabled-link:hover {
     background-color: transparent !important;
-    /* 明确禁止悬停效果 */
+    /* No background change on hover */
+    color: #adb5bd !important;
+    /* Keep text color disabled */
 }
 
 .dropdown-content hr {
@@ -152,39 +180,52 @@ body {
 }
 
 #user-status-top {
-    margin-right: 12px;
+    margin-right: 15px;
+    /* More spacing */
     font-size: 13px;
     color: var(--dark-gray);
     font-weight: 500;
+    padding: 8px 0;
+    /* Match button vertical padding */
 }
 
 .menubar-button {
-    /* Buttons directly in menubar */
-    padding: 5px 10px;
+    /* Affects Login/Logout buttons */
+    padding: 6px 12px;
+    /* Adjust padding slightly */
     font-size: 13px;
-    margin-left: 8px;
-    border: none;
+    margin-left: 6px;
+    /* Tighter spacing */
+    border: 1px solid transparent;
+    /* Add border for consistency */
     border-radius: 4px;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+/* Primary button style (Login/Register or Save) */
 #user-action-btn-top {
     background-color: var(--primary-color);
     color: white;
+    border-color: var(--primary-color);
 }
 
 #user-action-btn-top:hover {
     background-color: #0056b3;
+    border-color: #0056b3;
 }
 
+/* Secondary button style (Logout) */
 #logout-btn-top.secondary {
+    /* Ensure class is used if needed */
     background-color: var(--secondary-color);
     color: white;
+    border-color: var(--secondary-color);
 }
 
 #logout-btn-top.secondary:hover {
     background-color: #5a6268;
+    border-color: #545b62;
 }
 
 /* --- Main Content Layout --- */
@@ -225,21 +266,112 @@ body {
     margin-top: 0;
 }
 
-#toolbar button[data-type] {
-    /* Tool buttons */
-    width: calc(100% - 10px);
-    /* Adjust width */
-    margin: 4px 5px;
-    /* Adjust margin */
-    padding: 7px 10px;
-    font-size: 13px;
-    background-color: var(--light-gray);
-    border: 1px solid #d1d9e0;
+/* --- Toolbar Icon Button Styling --- */
+#toolbar button.icon-button {
+    width: calc(50% - 8px);
+    /* Two buttons per row */
+    margin: 4px;
+    padding: 8px 5px;
+    /* Adjust padding */
+    font-size: 11px;
+    /* Smaller text */
+    background-color: #f8f9fa;
+    /* Lighter background */
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    /* Use flex */
+    flex-direction: column;
+    /* Stack icon and text */
+    align-items: center;
+    /* Center items horizontally */
+    justify-content: center;
+    /* Center items vertically */
+    text-align: center;
+    height: 55px;
+    /* Fixed height */
+    line-height: 1.2;
+    /* Adjust line height */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    color: var(--text-color);
+    vertical-align: top;
+    /* Align buttons nicely in rows */
 }
 
-#toolbar button[data-type]:hover {
-    background-color: #e2e6ea;
-    border-color: #adb5bd;
+#toolbar button.icon-button svg {
+    width: 20px;
+    /* Icon size */
+    height: 20px;
+    margin-bottom: 4px;
+    /* Space between icon and text */
+    flex-shrink: 0;
+    color: #495057;
+    /* Default icon color */
+    transition: color 0.2s ease;
+}
+
+#toolbar button.icon-button .toolbar-button-text {
+    display: block;
+    /* Ensure text takes its own line */
+    white-space: normal;
+    /* Allow text wrap if needed */
+    overflow: hidden;
+    /* Prevent long text overflow */
+    max-height: 2.5em;
+    /* Limit text height */
+}
+
+#toolbar button.icon-button:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+
+#toolbar button.icon-button:hover svg {
+    color: #0056b3;
+    /* Icon color change on hover */
+}
+
+
+#toolbar button.selected-tool {
+    background-color: #cce5ff;
+    border-color: #99caff;
+    color: #004085;
+    font-weight: 600;
+}
+
+#toolbar button.selected-tool svg {
+    color: #004085;
+    /* Match text color when selected */
+}
+
+/* Toolbar Category Headers */
+#toolbar h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+    font-size: 13px;
+    /* Slightly smaller header */
+    color: var(--secondary-color);
+    border-bottom: 1px solid #eee;
+    /* Subtle separator */
+    width: calc(100% - 10px);
+    /* Span across two columns */
+    margin-left: 5px;
+    font-weight: 600;
+}
+
+#toolbar h4:first-of-type {
+    margin-top: 0;
+}
+
+/* Adjust HR */
+hr.thin-hr {
+    border-top: 1px solid #eee;
+    /* Match header separator */
+    margin: 8px 5px;
+    /* Align with button margins */
+    width: calc(100% - 10px);
 }
 
 #toolbar button.selected-tool {
@@ -307,6 +439,45 @@ hr.thin-hr {
     flex-direction: column;
 }
 
+/* --- Inspector Property Group Styling --- */
+
+.prop-group-title {
+    font-size: 12px;
+    /* Slightly smaller title */
+    font-weight: 600;
+    color: var(--secondary-color);
+    /* Gray title */
+    margin-top: 18px;
+    /* Space above title */
+    margin-bottom: 8px;
+    padding-bottom: 3px;
+    text-transform: uppercase;
+    /* Optional: Uppercase title */
+    letter-spacing: 0.5px;
+    /* Optional: Adjust spacing */
+}
+
+.prop-group-divider {
+    border: none;
+    border-top: 1px solid #e9ecef;
+    /* Light separator line */
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+/* Adjust spacing for the first group title */
+#inspector-content>.prop-group-title:first-of-type {
+    margin-top: 5px;
+}
+
+/* Style for readonly/disabled inputs */
+.readonly-or-disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    opacity: 0.7;
+    /* Optional: slightly fade */
+}
+
 /* Tabs */
 .tab-container {
     display: flex;
@@ -368,24 +539,141 @@ hr.thin-hr {
     font-size: 14px;
 }
 
+/* --- Inspector Property Row (.prop) Styling --- */
 .tab-content .prop {
-    margin-bottom: 14px;
+    display: flex;
+    /* Use flexbox for alignment */
+    align-items: center;
+    /* Vertically align label and input */
+    margin-bottom: 10px;
+    /* Reduced bottom margin */
+    min-height: 28px;
+    /* Ensure consistent row height */
 }
 
+/* --- Inspector Label Styling --- */
 .tab-content .prop label {
-    width: 110px;
+    width: 100px;
+    /* Fixed label width */
+    flex-shrink: 0;
+    /* Prevent label from shrinking */
     font-size: 13px;
+    color: var(--dark-gray);
+    /* Slightly darker label text */
+    padding-right: 8px;
+    /* Space between label and input */
+    text-align: right;
+    /* Align label text to the right */
+    box-sizing: border-box;
 }
 
-/* Slightly wider labels */
-.tab-content .prop input,
+/* --- Inspector Input/Select Base Styling --- */
+.tab-content .prop input[type="text"],
+.tab-content .prop input[type="number"],
+.tab-content .prop input[type="range"],
 .tab-content .prop select {
+    flex-grow: 1;
+    /* Allow input to fill remaining space */
+    padding: 5px 8px;
+    /* Adjust padding */
     font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #fff;
+    /* White background */
+    color: var(--text-color);
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    height: 28px;
+    /* Match min-height of .prop */
+    min-width: 50px;
+    /* Prevent inputs from becoming too small */
 }
 
+/* Focus style for inputs/selects */
+.tab-content .prop input[type="text"]:focus,
+.tab-content .prop input[type="number"]:focus,
+.tab-content .prop input[type="range"]:focus,
+.tab-content .prop select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+    /* Subtle focus glow */
+    outline: none;
+}
+
+/* Specific style for checkboxes */
+.tab-content .prop input[type="checkbox"] {
+    height: auto;
+    /* Let checkbox determine its height */
+    margin-left: 5px;
+    /* Add some left margin */
+    cursor: pointer;
+    /* Optional: Style checkbox appearance more significantly later */
+}
+
+/* Align checkbox label differently if needed */
+.tab-content .prop input[type="checkbox"]+label {
+    /* Potential style override if label needs different alignment for checkbox */
+    /* text-align: left; */
+}
+
+/* Specific style for range sliders */
+.tab-content .prop input[type="range"] {
+    padding: 0;
+    /* Remove default padding */
+    height: auto;
+    /* Adjust height if needed */
+    cursor: pointer;
+}
+
+/* Specific style for select dropdown arrows (basic reset) */
+.tab-content .prop select {
+    appearance: none;
+    /* Remove default arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236c757d%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20128c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4l128-128c3.6-3.6%205.4-7.8%205.4-12.8%200-5-1.8-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    /* Simple SVG arrow */
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 8px 10px;
+    padding-right: 25px;
+    /* Space for the arrow */
+}
+
+/* Styling for the value span next to sliders/numbers */
 .tab-content .prop span {
-    font-size: 11px;
-    margin-left: 6px;
+    font-size: 12px;
+    /* Slightly smaller */
+    margin-left: 8px;
+    /* More spacing */
+    color: var(--secondary-color);
+    white-space: nowrap;
+    line-height: 28px;
+    /* Align vertically */
+}
+
+/* Readonly/disabled input styles */
+.readonly-or-disabled {
+    background-color: #e9ecef !important;
+    /* Use important to override default white */
+    cursor: not-allowed;
+    opacity: 0.7;
+    border-color: #ced4da;
+    /* Match border */
+}
+
+.readonly-or-disabled:focus {
+    box-shadow: none;
+    /* Remove focus glow */
+    border-color: #ced4da;
+    /* Keep border standard */
+}
+
+/* Error text styling (if used) */
+.error-text {
+    color: var(--error-color);
+    font-weight: bold;
 }
 
 /* Value display */
@@ -546,36 +834,42 @@ hr.thin-hr {
 /* canvas.cursor-* ... */
 
 
-/* General style for icon buttons in the menubar */
+/* Refined style for icon buttons in the menubar */
 .menubar-icon-button {
     background-color: transparent;
     border: none;
-    padding: 5px 8px;
-    /* Adjust padding for icon buttons */
-    margin-left: 4px;
-    /* Spacing between icon buttons */
-    margin-right: 4px;
+    padding: 6px;
+    /* Slightly more padding for icons */
+    margin: 0 2px;
     cursor: pointer;
     border-radius: 4px;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
     vertical-align: middle;
-    /* Align icon vertically */
     line-height: 1;
-    /* Ensure icon height is contained */
-    color: var(--text-color);
-    /* Icon color */
+    color: #4a80c2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
+
+.menubar-icon-button svg {
+    display: block;
+    /* Ensure SVG fits well */
+}
+
+/* Keep the :hover and .disabled styles as defined previously */
 
 .menubar-icon-button:hover {
     background-color: var(--menu-hover-bg);
+    color: #355f99;
+    /* Slightly darker blue on hover */
 }
 
-/* Disabled state for icon buttons */
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
 .menubar-icon-button.disabled {
-    color: #adb5bd;
-    /* Use the same disabled color as menu links */
+    color: #adb5bd !important;
+    /* Force disabled color */
     opacity: 0.5;
-    /* Make it visually faded */
     cursor: not-allowed;
     background-color: transparent !important;
     /* Prevent hover effect */
@@ -584,4 +878,53 @@ hr.thin-hr {
 .menubar-icon-button svg {
     display: block;
     /* Remove extra space below SVG */
+}
+
+/* --- Styles for Disabled UI Elements --- */
+
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
+.menubar-icon-button.disabled {
+    color: #adb5bd;
+    /* Light gray icon */
+    opacity: 0.5;
+    /* Make it visually faded */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+/* Disabled state for menu dropdown links (Undo/Redo) */
+.dropdown-content a.disabled-link {
+    color: #adb5bd;
+    /* Light gray text */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Ensure transparent background, override hover */
+    opacity: 0.6;
+    /* Optional: further fade */
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent !important;
+    /* Explicitly disable hover */
+}
+
+/* --- Menubar Divider --- */
+.menubar-divider {
+    width: 1px;
+    height: 20px;
+    /* Adjust height as needed */
+    background-color: var(--menu-border);
+    /* Use menu border color */
+    margin: 0 10px;
+    /* Add horizontal spacing around divider */
+    align-self: center;
+    /* Center vertically */
+}
+
+.menu-text {
+    /* Optional: Adjust font size or margin if needed */
+    /* margin-left: 6px; /* Already handled by gap in .dropbtn */
 }

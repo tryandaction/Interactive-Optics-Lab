@@ -18,7 +18,14 @@
     <div id="top-menubar">
         <div class="menu-left">
             <div class="dropdown">
-                <button class="dropbtn">文件</button>
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    <span class="menu-text">文件</span>
+                </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-new-scene">新建场景</a>
                     <a href="#" id="menu-manage-scenes">管理本地场景...</a>
@@ -31,7 +38,14 @@
                 </div>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">编辑</button>
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    <span class="menu-text">编辑</span>
+                </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-undo" class="disabled-link">撤销 (开发中)</a>
                     <a href="#" id="menu-redo" class="disabled-link">重做 (开发中)</a>
@@ -41,7 +55,14 @@
                 </div>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">视图</button>
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span class="menu-text">视图</span>
+                </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-reset-view">重置视图</a>
                     <a href="#" id="menu-toggle-grid">切换网格</a>
@@ -51,7 +72,13 @@
                 </div>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">模拟</button>
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span class="menu-text">模拟</span>
+                </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-mode-raytrace">模式: 光线追踪</a>
                     <a href="#" id="menu-mode-lensimaging">模式: 透镜成像</a>
@@ -63,81 +90,290 @@
                 </div>
             </div>
             <div class="dropdown">
-                <button class="dropbtn">帮助</button>
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span class="menu-text">帮助</span>
+                </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-user-guide">用户指南...</a>
                     <a href="#" id="menu-about">关于...</a>
                 </div>
             </div>
+
         </div>
+
+        <div class="menubar-divider"></div>
+
+        <!-- New Direct Action Icons -->
+        <button class="menubar-button menubar-icon-button" id="menu-icon-new" title="新建场景 (Ctrl+N)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+            </svg>
+        </button>
+        <button class="menubar-button menubar-icon-button" id="menu-icon-save-local" title="另存到本地 (Ctrl+S)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+        </button>
+        <button class="menubar-button menubar-icon-button" id="menu-icon-export" title="导出文件 (Ctrl+E)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+        </button>
+        <!-- End New Direct Action Icons -->
+
 
         <!-- BEGIN: 图形化撤销/重做按钮 -->
         <button class="menubar-button menubar-icon-button disabled" id="undo-button" title="撤销 (Ctrl+Z)">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path
-                    d="M12.5 8C9.81 8 7.55 9.43 6.3 11.4L4.9 10L3.5 11.4L5.95 13.85L8.4 11.4L7 10C7.9 8.77 9.7 8 11.5 8C14.04 8 16.23 9.49 17.15 11.55L18.85 10.45C17.64 7.89 15.28 6 12.5 6C11.1 6 9.8 6.38 8.7 7.03L7.85 6.18C9.29 5.37 10.86 5 12.5 5C16.3 5 19.5 7.53 20.59 11.2L19.19 11.6C18.39 8.71 15.71 7 12.5 7V8Z" />
-                <path
-                    d="M6 13.5C6 10.57 8.24 8.16 11.12 8.02V11L16 7.5L11.12 4V7.02C7.12 7.16 4 10.03 4 13.5C4 16.97 7.12 19.84 11.12 19.98V23L16 19.5L11.12 16V18.98C8.24 18.84 6 16.43 6 13.5Z" />
+                    d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
             </svg>
         </button>
         <button class="menubar-button menubar-icon-button disabled" id="redo-button" title="重做 (Ctrl+Y)">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"
-                transform="scale(-1, 1)"> <!-- 水平翻转SVG -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path
-                    d="M12.5 8C9.81 8 7.55 9.43 6.3 11.4L4.9 10L3.5 11.4L5.95 13.85L8.4 11.4L7 10C7.9 8.77 9.7 8 11.5 8C14.04 8 16.23 9.49 17.15 11.55L18.85 10.45C17.64 7.89 15.28 6 12.5 6C11.1 6 9.8 6.38 8.7 7.03L7.85 6.18C9.29 5.37 10.86 5 12.5 5C16.3 5 19.5 7.53 20.59 11.2L19.19 11.6C18.39 8.71 15.71 7 12.5 7V8Z" />
-                <path
-                    d="M6 13.5C6 10.57 8.24 8.16 11.12 8.02V11L16 7.5L11.12 4V7.02C7.12 7.16 4 10.03 4 13.5C4 16.97 7.12 19.84 11.12 19.98V23L16 19.5L11.12 16V18.98C8.24 18.84 6 16.43 6 13.5Z" />
+                    d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
             </svg>
         </button>
         <!-- END: 图形化撤销/重做按钮 -->
+
+        <div class="menubar-divider"></div>
 
         <div class="menu-right">
             <div id="user-status-top">未登录</div>
             <button class="menubar-button" id="user-action-btn-top">登录/注册</button>
             <button class="menubar-button secondary" id="logout-btn-top" style="display: none;">登出</button>
         </div>
+
+
+
     </div>
     <!-- END Top Menubar -->
 
     <!-- Main Content Area (Flex Container) -->
     <div id="main-content">
 
-        <!-- Left Toolbar (Component Tools Only) -->
+        <!-- Left Toolbar (Component Tools Only) - V3 Representative Icons -->
         <div id="toolbar">
             <h4>光源</h4>
-            <button data-type="LaserSource" title="添加点状激光光源 (Laser)">点光源(激光)</button>
-            <button data-type="FanSource" title="添加从一点发出扇形光束的光源">扇形光源</button>
-            <button data-type="LineSource" title="添加沿一条线发射垂直光束的光源">线光源</button>
-            <button data-type="WhiteLightSource" title="添加模拟白光光谱的光源">白光光源</button>
+            <button data-type="LaserSource" title="点光源(激光)" class="icon-button">
+                <svg width="20" height="20" viewBox="-5 -5 34 34" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="2" fill="currentColor"></circle>
+                    <line x1="12" y1="12" x2="22" y2="12"></line>
+                    <line x1="12" y1="12" x2="15" y2="5.34"></line>
+                    <line x1="12" y1="12" x2="15" y2="18.66"></line>
+                </svg> <!-- Point source with rays -->
+                <span class="toolbar-button-text">点光源</span>
+            </button>
+            <button data-type="FanSource" title="扇形光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="5" cy="12" r="2" fill="currentColor"></circle>
+                    <path d="M5 12 L 20 4 M5 12 L 20 12 M5 12 L 20 20"></path>
+                </svg> <!-- Point source with fan lines -->
+                <span class="toolbar-button-text">扇形光</span>
+            </button>
+            <button data-type="LineSource" title="线光源" class="icon-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="12" x2="20" y2="12"></line>
+                </svg> <!-- Thicker Line -->
+                <span class="toolbar-button-text">线光源</span>
+            </button>
+            <button data-type="WhiteLightSource" title="白光光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="#888" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4" fill="white" stroke="currentColor" stroke-width="1"></circle>
+                    <path d="M12 2v2m0 16v2m-7-9H3m18 0h-2m5-5l-1.4 1.4M5.4 5.4L4 4m16 16l-1.4-1.4M4 20l1.4-1.4"></path>
+                </svg> <!-- White circle with rays -->
+                <span class="toolbar-button-text">白光</span>
+            </button>
             <hr class="thin-hr">
-            <h4>透镜</h4>
-            <button data-type="ThinLens" title="添加理想薄透镜 (正焦距为凸透镜, 负焦距为凹透镜)">薄透镜</button>
-            <hr class="thin-hr">
-            <h4>反射镜</h4>
-            <button data-type="Mirror" title="添加平面反射镜">平面镜</button>
-            <button data-type="ConcaveMirror" title="添加凹面球面镜 (快捷方式)">凹面镜</button>
-            <button data-type="ConvexMirror" title="添加凸面球面镜 (快捷方式)">凸面镜</button>
-            <button data-type="ParabolicMirrorToolbar" title="添加抛物面反射镜 (凹面)">抛物面镜</button>
-            <hr class="thin-hr">
-            <h4>其它元件</h4>
-            <button data-type="Screen" title="添加屏幕以观察光强分布或干涉/衍射图样">屏幕</button>
-            <button data-type="Prism" title="添加棱镜，可观察色散现象">棱镜</button>
-            <button data-type="DiffractionGrating" title="添加衍射光栅，可观察衍射现象">衍射光栅</button>
-            <button data-type="Aperture" title="添加光阑、单缝或多缝，用于限制光束或观察衍射">光阑/多缝</button>
-            <button data-type="BeamSplitter" title="添加分束器 (标准或偏振型)">分束器</button>
-            <button data-type="DielectricBlock" title="添加具有折射率、色散和吸收的介质块">介质块</button>
-            <button data-type="Photodiode" title="添加光功率计，测量入射光总强度">光度计</button>
-            <button data-type="OpticalFiber" title="添加光纤，将光从输入端传输到输出端">光纤</button>
-            <hr class="thin-hr">
-            <h4>偏振与波片</h4>
-            <button data-type="Polarizer" title="添加线偏振片，只允许特定方向的偏振光通过">偏振片</button>
-            <button data-type="HalfWavePlate" title="添加半波片(λ/2)，旋转线偏振光的偏振方向">半波片 (λ/2)</button>
-            <button data-type="QuarterWavePlate" title="添加四分之一波片(λ/4)，可用于转换线偏振光和圆偏振光">四分之一波片 (λ/4)</button>
-            <hr class="thin-hr">
-            <h4>高级</h4>
-            <button data-type="AcoustoOpticModulator" title="添加声光调制器 (AOM)，可衍射光束并移频 (频率效应未模拟)">声光调制器 (AOM)</button>
-        </div>
 
+            <h4>透镜</h4>
+            <button data-type="ThinLens" title="薄透镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2 C 16 6, 16 18, 8 22"></path>
+                    <path d="M16 2 C 8 6, 8 18, 16 22"></path>
+                </svg> <!-- Basic Convex Lens Shape -->
+                <span class="toolbar-button-text">薄透镜</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>反射镜</h4>
+            <button data-type="Mirror" title="平面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20"></line>
+                    <line x1="6" y1="6" x2="8" y2="4"></line>
+                    <line x1="6" y1="9" x2="8" y2="7"></line>
+                    <line x1="6" y1="12" x2="8" y2="10"></line>
+                    <line x1="6" y1="15" x2="8" y2="13"></line>
+                    <line x1="6" y1="18" x2="8" y2="16"></line>
+                    <line x1="6" y1="21" x2="8" y2="19"></line>
+                </svg> <!-- Vertical mirror with hatch -->
+                <span class="toolbar-button-text">平面镜</span>
+            </button>
+            <button data-type="ConcaveMirror" title="凹面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 4 C 10 8, 10 16, 20 20"></path>
+                    <line x1="21" y1="6" x2="23" y2="4"></line>
+                    <line x1="21" y1="12" x2="23" y2="10"></line>
+                    <line x1="21" y1="18" x2="23" y2="16"></line>
+                </svg> <!-- Concave curve + hatch -->
+                <span class="toolbar-button-text">凹面镜</span>
+            </button>
+            <button data-type="ConvexMirror" title="凸面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4 C 14 8, 14 16, 4 20"></path>
+                    <line x1="3" y1="6" x2="1" y2="4"></line>
+                    <line x1="3" y1="12" x2="1" y2="10"></line>
+                    <line x1="3" y1="18" x2="1" y2="16"></line>
+                </svg> <!-- Convex curve + hatch -->
+                <span class="toolbar-button-text">凸面镜</span>
+            </button>
+            <button data-type="ParabolicMirrorToolbar" title="抛物面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 4 C 6 8, 6 16, 20 20"></path>
+                    <line x1="21" y1="6" x2="23" y2="4"></line>
+                    <line x1="21" y1="12" x2="23" y2="10"></line>
+                    <line x1="21" y1="18" x2="23" y2="16"></line>
+                </svg> <!-- Similar to concave for now -->
+                <span class="toolbar-button-text">抛物面镜</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>其它元件</h4>
+            <button data-type="Screen" title="屏幕" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke-dasharray="3,3"></line>
+                </svg> <!-- Dashed Line -->
+                <span class="toolbar-button-text">屏幕</span>
+            </button>
+            <button data-type="Prism" title="棱镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 4 L 4 20 L 20 20 Z"></path>
+                </svg> <!-- Triangle -->
+                <span class="toolbar-button-text">棱镜</span>
+            </button>
+            <button data-type="DiffractionGrating" title="衍射光栅" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke-width="1.5"></line>
+                    <line x1="7" y1="4" x2="7" y2="20"></line>
+                    <line x1="10" y1="4" x2="10" y2="20"></line>
+                    <line x1="13" y1="4" x2="13" y2="20"></line>
+                    <line x1="16" y1="4" x2="16" y2="20"></line>
+                    <line x1="19" y1="4" x2="19" y2="20"></line>
+                </svg> <!-- Parallel lines -->
+                <span class="toolbar-button-text">衍射光栅</span>
+            </button>
+            <button data-type="Aperture" title="光阑/多缝" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="1" ry="1" fill="#eee" stroke="none"></rect>
+                    <rect x="9" y="3" width="6" height="18" fill="white" stroke="none"></rect>
+                    <rect x="3" y="3" width="18" height="18" rx="1" ry="1" fill="none" stroke="currentColor"></rect>
+                </svg> <!-- Block with opening -->
+                <span class="toolbar-button-text">光阑/多缝</span>
+            </button>
+            <button data-type="BeamSplitter" title="分束器" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="20" x2="20" y2="4"></line>
+                    <polyline points="12 4 20 4 20 12"></polyline>
+                    <polyline points="4 12 4 4 12 4"></polyline>
+                </svg> <!-- Diagonal with arrows -->
+                <span class="toolbar-button-text">分束器</span>
+            </button>
+            <button data-type="DielectricBlock" title="介质块" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(170, 221, 170, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="1" ry="1"></rect>
+                </svg> <!-- Filled Rectangle -->
+                <span class="toolbar-button-text">介质块</span>
+            </button>
+            <button data-type="Photodiode" title="光度计" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="#333" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="14" r="5"></circle>
+                    <line x1="12" y1="9" x2="12" y2="4"></line>
+                    <polyline points="9 7 12 4 15 7"></polyline>
+                </svg> <!-- Circle + Arrow In -->
+                <span class="toolbar-button-text">光度计</span>
+            </button>
+            <button data-type="OpticalFiber" title="光纤" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="5" cy="7" r="1.5"></circle>
+                    <circle cx="19" cy="17" r="1.5"></circle>
+                    <path d="M5 7 C 5 17, 19 7, 19 17"></path>
+                </svg> <!-- Curved fiber -->
+                <span class="toolbar-button-text">光纤</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>偏振与波片</h4>
+            <button data-type="Polarizer" title="偏振片" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg> <!-- Circle with axis -->
+                <span class="toolbar-button-text">偏振片</span>
+            </button>
+            <button data-type="HalfWavePlate" title="半波片 (λ/2)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle><text x="50%" y="55%" dominant-baseline="middle"
+                        text-anchor="middle" font-size="7px" fill="currentColor" font-family="sans-serif">λ/2</text>
+                </svg>
+                <span class="toolbar-button-text">半波片</span>
+            </button>
+            <button data-type="QuarterWavePlate" title="四分之一波片 (λ/4)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle><text x="50%" y="55%" dominant-baseline="middle"
+                        text-anchor="middle" font-size="7px" fill="currentColor" font-family="sans-serif">λ/4</text>
+                </svg>
+                <span class="toolbar-button-text">四分之一波片</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>高级</h4>
+            <button data-type="AcoustoOpticModulator" title="声光调制器 (AOM)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(100, 149, 237, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="7" width="16" height="10" rx="1"></rect>
+                    <path d="M6 12 Q 8 9, 10 12 T 14 12 T 18 12"></path>
+                </svg> <!-- Box with wave -->
+                <span class="toolbar-button-text">AOM</span>
+            </button>
+        </div>
+        <!-- END Left Toolbar -->
         <!-- Center Simulation Area -->
         <div id="simulation-area">
             <canvas id="opticsCanvas"></canvas>

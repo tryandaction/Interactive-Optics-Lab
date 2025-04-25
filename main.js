@@ -1287,7 +1287,8 @@ function resizeCanvas() {
     needsRetrace = true; // Resize requires retrace
 }
 
-// --- Modify updateInspector to activate properties tab ---
+
+// --- REPLACEMENT for updateInspector (V2 - With Property Grouping) ---
 function updateInspector() {
     // Ensure inspector elements exist
     if (!inspectorContent || !deleteBtn) {
@@ -1309,226 +1310,347 @@ function updateInspector() {
             }
             // console.log("[updateInspector] Properties received:", props); // DEBUG
 
-            // --- Populate Properties Tab ---
+            // --- Define Property Groups (Customize as needed) ---
+            const propGroups = {
+                'position': { label: '位置与角度', names: ['posX', 'posY', 'angleDeg', 'outputX', 'outputY', 'outputAngleDeg'] },
+                'geometry': { label: '几何参数', names: ['length', 'diameter', 'width', 'height', 'baseLength', 'radiusOfCurvature', 'centralAngleDeg', 'focalLength', 'slitWidth', 'slitSeparation', 'numberOfSlits', 'coreDiameter', 'facetLength'] },
+                'source': { label: '光源特性', names: ['enabled', 'wavelength', 'intensity', 'baseIntensity', 'rayCount', 'numRays', 'spreadDeg', 'fanAngleDeg', 'gaussianEnabled', 'initialBeamWaist', 'beamDiameter'] },
+                'optical': { label: '光学特性', names: ['baseRefractiveIndex', 'refractiveIndex', 'dispersionCoeffB', 'dispersionCoeffB_nm2', 'splitRatio', 'pbsUnpolarizedReflectivity', 'type', 'quality', 'coated', 'chromaticAberration', 'sphericalAberration', 'numericalAperture', 'fiberIntrinsicEfficiency', 'transmissionLossDbPerKm', 'transmissionAxisAngleDeg', 'fastAxisAngleDeg', 'gratingPeriodInMicrons', 'maxOrder', 'rfFrequencyMHz', 'rfPower'] },
+                'display': { label: '显示/状态', names: ['showPattern', 'showEvanescentWave', 'measuredPower', 'hitCount', 'currentCoupling', 'fiberLength', 'acceptanceAngle', 'diffractionAngle', 'efficiency0', 'efficiency1', 'wavelengthInfo', 'isThickLens'] },
+                'physics': { label: '物理选项', names: ['ignoreDecay', 'absorptionCoeff'] }
+                // 'other': { label: '其它', names: [] } // Catch-all group is handled implicitly later
+            };
+            const groupedProps = {}; // Object to hold props sorted by group
+            const assignedProps = new Set(); // Keep track of properties already assigned
+
+            // Populate groupedProps based on defined groups
+            for (const groupKey in propGroups) {
+                groupedProps[groupKey] = []; // Initialize group array
+                propGroups[groupKey].names.forEach(name => {
+                    if (props[name]) { // Check if the property exists for this component
+                        groupedProps[groupKey].push({ name: name, data: props[name] });
+                        assignedProps.add(name); // Mark as assigned
+                    }
+                });
+            }
+
+            // Add remaining props to an 'other' group implicitly
+            groupedProps['other'] = [];
             for (const propName in props) {
-                if (Object.hasOwnProperty.call(props, propName)) {
-                    const propData = props[propName];
-                    if (!propData || typeof propData !== 'object' || !propData.hasOwnProperty('value')) {
-                        console.warn(`[updateInspector] Skipping invalid property data for '${propName}'.`);
-                        continue;
-                    }
-
-                    const { value, label, type = 'text', options, min, max, step, placeholder, readonly = false, title = '' } = propData; // Include title
-
-                    const div = document.createElement('div');
-                    div.className = 'prop';
-
-                    const labelEl = document.createElement('label');
-                    labelEl.textContent = label ? label + ':' : propName + ':';
-                    const inputId = `prop-${propName}-${selectedComponent.id}-${Date.now()}`;
-                    labelEl.htmlFor = inputId;
-                    if (title) { labelEl.title = title; } // Set tooltip on label if provided
-                    div.appendChild(labelEl);
-
-                    let inputEl;
-                    if (type === 'select' && Array.isArray(options)) {
-                        inputEl = document.createElement('select');
-                        options.forEach(opt => {
-                            const optionEl = document.createElement('option');
-                            optionEl.value = opt.value;
-                            optionEl.textContent = opt.label;
-                            if (String(opt.value) == String(value)) { optionEl.selected = true; } // Compare as strings for select
-                            inputEl.appendChild(optionEl);
-                        });
-                        inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value);
-                    } else if (type === 'checkbox') {
-                        inputEl = document.createElement('input');
-                        inputEl.type = 'checkbox';
-                        inputEl.checked = !!value;
-                        inputEl.onchange = (e) => handlePropertyChange(propName, e.target.checked);
-                    } else {
-                        inputEl = document.createElement('input');
-                        inputEl.type = type;
-                        inputEl.value = (value === null || value === undefined) ? '' : value;
-                        if (placeholder !== undefined) inputEl.placeholder = placeholder;
-                        if (min !== undefined) inputEl.min = min;
-                        if (max !== undefined) inputEl.max = max;
-                        if (step !== undefined) inputEl.step = step;
-
-                        if (type === 'range' || type === 'number') {
-                            inputEl.oninput = (e) => handlePropertyChange(propName, e.target.value);
-                            inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value, true);
-                        } else {
-                            inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value, true);
-                        }
-                    }
-
-                    const isDisabled = propData.disabled === true;
-                    if (isDisabled) { inputEl.disabled = true; }
-                    if (readonly) { inputEl.readOnly = true; }
-                    // Apply disabled/readonly styles via CSS class or direct style if needed
-                    if (isDisabled || readonly) {
-                        inputEl.style.backgroundColor = '#e9ecef';
-                        inputEl.style.cursor = 'not-allowed';
-                    }
-
-                    inputEl.id = inputId;
-                    div.appendChild(inputEl);
-                    inspectorContent.appendChild(div);
+                if (!assignedProps.has(propName)) { // If not assigned to a specific group
+                    groupedProps['other'].push({ name: propName, data: props[propName] });
                 }
             }
-            // --- End Populate ---
+            // --- End Grouping Logic ---
+
+            // --- Loop to Render Groups and their Properties ---
+            const groupOrder = ['position', 'geometry', 'source', 'optical', 'physics', 'display', 'other']; // Define drawing order
+            let groupAdded = false; // Track if any group has been added (for HR placement)
+
+            groupOrder.forEach(groupKey => {
+                const propertiesInGroup = groupedProps[groupKey];
+
+                // Only render group if it has properties AND they are not all invalid/empty
+                if (propertiesInGroup && propertiesInGroup.length > 0 && propertiesInGroup.some(p => p.data)) {
+
+                    // Add a separator before the group (except the very first one that gets added)
+                    if (groupAdded) {
+                        const hr = document.createElement('hr');
+                        hr.className = 'prop-group-divider';
+                        inspectorContent.appendChild(hr);
+                    }
+
+                    // Add group title (use defined label or fallback)
+                    const groupLabel = (propGroups[groupKey]?.label) || '其它属性';
+                    const titleEl = document.createElement('h5');
+                    titleEl.className = 'prop-group-title';
+                    titleEl.textContent = groupLabel;
+                    inspectorContent.appendChild(titleEl);
+                    groupAdded = true; // Mark that we've added content
+
+                    // Loop through properties *within this group*
+                    propertiesInGroup.forEach(propInfo => {
+                        const propName = propInfo.name;
+                        const propData = propInfo.data;
+
+                        // --- Create and append the property input element ---
+                        if (!propData || typeof propData !== 'object' || !propData.hasOwnProperty('value')) {
+                            console.warn(`[updateInspector] Skipping invalid property data for '${propName}' in group '${groupKey}'.`);
+                            return; // Skip this property if data is invalid
+                        }
+
+                        const { value, label, type = 'text', options, min, max, step, placeholder, readonly = false, title = '' } = propData;
+
+                        const div = document.createElement('div');
+                        div.className = 'prop'; // Class for individual property row styling
+
+                        const labelEl = document.createElement('label');
+                        labelEl.textContent = label ? label + ':' : propName + ':'; // Use provided label or fallback to name
+                        const inputId = `prop-${propName}-${selectedComponent.id}-${Date.now()}`; // Generate a unique ID
+                        labelEl.htmlFor = inputId;
+                        if (title) { labelEl.title = title; } // Add tooltip if provided
+                        div.appendChild(labelEl);
+
+                        let inputEl; // Declare input element variable
+
+                        // Create the appropriate input type
+                        if (type === 'select' && Array.isArray(options)) {
+                            inputEl = document.createElement('select');
+                            options.forEach(opt => {
+                                const optionEl = document.createElement('option');
+                                optionEl.value = opt.value;
+                                optionEl.textContent = opt.label;
+                                // Use string comparison for select values
+                                if (String(opt.value) == String(value)) {
+                                    optionEl.selected = true;
+                                }
+                                inputEl.appendChild(optionEl);
+                            });
+                            // Attach final change handler for select
+                            inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value, true);
+                        } else if (type === 'checkbox') {
+                            inputEl = document.createElement('input');
+                            inputEl.type = 'checkbox';
+                            inputEl.checked = !!value; // Ensure boolean conversion
+                            // Attach final change handler for checkbox
+                            inputEl.onchange = (e) => handlePropertyChange(propName, e.target.checked, true);
+                        } else { // Default to text-based inputs (text, number, range, etc.)
+                            inputEl = document.createElement('input');
+                            inputEl.type = type;
+                            // Handle null/undefined values appropriately for input value
+                            inputEl.value = (value === null || value === undefined) ? '' : value;
+                            // Set attributes if they exist
+                            if (placeholder !== undefined) inputEl.placeholder = placeholder;
+                            if (min !== undefined) inputEl.min = min;
+                            if (max !== undefined) inputEl.max = max;
+                            if (step !== undefined) inputEl.step = step;
+
+                            // Add different listeners based on type for responsiveness vs final commit
+                            if (type === 'range' || type === 'number') {
+                                // 'input' fires continuously during drag/spin
+                                inputEl.oninput = (e) => handlePropertyChange(propName, e.target.value, false);
+                                // 'change' fires when value is committed (blur, enter)
+                                inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value, true);
+                            } else {
+                                // For text, etc., only fire final change on blur/enter
+                                inputEl.onchange = (e) => handlePropertyChange(propName, e.target.value, true);
+                            }
+                        }
+
+                        // Apply disabled/readonly states and styles
+                        const isDisabled = propData.disabled === true;
+                        if (isDisabled) { inputEl.disabled = true; }
+                        if (readonly) { inputEl.readOnly = true; }
+                        if (isDisabled || readonly) {
+                            inputEl.classList.add('readonly-or-disabled'); // Use class for styling
+                        }
+
+                        inputEl.id = inputId; // Assign the unique ID
+                        div.appendChild(inputEl); // Add input to the property div
+                        inspectorContent.appendChild(div); // Add property div to the inspector content
+                        // --- End Create and append ---
+
+                    }); // End loop through properties in group
+                } // End if group has valid properties
+            }); // End loop through groupOrder
+            // --- End Loop to Render Groups ---
 
         } catch (e) {
+            // Handle errors during property fetching or rendering
             console.error(` !!! Error calling getProperties or building inspector for ${selectedComponent.label}:`, e);
-            inspectorContent.innerHTML = '<p class="placeholder-text error-text">加载属性时出错。</p>'; // Use CSS class for error text
-            deleteBtn.disabled = true;
+            inspectorContent.innerHTML = '<p class="placeholder-text error-text">加载属性时出错。</p>'; // Display error message
+            if (deleteBtn) deleteBtn.disabled = true; // Disable delete if properties fail
         }
-        // --- Activate the properties tab ---
+
+        // Ensure the properties tab is active after updating
         activateTab('properties-tab');
 
     } else { // No component selected
-        deleteBtn.disabled = true;
-        // Clear the properties tab and show placeholder
+        if (deleteBtn) deleteBtn.disabled = true; // Disable delete button
+        // Clear the properties tab and show placeholder text
         inspectorContent.innerHTML = '<p class="placeholder-text">请先选中一个元件...</p>';
         // Optionally switch to a different default tab when nothing is selected
         // activateTab('settings-tab'); // Example
     }
 }
+// --- END OF REPLACEMENT for updateInspector ---
 
 
-// --- REPLACEMENT for handlePropertyChange (V4 - Handles isFinalChange for Undo/Redo Refined) ---
+// --- REPLACEMENT for handlePropertyChange (V5 - Enhanced Logging & Final Value Check) ---
 function handlePropertyChange(propName, rawValue, isFinalChange = false) {
     if (!selectedComponent) return;
-    // Limit logging for noisy 'input' events
-    // if (isFinalChange) {
-    //     console.log(`handlePropertyChange: prop=${propName}, rawValue=${rawValue}, isFinal=${isFinalChange}`);
-    // }
+
+    // Log entry point
+    // console.log(`handlePropertyChange: START - prop=${propName}, rawValue=${JSON.stringify(rawValue)}, isFinal=${isFinalChange}`);
+
+    let commandOldValue;
+    let startValueForOngoingAction; // Value when the continuous action (like slider drag) started
 
     // --- Get/Set Initial State ---
-    let commandOldValue;
-    let startValueForOngoingAction; // Value when the continuous action started
-
     if (!isFinalChange && ongoingActionState && ongoingActionState.type === 'property' &&
         ongoingActionState.component === selectedComponent &&
         ongoingActionState.propName === propName) {
-        // Continue existing 'input' sequence
-        startValueForOngoingAction = ongoingActionState.startValue;
-        commandOldValue = ongoingActionState.startValue; // Command reverts to the start
-        // if (isFinalChange) console.log(`  -> Continuing action for ${propName}, startValue=${startValueForOngoingAction}`);
+        // --- Continue existing 'input' sequence (e.g., slider drag) ---
+        startValueForOngoingAction = ongoingActionState.startValue; // Use the value from when the action began
+        commandOldValue = startValueForOngoingAction; // Command should revert to the very beginning of the action
+        // console.log(`  -> Continuing property action for ${propName}. Start value: ${JSON.stringify(startValueForOngoingAction)}`);
     } else {
-        // Start new action or discrete 'change'
+        // --- Start new action OR handle a discrete 'change' event ---
         try {
-            // Get current value before this change attempt
-            if (propName === 'angleDeg') commandOldValue = selectedComponent.angleRad;
-            else if (propName === 'transmissionAxisAngleDeg') commandOldValue = selectedComponent.transmissionAxisRad;
-            else if (propName === 'fastAxisAngleDeg') commandOldValue = selectedComponent.fastAxisRad;
-            else if (propName === 'outputAngleDeg' && selectedComponent instanceof OpticalFiber) commandOldValue = selectedComponent.outputAngleRad;
-            else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) commandOldValue = selectedComponent.outputPos?.clone();
-            else commandOldValue = selectedComponent[propName]; // Direct access
-
-            if (commandOldValue instanceof Vector) commandOldValue = commandOldValue.clone();
+            // Get current value *before* this specific change attempt
+            // Use helper function for complex cases or direct access
+            commandOldValue = getComponentPropertyValue(selectedComponent, propName);
         } catch (e) {
-            console.warn(`  -> Failed to get current value for ${propName} directly, using fallback.`);
-            try { commandOldValue = selectedComponent.getProperties()[propName]?.value; } catch { commandOldValue = null; }
+            console.warn(`  -> Failed to get current value for ${propName}. Error: ${e.message}. Using rawValue as fallback oldValue.`);
+            commandOldValue = rawValue; // Less ideal, but fallback
         }
-        startValueForOngoingAction = commandOldValue; // For new/discrete, start is current
-        // if (isFinalChange) console.log(`  -> Starting new/discrete change for ${propName}, oldValue/startValue=${commandOldValue}`);
+        startValueForOngoingAction = commandOldValue; // For new/discrete, the start value is the current value before this change
+        // console.log(`  -> Starting new/discrete change for ${propName}. Old/Start value: ${JSON.stringify(commandOldValue)}`);
 
-        // If starting an 'input' sequence, record state
+        // If starting a continuous 'input' sequence, record its initial state
         if (!isFinalChange) {
             ongoingActionState = { type: 'property', component: selectedComponent, propName: propName, startValue: startValueForOngoingAction };
-            // if (isFinalChange) console.log(`  -> Recorded ongoingActionState for ${propName}`);
+            // console.log(`  -> Recorded ongoingActionState for continuous change of ${propName}.`);
         } else {
-            // If it's a final change, clear any *previous* different ongoing state
-            ongoingActionState = null;
+            // If it's a final change event, clear any previous *different* ongoing state
+            // e.g., user dragged slider (input events), then typed in box (change event)
+            if (ongoingActionState && (ongoingActionState.component !== selectedComponent || ongoingActionState.propName !== propName)) {
+                ongoingActionState = null;
+            }
+            // If it IS a final change for the *same* property that had an ongoing state,
+            // we'll use the startValueForOngoingAction captured earlier and clear ongoingActionState *later*.
         }
     }
     // --- End Initial State ---
 
     // --- Value Conversion & Validation ---
-    const currentProps = selectedComponent.getProperties();
-    const originalType = typeof commandOldValue;
-    const inputTypeHint = currentProps[propName]?.type;
-    let newValue = rawValue;
+    let newValue = rawValue; // Start with the raw input value
     try {
+        // Determine expected type based on component's property definition or old value
+        const currentProps = selectedComponent.getProperties();
+        const originalType = typeof commandOldValue; // Type before change attempt
+        const inputTypeHint = currentProps[propName]?.type; // Type hint from getProperties
+
         if (inputTypeHint === 'number' || inputTypeHint === 'range' || originalType === 'number') {
             newValue = parseFloat(rawValue);
             if (isNaN(newValue)) {
-                if (isFinalChange) { console.warn(`Invalid number for ${propName}, reverting.`); updateInspector(); }
-                return; // Stop invalid number processing
+                console.warn(`Invalid number input for ${propName}: '${rawValue}'. Reverting UI.`);
+                if (isFinalChange) updateInspector(); // Revert UI on final invalid input
+                return; // Stop processing invalid number
             }
         } else if (inputTypeHint === 'checkbox' || originalType === 'boolean') {
-            newValue = !!rawValue;
-        } else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) {
-            if (!(newValue instanceof Vector)) { console.error("Expected Vector for outputPos", newValue); return; }
+            newValue = !!rawValue; // Ensure boolean conversion
         }
-    } catch (convError) { console.error(`Value conversion error for ${propName}:`, convError); if (isFinalChange) updateInspector(); return; }
+        // Add more specific type conversions if needed (e.g., for Vectors if they come as strings)
+    } catch (convError) {
+        console.error(`Value conversion error for ${propName} (value: '${rawValue}'):`, convError);
+        if (isFinalChange) updateInspector(); // Revert UI
+        return;
+    }
     // --- End Conversion ---
 
     // --- Set Property & Handle History ---
     try {
-        // Apply property change
-        let propertySet = false;
-        if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber && newValue instanceof Vector) {
-            selectedComponent.outputPos.set(newValue.x, newValue.y);
-            if (typeof selectedComponent._updateGeometry === 'function') { selectedComponent._updateGeometry(); }
-            needsRetrace = true; sceneModified = true; propertySet = true;
-        } else if (propName === 'outputAngleRad' && selectedComponent instanceof OpticalFiber && typeof newValue === 'number') {
-            selectedComponent.outputAngleRad = newValue;
-            if (typeof selectedComponent._updateGeometry === 'function') { selectedComponent._updateGeometry(); }
-            needsRetrace = true; sceneModified = true; propertySet = true;
-        } else {
-            // Use standard setProperty
-            selectedComponent.setProperty(propName, newValue);
-            // Assume setProperty handles needsRetrace/sceneModified correctly
-            propertySet = true;
-        }
-        if (!propertySet) { console.warn(`Property ${propName} not set.`); if (isFinalChange) updateInspector(); return; }
+        // Apply the property change using the component's setProperty method
+        selectedComponent.setProperty(propName, newValue);
+        // Assume setProperty internally handles needsRetrace and sceneModified flags
+        // console.log(`  -> Applied setProperty(${propName}, ${JSON.stringify(newValue)})`);
 
-        // --- Add Command to History (Only on Final Change) ---
+        // --- Add Command to History (Only on Final Change Commit) ---
         if (isFinalChange) {
-            let finalValue = null;
-            try { // Get actual value after potential clamping/modification
-                if (propName === 'angleDeg') finalValue = selectedComponent.angleRad;
-                else if (propName === 'transmissionAxisAngleDeg') finalValue = selectedComponent.transmissionAxisRad;
-                else if (propName === 'fastAxisAngleDeg') finalValue = selectedComponent.fastAxisRad;
-                else if (propName === 'outputAngleDeg' && selectedComponent instanceof OpticalFiber) finalValue = selectedComponent.outputAngleRad;
-                else if (propName === 'outputPos' && selectedComponent instanceof OpticalFiber) finalValue = selectedComponent.outputPos?.clone();
-                else finalValue = selectedComponent[propName];
-                if (finalValue instanceof Vector) finalValue = finalValue.clone();
-            } catch { finalValue = newValue; }
-
-            // Compare initial value (startValueForOngoingAction) with final value
-            let valueChanged = false;
-            if (typeof startValueForOngoingAction === 'number' && typeof finalValue === 'number' && !isNaN(startValueForOngoingAction) && !isNaN(finalValue)) { valueChanged = Math.abs(startValueForOngoingAction - finalValue) > 1e-6; }
-            else if (startValueForOngoingAction instanceof Vector && finalValue instanceof Vector) { valueChanged = !startValueForOngoingAction.equals(finalValue, 1e-4); }
-            else { valueChanged = startValueForOngoingAction !== finalValue; }
-
-            if (valueChanged) {
-                if (isFinalChange) console.log(`属性 ${propName} 最终更改: ${JSON.stringify(startValueForOngoingAction)} -> ${JSON.stringify(finalValue)}`);
-                const commandPropName = (propName === 'outputAngleDeg') ? 'outputAngleRad' : propName;
-                historyManager.addCommand(new SetPropertyCommand(selectedComponent, commandPropName, startValueForOngoingAction, finalValue));
-                updateUndoRedoUI();
-                if (isFinalChange) console.log(`添加 Property Change (${propName}) 命令 (Final)`);
-                // sceneModified = true; // Should be set by setProperty or above
-            } else {
-                if (isFinalChange) console.log(`属性 ${propName} 未发生显著变化 (Final)，不添加命令`);
+            // console.log(`  -> Processing FINAL change for ${propName}.`);
+            let finalValue;
+            try {
+                // Get the ACTUAL value *after* setProperty (it might have been clamped/modified)
+                finalValue = getComponentPropertyValue(selectedComponent, propName);
+                // console.log(`    -> Fetched final value: ${JSON.stringify(finalValue)}`);
+            } catch (fetchError) {
+                console.warn(`    -> Failed to fetch final value for ${propName} after setProperty. Using intermediate value. Error: ${fetchError.message}`);
+                finalValue = newValue; // Use the value we attempted to set as fallback
             }
 
-            ongoingActionState = null; // Clear ongoing state after final change
-            updateInspector(); // Refresh inspector after final change
+            // Compare initial value (startValueForOngoingAction) with the actual final value
+            let valueChanged = !areValuesEqual(startValueForOngoingAction, finalValue);
+
+            if (valueChanged) {
+                console.log(`    -> Property ${propName} changed significantly: ${JSON.stringify(startValueForOngoingAction)} -> ${JSON.stringify(finalValue)}. Adding command.`);
+                // Create and add the command using the initial value and the actual final value
+                historyManager.addCommand(new SetPropertyCommand(selectedComponent, propName, startValueForOngoingAction, finalValue));
+                updateUndoRedoUI(); // Update buttons/menu
+                sceneModified = true; // Modification confirmed
+            } else {
+                console.log(`    -> Property ${propName} did not change significantly from start value ${JSON.stringify(startValueForOngoingAction)}. No command added.`);
+            }
+
+            // Clear ongoing state ONLY after the final change is processed
+            if (ongoingActionState && ongoingActionState.propName === propName && ongoingActionState.component === selectedComponent) {
+                ongoingActionState = null;
+                // console.log(`    -> Cleared ongoingActionState for ${propName}.`);
+            }
+            updateInspector(); // Refresh inspector UI to reflect the final state
         } // --- End of isFinalChange block ---
 
     } catch (e) {
-        console.error(`Error in setProperty/history for ${propName}:`, e);
+        console.error(`Error during setProperty or history handling for ${propName}:`, e);
         if (isFinalChange) updateInspector(); // Revert UI on error
         ongoingActionState = null; // Clear state on error
     }
     // --- End Property Set & History ---
 }
-// --- END OF REPLACEMENT for handlePropertyChange ---
 
+// --- Helper Function to get component property value robustly ---
+function getComponentPropertyValue(component, propName) {
+    try {
+        // Prioritize special cases (like angles stored in radians)
+        if (propName === 'angleDeg' && component.hasOwnProperty('angleRad')) return component.angleRad;
+        if (propName === 'transmissionAxisAngleDeg' && component.hasOwnProperty('transmissionAxisRad')) return component.transmissionAxisRad;
+        if (propName === 'fastAxisAngleDeg' && component.hasOwnProperty('fastAxisRad')) return component.fastAxisRad;
+        if (propName === 'outputAngleDeg' && component instanceof OpticalFiber && component.hasOwnProperty('outputAngleRad')) return component.outputAngleRad;
+        if (propName === 'outputPos' && component instanceof OpticalFiber && component.outputPos instanceof Vector) return component.outputPos.clone();
+        if (propName === 'posX' && component.pos instanceof Vector) return component.pos.x;
+        if (propName === 'posY' && component.pos instanceof Vector) return component.pos.y;
+        if (propName === 'pos' && component.pos instanceof Vector) return component.pos.clone(); // For move command comparison
+
+        // Fallback to direct property access
+        let value = component[propName];
+
+        // Check if value exists on component (or prototype)
+        if (value === undefined && !(propName in component)) {
+            // If not found directly, try getting it via getProperties as a last resort
+            console.warn(`Property '${propName}' not found directly on ${component.label}. Trying getProperties().`);
+            const propsData = component.getProperties();
+            if (propsData && propsData[propName]) {
+                value = propsData[propName].value; // Might be formatted string, less ideal
+            } else {
+                throw new Error(`Property '${propName}' not found.`);
+            }
+        }
+
+        // Clone vectors to prevent accidental modification
+        if (value instanceof Vector) {
+            return value.clone();
+        }
+        // Add cloning for other object types if needed later
+
+        return value;
+    } catch (e) {
+        console.error(`Error getting property '${propName}' from component ${component?.label}: ${e.message}`);
+        throw e; // Re-throw to be caught by caller
+    }
+}
+
+// --- Helper Function to compare values with tolerance ---
+function areValuesEqual(val1, val2, tolerance = 1e-6) {
+    if (val1 instanceof Vector && val2 instanceof Vector) {
+        return val1.equals(val2, tolerance);
+    }
+    if (typeof val1 === 'number' && typeof val2 === 'number') {
+        return Math.abs(val1 - val2) < tolerance;
+    }
+    // Add checks for other types if necessary (e.g., objects, arrays)
+    return val1 === val2; // Default strict equality
+}
+// --- END OF REPLACEMENT ---
 
 // --- Update User Interface (Top Right) ---
 function updateUserUI() {
@@ -3241,6 +3363,29 @@ function setupEventListeners() {
     // 移除菜单项的 disabled-link 类（如果之前添加了）
     document.getElementById('menu-undo')?.classList.remove('disabled-link');
     document.getElementById('menu-redo')?.classList.remove('disabled-link');
+
+
+
+    // --- Direct Icon Button Listeners ---
+    console.log("Setting up direct icon button listeners...");
+    document.getElementById('menu-icon-new')?.addEventListener('click', () => {
+        // Reuse logic from menu-new-scene
+        if (sceneModified && !confirm("当前场景有未保存的更改。确定要新建场景并放弃更改吗？")) return;
+        console.log("Action: New Scene (Icon)");
+        components = []; selectedComponent = null; historyManager.clear(); updateUndoRedoUI(); updateInspector(); activateTab('properties-tab'); cameraOffset = new Vector(0, 0); cameraScale = 1.0; sceneModified = false; needsRetrace = true;
+    });
+    document.getElementById('menu-icon-save-local')?.addEventListener('click', () => {
+        console.log("Action: Save Local (Icon)");
+        handleSaveAsClick(); // Use the existing save function
+    });
+    document.getElementById('menu-icon-export')?.addEventListener('click', () => {
+        console.log("Action: Export File (Icon)");
+        exportScene(); // Use the existing export function
+    });
+    // --- End Direct Icon Button Listeners ---
+
+
+
 
     console.log("Event listeners setup complete.");
 }
