@@ -14,36 +14,21 @@
 <body> <!-- Visible content of the webpage -->
 
 
-    <!-- NEW Top Menubar -->
+    <!-- NEW Top Menubar - V2 Corrected Structure -->
     <div id="top-menubar">
         <div class="menu-left">
+            <!-- Hamburger button for mobile -->
+            <button class="menubar-button menubar-icon-button" id="menu-toggle-sidebars" title="切换侧边栏"
+                style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
 
-            <div class="menu-left">
-                <!-- ADD THIS BUTTON FIRST -->
-                <button class="menubar-button menubar-icon-button" id="menu-toggle-sidebars" title="切换侧边栏"
-                    style="display: none;"> <!-- Initially hidden -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="3" y1="12" x2="21" y2="12"></line>
-                        <line x1="3" y1="6" x2="21" y2="6"></line>
-                        <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
-                </button>
-                <!-- Existing dropdowns follow -->
-                <div class="dropdown">
-                    <button class="dropbtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                            <polyline points="13 2 13 9 20 9"></polyline>
-                        </svg>
-                        <span class="menu-text">文件</span>
-                    </button>
-                    <!-- ... dropdown content ... -->
-                </div>
-                <!-- ... other dropdowns ... -->
-            </div>
-
+            <!-- File Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -64,6 +49,8 @@
                     <a href="#" id="menu-cloud-load" class="disabled-link">加载云端场景 (开发中)</a>
                 </div>
             </div>
+
+            <!-- Edit Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -74,13 +61,15 @@
                     <span class="menu-text">编辑</span>
                 </button>
                 <div class="dropdown-content">
-                    <a href="#" id="menu-undo" class="disabled-link">撤销 (开发中)</a>
-                    <a href="#" id="menu-redo" class="disabled-link">重做 (开发中)</a>
+                    <a href="#" id="menu-undo" class="disabled-link">撤销 (Ctrl+Z)</a>
+                    <a href="#" id="menu-redo" class="disabled-link">重做 (Ctrl+Y)</a>
                     <hr>
                     <a href="#" id="menu-delete-selected">删除选中 (Del/Bksp)</a>
                     <a href="#" id="menu-clear-all">清空所有元件</a>
                 </div>
             </div>
+
+            <!-- View Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -93,11 +82,10 @@
                 <div class="dropdown-content">
                     <a href="#" id="menu-reset-view">重置视图</a>
                     <a href="#" id="menu-toggle-grid">切换网格</a>
-                    <!-- <hr>
-                <a href="#" id="menu-zoom-in">放大 (+)</a>
-                <a href="#" id="menu-zoom-out">缩小 (-)</a> -->
                 </div>
             </div>
+
+            <!-- Simulate Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -116,6 +104,8 @@
                     <a href="#" id="menu-open-settings">参数设置...</a>
                 </div>
             </div>
+
+            <!-- Help Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -131,12 +121,11 @@
                     <a href="#" id="menu-about">关于...</a>
                 </div>
             </div>
-
-        </div>
+        </div> <!-- End menu-left -->
 
         <div class="menubar-divider"></div>
 
-        <!-- New Direct Action Icons -->
+        <!-- Direct Action Icons -->
         <button class="menubar-button menubar-icon-button" id="menu-icon-new" title="新建场景 (Ctrl+N)">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -162,10 +151,9 @@
                 <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
         </button>
-        <!-- End New Direct Action Icons -->
+        <!-- End Direct Action Icons -->
 
-
-        <!-- BEGIN: 图形化撤销/重做按钮 -->
+        <!-- Undo/Redo Buttons -->
         <button class="menubar-button menubar-icon-button disabled" id="undo-button" title="撤销 (Ctrl+Z)">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path
@@ -178,17 +166,26 @@
                     d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
             </svg>
         </button>
-        <!-- END: 图形化撤销/重做按钮 -->
+        <!-- END Undo/Redo Buttons -->
 
         <div class="menubar-divider"></div>
 
+        <!-- User Status Area -->
         <div class="menu-right">
             <div id="user-status-top">未登录</div>
             <button class="menubar-button" id="user-action-btn-top">登录/注册</button>
+            <!-- Cloud Scenes button placeholder -->
+            <button class="menubar-button menubar-icon-button" id="user-scenes-btn-top" title="我的云端场景 (开发中)"
+                style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 17.5l-2.5 2.5-2.5-2.5" />
+                    <path
+                        d="M17.5 20V8.6a6 6 0 00-12 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3V8.5a4 4 0 018 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3z" />
+                </svg> <!-- Cloud Icon -->
+            </button>
             <button class="menubar-button secondary" id="logout-btn-top" style="display: none;">登出</button>
-        </div>
-
-
+        </div> <!-- End menu-right -->
 
     </div>
     <!-- END Top Menubar -->

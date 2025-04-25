@@ -1024,6 +1024,56 @@ hr.thin-hr {
     body.inspector-visible .sidebar-overlay {
         display: block;
     }
+
+
+    /* --- Inside @media (max-width: 768px) --- */
+
+    /* Make toolbar buttons slightly larger for touch */
+    #toolbar button.icon-button {
+        height: 60px;
+        /* Slightly taller */
+        width: calc(50% - 6px);
+        /* Adjust width slightly if needed */
+        margin: 3px;
+    }
+
+    #toolbar button.icon-button svg {
+        width: 22px;
+        /* Larger icon */
+        height: 22px;
+        margin-bottom: 3px;
+    }
+
+    #toolbar button.icon-button .toolbar-button-text {
+        font-size: 10.5px;
+        /* Can adjust text size */
+    }
+
+
+    /* Make inspector property rows taller */
+    .tab-content .prop {
+        min-height: 32px;
+        margin-bottom: 12px;
+    }
+
+    .tab-content .prop label {
+        width: 90px;
+        /* Slightly narrower label */
+        font-size: 12.5px;
+    }
+
+    .tab-content .prop input[type="text"],
+    .tab-content .prop input[type="number"],
+    .tab-content .prop input[type="range"],
+    .tab-content .prop select {
+        height: 30px;
+        /* Taller input fields */
+        font-size: 12.5px;
+    }
+
+    /* --- End Mobile Adjustments --- */
+
+
 }
 
 /* End of @media rule */

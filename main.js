@@ -3624,7 +3624,13 @@ let touchState = {
     lastTouches: [], // Store active touches for multi-touch
     pinchStartDistance: 0,
     pinchStartMidpoint: null,
-    panStartMidpoint: null
+    panStartMidpoint: null,
+    // --- ADD THESE ---
+    touchStartTime: 0,
+    touchStartPos: null, // Store logical position at touch start
+    isDraggingConfirmed: false, // Flag to confirm drag intent
+    dragThreshold: 5 // Pixels (logical) movement needed to confirm drag
+    // --- END ADD ---
 };
 
 // Helper to get logical coordinates from a Touch object
@@ -3652,32 +3658,29 @@ function getTouchMidpoint(touch1, touch2) {
     );
 }
 
-
 function handleTouchStart(event) {
-    event.preventDefault(); // Prevent default touch actions like scrolling/zooming
-    console.log("Touch Start:", event.touches.length); // Debug
+    event.preventDefault();
+    console.log("Touch Start:", event.touches.length);
 
-    touchState.lastTouches = Array.from(event.touches); // Store current touches
+    touchState.lastTouches = Array.from(event.touches);
 
     if (event.touches.length === 1 && !touchState.isDown) {
-        // --- Single Touch Start (Simulate MouseDown) ---
+        // --- Single Touch Start ---
         touchState.isDown = true;
         touchState.isMultiTouch = false;
+        touchState.isDraggingConfirmed = false; // Reset drag confirmation
         const touch = event.touches[0];
         touchState.lastSingleTouchId = touch.identifier;
+        touchState.touchStartTime = performance.now(); // Record time
+        touchState.touchStartPos = getTouchPos(canvas, touch); // Record logical position
 
-        // Simulate MouseDown event object for handleMouseDown
-        const simulatedMouseEvent = {
-            clientX: touch.clientX,
-            clientY: touch.clientY,
-            button: 0, // Main button
-            preventDefault: () => event.preventDefault(), // Pass preventDefault
-            // Add other properties if handleMouseDown uses them directly
-        };
-        handleMouseDown(simulatedMouseEvent); // Call existing mouse down logic
+        // -- DON'T call handleMouseDown here anymore --
+
+        // Tentatively set cursor to indicate potential interaction
+        // canvas.style.cursor = 'pointer'; // Or based on potential hit
 
     } else if (event.touches.length === 2) {
-        // --- Multi Touch Start (Pan/Zoom Prep) ---
+        // --- Multi Touch Start ---
         // If a single drag was ongoing, end it cleanly before starting multi-touch
         if (isDragging && draggingComponent) {
             console.log("Switching from single drag to multi-touch, ending drag.");
@@ -3691,13 +3694,17 @@ function handleTouchStart(event) {
         ongoingActionState = null; // Clear action state
         activeGuides = []; // Clear guides
 
+        // Clear any pending single-touch drag confirmation
+        touchState.isDraggingConfirmed = false;
+        touchState.touchStartTime = 0;
+        touchState.touchStartPos = null;
+
         const touch1 = event.touches[0];
         const touch2 = event.touches[1];
         touchState.pinchStartDistance = getTouchDistance(touch1, touch2);
         touchState.panStartMidpoint = getTouchMidpoint(touch1, touch2); // Use CSS pixels for panning delta
-        canvas.style.cursor = 'move'; // Indicate panning/zooming visually
+        canvas.style.cursor = 'move';
     }
-    // Handle > 2 touches if necessary (e.g., ignore or specific actions)
 }
 
 function handleTouchMove(event) {
@@ -3745,28 +3752,57 @@ function handleTouchMove(event) {
             touchState.panStartMidpoint = currentMidpointCss; // Update for next move delta
             needsRetrace = true;
         }
+        needsRetrace = true; // Ensure redraw during pan/zoom
 
 
     } else if (!touchState.isMultiTouch && event.touches.length === 1) {
-        // --- Single Touch Move (Simulate MouseMove) ---
+        // --- Single Touch Move ---
         const touch = event.touches[0];
-        // Ensure this is the *same* touch finger that started
         if (touch.identifier === touchState.lastSingleTouchId) {
-            // Simulate MouseMove event object
-            const simulatedMouseEvent = {
-                clientX: touch.clientX,
-                clientY: touch.clientY,
-                preventDefault: () => event.preventDefault(),
-                // Add other properties if handleMouseMove uses them
-            };
-            handleMouseMove(simulatedMouseEvent); // Call existing mouse move logic
+
+            if (!touchState.isDraggingConfirmed) {
+                // --- Check if drag threshold is met ---
+                const currentPos = getTouchPos(canvas, touch);
+                if (touchState.touchStartPos && currentPos.distanceTo(touchState.touchStartPos) > touchState.dragThreshold) {
+                    console.log("Drag threshold met."); // Debug
+                    touchState.isDraggingConfirmed = true;
+
+                    // --- Initiate the Drag (like original mousedown) ---
+                    const simulatedMouseDownEvent = {
+                        clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || event.touches[0].clientX, // Use stored start touch if available
+                        clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || event.touches[0].clientY,
+                        button: 0,
+                        preventDefault: () => { }, // Doesn't need to prevent default here
+                    };
+                    // **Call handleMouseDown here to select/start dragging**
+                    handleMouseDown(simulatedMouseDownEvent);
+                    // Ensure the component drag actually started
+                    if (!isDragging || !draggingComponent) {
+                        // If handleMouseDown didn't initiate a drag (e.g., clicked empty space), stop tracking
+                        touchState.isDraggingConfirmed = false;
+                        console.log("Drag not initiated by handleMouseDown, resetting."); // Debug
+                    } else {
+                        console.log("Drag confirmed and initiated."); // Debug
+                    }
+                }
+            }
+
+            // --- If drag IS confirmed, simulate MouseMove ---
+            if (touchState.isDraggingConfirmed && isDragging) {
+                const simulatedMouseMoveEvent = {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    preventDefault: () => event.preventDefault(),
+                };
+                handleMouseMove(simulatedMouseMoveEvent); // Call existing mouse move logic
+            }
         }
     }
 }
 
 function handleTouchEnd(event) {
     // Don't prevent default on touchend usually
-    console.log("Touch End/Cancel:", event.touches.length, "Changed:", event.changedTouches.length); // Debug
+    console.log("Touch End/Cancel:", event.touches.length, "Changed:", event.changedTouches.length);
 
     if (!touchState.isDown) return; // Ignore if we weren't tracking
 
@@ -3784,45 +3820,67 @@ function handleTouchEnd(event) {
             // If one finger remains, treat it as a new touch start? Or just end? Let's just end.
             if (event.touches.length === 0) {
                 touchState.isDown = false; // No fingers left
-                handleMouseUp({ button: 0 }); // Simulate mouse up to clear states if needed
-                handleMouseMove(event); // Update cursor
+                // No need to simulate mouseup here as multitouch doesn't directly use it
+                handleMouseMove(event); // Update cursor based on potential remaining touches or lack thereof
             }
-            canvas.style.cursor = 'default'; // Reset cursor after pan/zoom
+            canvas.style.cursor = 'default';
         }
         // Keep tracking if 2+ touches still remain (unlikely for pinch/pan end)
 
     } else if (!touchState.isMultiTouch && endedTouchIds.includes(touchState.lastSingleTouchId)) {
-        // --- Single Touch End (Simulate MouseUp) ---
-        console.log("Ending single touch gesture.");
+        // --- Single Touch End ---
         const endedTouch = Array.from(event.changedTouches).find(t => t.identifier === touchState.lastSingleTouchId);
 
-        if (endedTouch) {
-            // Simulate MouseUp event object
-            const simulatedMouseEvent = {
-                clientX: endedTouch.clientX,
-                clientY: endedTouch.clientY,
-                button: 0, // Main button
-                preventDefault: () => { }, // Usually not needed for mouseup
-                // Add other properties if handleMouseUp uses them
-            };
-            handleMouseUp(simulatedMouseEvent); // Call existing mouse up logic
+        if (!touchState.isDraggingConfirmed) {
+            // --- This is a TAP (ended before drag threshold met) ---
+            console.log("Tap detected.");
+            // Simulate a MouseDown *and* MouseUp at the start position to trigger selection/placement
+            if (touchState.touchStartPos && endedTouch) { // Ensure we have start pos
+                const simulatedMouseDownEvent = {
+                    clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || endedTouch.clientX,
+                    clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || endedTouch.clientY,
+                    button: 0,
+                    preventDefault: () => { },
+                };
+                handleMouseDown(simulatedMouseDownEvent); // Trigger selection/placement
+
+                // Immediately simulate MouseUp (no drag happened)
+                handleMouseUp({ button: 0 });
+            }
         } else {
-            // Fallback if ended touch not found? Unlikely.
-            handleMouseUp({ button: 0 });
+            // --- This is the END of a DRAG ---
+            console.log("Ending single touch drag gesture.");
+            if (endedTouch) {
+                const simulatedMouseUpEvent = {
+                    clientX: endedTouch.clientX,
+                    clientY: endedTouch.clientY,
+                    button: 0,
+                    preventDefault: () => { },
+                };
+                handleMouseUp(simulatedMouseUpEvent); // Call existing mouse up logic for drag end
+            } else {
+                handleMouseUp({ button: 0 }); // Fallback
+            }
         }
 
-        // Reset single touch tracking state
+        // Reset single touch tracking state AFTER processing
         touchState.isDown = false;
         touchState.lastSingleTouchId = null;
-        // Cursor update happens in handleMouseUp -> handleMouseMove
+        touchState.isDraggingConfirmed = false;
+        touchState.touchStartTime = 0;
+        touchState.touchStartPos = null;
+
     }
 
-    // Update touchState.lastTouches after processing end
+    // General cleanup
     touchState.lastTouches = Array.from(event.touches);
     if (event.touches.length === 0) {
-        touchState.isDown = false; // Ensure state reset if no fingers left
+        touchState.isDown = false;
         touchState.isMultiTouch = false;
         touchState.lastSingleTouchId = null;
+        if (!isDragging) { // Reset cursor if not already handled by mouseup->mousemove
+            canvas.style.cursor = 'default';
+        }
     }
 }
 
