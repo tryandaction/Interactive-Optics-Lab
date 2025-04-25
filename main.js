@@ -378,13 +378,15 @@ function draw() {
         }
     }); // End drawing components loop
 
+
+
     // --- Draw Alignment Guides ---
     if (isDragging && activeGuides.length > 0) {
-        const dpr = window.devicePixelRatio || 1;
+        // const dpr = window.devicePixelRatio || 1; // No longer needed directly here if scaling context
         ctx.save();
-        ctx.strokeStyle = GUIDE_COLOR;
-        ctx.lineWidth = 1 / dpr; // Thin line
-        ctx.setLineDash(GUIDE_DASH.map(d => d / dpr)); // Scale dash pattern
+        ctx.strokeStyle = GUIDE_COLOR; // Defined constant: 'rgba(0, 255, 255, 0.75)'
+        ctx.lineWidth = 1 / cameraScale; // Make line thinner when zoomed in
+        ctx.setLineDash(GUIDE_DASH.map(d => d / cameraScale)); // Scale dash pattern with zoom
 
         activeGuides.forEach(guide => {
             ctx.beginPath();
@@ -1743,6 +1745,10 @@ function getMousePos(canvasElement, event) {
 // --- REPLACEMENT for handleMouseDown (V4 - Undo/Redo Start Logic Refined) ---
 function handleMouseDown(event) {
 
+    if (window.innerWidth <= 768) { // Check if potentially on small screen
+        closeSidebars();
+    }
+
     // --- Middle-click panning start ---
     if (event.button === 1) {
         event.preventDefault();
@@ -1957,89 +1963,71 @@ function handleMouseMove(event) {
             draggingComponent.drag(currentMousePos);
 
             // --- Alignment Guide Detection & Snapping ---
-            activeGuides = []; // Clear previous guides
-            let snapX = null;
-            let snapY = null;
-            let minSnapDistX = SNAP_THRESHOLD;
-            let minSnapDistY = SNAP_THRESHOLD;
-            let guidesToShow = []; // Store all potential guides first
+            // --- Inside handleMouseMove -> if (isDragging && draggingComponent) ---
 
-            if (draggingComponent.pos instanceof Vector) {
-                const currentCenter = draggingComponent.pos; // Use position *before* potential snapping for detection
+            // Let the component update its internal state based on mouse first
+            draggingComponent.drag(currentMousePos); // Component updates its own pos
+
+            // --- Alignment Guide Detection (No Snapping Yet) ---
+            activeGuides = []; // Clear previous guides
+            const currentCenter = draggingComponent.pos; // Use the potentially updated position
+
+            if (currentCenter instanceof Vector && !isNaN(currentCenter.x)) {
+                const VIEW_BUFFER = 20; // Extend guides slightly beyond component bounds
+                const canvasWidth = canvas.width / (window.devicePixelRatio || 1) / cameraScale;
+                const canvasHeight = canvas.height / (window.devicePixelRatio || 1) / cameraScale;
+                const viewMinX = -cameraOffset.x / cameraScale;
+                const viewMinY = -cameraOffset.y / cameraScale;
+                const viewMaxX = viewMinX + canvasWidth;
+                const viewMaxY = viewMinY + canvasHeight;
+
 
                 components.forEach(otherComp => {
+                    // Only check against other valid components, excluding self
                     if (otherComp !== draggingComponent && otherComp.pos instanceof Vector && !isNaN(otherComp.pos.x)) {
                         const otherCenter = otherComp.pos;
                         const dx = Math.abs(currentCenter.x - otherCenter.x);
                         const dy = Math.abs(currentCenter.y - otherCenter.y);
 
-                        // Check Vertical Alignment (X coordinates)
-                        if (dx < SNAP_THRESHOLD) {
-                            // Store guide info regardless of snapping first
-                            guidesToShow.push({ type: 'vertical', x: otherCenter.x, y1: Math.min(currentCenter.y, otherCenter.y) - 20, y2: Math.max(currentCenter.y, otherCenter.y) + 20 });
-                            // Check if this is the closest snap target so far
-                            if (dx < minSnapDistX) {
-                                minSnapDistX = dx;
-                                snapX = otherCenter.x; // Potential snap target
-                            }
+                        // Check Vertical Alignment (X coordinates match)
+                        if (dx < SNAP_THRESHOLD / cameraScale) { // Scale threshold by zoom
+                            // Determine the vertical span for the guide line
+                            const y1 = Math.min(currentCenter.y, otherCenter.y) - VIEW_BUFFER / cameraScale;
+                            const y2 = Math.max(currentCenter.y, otherCenter.y) + VIEW_BUFFER / cameraScale;
+                            // Add guide data
+                            activeGuides.push({
+                                type: 'vertical',
+                                x: otherCenter.x, // Align to the stationary component's X
+                                y1: Math.max(viewMinY, y1), // Clip guide to viewport
+                                y2: Math.min(viewMaxY, y2)
+                            });
+                            // Optional: Implement snapping later by setting draggingComponent.pos.x = otherCenter.x here
                         }
 
-                        // Check Horizontal Alignment (Y coordinates)
-                        if (dy < SNAP_THRESHOLD) {
-                            guidesToShow.push({ type: 'horizontal', y: otherCenter.y, x1: Math.min(currentCenter.x, otherCenter.x) - 20, x2: Math.max(currentCenter.x, otherCenter.x) + 20 });
-                            if (dy < minSnapDistY) {
-                                minSnapDistY = dy;
-                                snapY = otherCenter.y; // Potential snap target
-                            }
+                        // Check Horizontal Alignment (Y coordinates match)
+                        if (dy < SNAP_THRESHOLD / cameraScale) { // Scale threshold by zoom
+                            // Determine the horizontal span for the guide line
+                            const x1 = Math.min(currentCenter.x, otherCenter.x) - VIEW_BUFFER / cameraScale;
+                            const x2 = Math.max(currentCenter.x, otherCenter.x) + VIEW_BUFFER / cameraScale;
+                            // Add guide data
+                            activeGuides.push({
+                                type: 'horizontal',
+                                y: otherCenter.y, // Align to the stationary component's Y
+                                x1: Math.max(viewMinX, x1), // Clip guide to viewport
+                                x2: Math.min(viewMaxX, x2)
+                            });
+                            // Optional: Implement snapping later by setting draggingComponent.pos.y = otherCenter.y here
                         }
                     }
                 });
 
-                // --- Apply Snapping ---
-                let snapped = false;
-                const originalX = draggingComponent.pos.x;
-                const originalY = draggingComponent.pos.y;
-                let newPosX = originalX; // Start with current position
-                let newPosY = originalY;
+                // --- Apply Snapping (Optional - Deferred) ---
+                // If snapping is desired later, apply changes to draggingComponent.pos here
+                // and filter activeGuides to only show the snapped ones.
+                // For now, we show all potential guides within the threshold.
 
-                if (snapX !== null) { // Snap X if a target was found within threshold
-                    newPosX = snapX;
-                    snapped = true;
-                    console.log(`Snapping X to ${snapX.toFixed(1)} (dist: ${minSnapDistX.toFixed(1)})`); // Debug
-                }
-                if (snapY !== null) { // Snap Y if a target was found within threshold
-                    newPosY = snapY;
-                    snapped = true;
-                    console.log(`Snapping Y to ${snapY.toFixed(1)} (dist: ${minSnapDistY.toFixed(1)})`); // Debug
-                }
-
-                // Apply the snapped position *only if* snapping occurred
-                if (snapped) {
-                    draggingComponent.pos.set(newPosX, newPosY); // Directly set the snapped position
-
-                    // Check if the position actually changed after setting
-                    if (Math.abs(newPosX - originalX) > 1e-6 || Math.abs(newPosY - originalY) > 1e-6) {
-                        // Update geometry only if position changed
-                        if (typeof draggingComponent.onPositionChanged === 'function') {
-                            try { draggingComponent.onPositionChanged(); } catch (e) { console.error("Error in onPositionChanged after snap:", e); }
-                        }
-                        if (typeof draggingComponent._updateGeometry === 'function') {
-                            try { draggingComponent._updateGeometry(); } catch (e) { console.error("Error in _updateGeometry after snap:", e); }
-                        }
-                    }
-
-                    // Filter guides to show only the active snapped ones
-                    activeGuides = guidesToShow.filter(guide =>
-                        (snapX !== null && guide.type === 'vertical' && Math.abs(guide.x - newPosX) < 1e-6) ||
-                        (snapY !== null && guide.type === 'horizontal' && Math.abs(guide.y - newPosY) < 1e-6)
-                    );
-                } else {
-                    // If no snapping occurred, show all potential guides within threshold
-                    activeGuides = guidesToShow;
-                }
-
-            } // End if(draggingComponent.pos instanceof Vector)
-            // --- End Alignment & Snapping ---
+            } // End if(currentCenter instanceof Vector)
+            // --- End Alignment Guide Detection ---
 
             needsRetrace = true; // Dragging always needs retrace
             sceneModified = true; // Mark as modified
@@ -3252,6 +3240,13 @@ function setupEventListeners() {
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
         canvas.addEventListener('wheel', handleWheelZoom, { passive: false });
+        // --- Touch Event Listeners for Canvas ---
+        console.log("Adding touch event listeners for canvas...");
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false }); // Use passive: false to allow preventDefault
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd); // Treat cancel like end
+        // --- End Touch Listeners ---
     } else { console.error("Canvas element not found!"); }
 
     // --- File Input Listener (Permanent Hidden) ---
@@ -3384,14 +3379,60 @@ function setupEventListeners() {
     });
     // --- End Direct Icon Button Listeners ---
 
+    // --- Sidebar Toggle Button Listener ---
+    const sidebarToggleBtn = document.getElementById('menu-toggle-sidebars');
+    if (sidebarToggleBtn) {
+        sidebarToggleBtn.addEventListener('click', () => {
+            // Simple toggle logic: Show toolbar first, then inspector if toolbar already visible
+            const isToolbarVisible = document.body.classList.contains('toolbar-visible');
+            const isInspectorVisible = document.body.classList.contains('inspector-visible');
 
+            if (!isToolbarVisible && !isInspectorVisible) {
+                // Show toolbar
+                document.body.classList.add('toolbar-visible');
+                document.body.classList.remove('inspector-visible'); // Ensure inspector is hidden
+            } else if (isToolbarVisible && !isInspectorVisible) {
+                // Toolbar is visible, hide it and show inspector
+                document.body.classList.remove('toolbar-visible');
+                document.body.classList.add('inspector-visible');
+            } else {
+                // Inspector is visible (or both somehow?), hide both
+                document.body.classList.remove('toolbar-visible');
+                document.body.classList.remove('inspector-visible');
+            }
+            // Optional: Close sidebars if clicking outside them
+            setupSidebarOverlayClick(); // Add overlay listener when a sidebar might be open
+        });
+    } else {
+        console.warn("Sidebar toggle button #menu-toggle-sidebars not found.");
+    }
+    // --- End Sidebar Toggle Listener ---
 
 
     console.log("Event listeners setup complete.");
 }
 // --- END OF REPLACEMENT ---
 
+// --- NEW: Helper to add overlay click listener ---
+function setupSidebarOverlayClick() {
+    let overlay = document.querySelector('.sidebar-overlay');
+    if (!overlay) { // Create overlay if it doesn't exist
+        overlay = document.createElement('div');
+        overlay.className = 'sidebar-overlay';
+        document.body.appendChild(overlay); // Append it once
+    }
+    // Remove previous listener to avoid duplicates
+    overlay.removeEventListener('click', closeSidebars);
+    // Add listener
+    overlay.addEventListener('click', closeSidebars);
+}
 
+// --- NEW: Function to close sidebars ---
+function closeSidebars() {
+    document.body.classList.remove('toolbar-visible');
+    document.body.classList.remove('inspector-visible');
+    // No need to remove overlay listener here, setupSidebarOverlayClick handles it
+}
 
 // --- NEW FUNCTION: Initialize and Handle Tab Switching ---
 let inspectorTabs = {}; // To store references to tab buttons and content panes
@@ -3572,6 +3613,223 @@ function hideModeHint() {
         modeHintElement.style.display = 'none';
     }
 }
+
+
+// --- Touch Event Handler Functions ---
+
+let touchState = {
+    isDown: false,
+    isMultiTouch: false,
+    lastSingleTouchId: null,
+    lastTouches: [], // Store active touches for multi-touch
+    pinchStartDistance: 0,
+    pinchStartMidpoint: null,
+    panStartMidpoint: null
+};
+
+// Helper to get logical coordinates from a Touch object
+function getTouchPos(canvasElement, touch) {
+    const rect = canvasElement.getBoundingClientRect();
+    const cssX = touch.clientX - rect.left;
+    const cssY = touch.clientY - rect.top;
+    const logicalX = (cssX - cameraOffset.x) / cameraScale;
+    const logicalY = (cssY - cameraOffset.y) / cameraScale;
+    return new Vector(logicalX, logicalY);
+}
+
+// Helper to calculate distance between two touches
+function getTouchDistance(touch1, touch2) {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Helper to calculate midpoint between two touches (in CSS pixels)
+function getTouchMidpoint(touch1, touch2) {
+    return new Vector(
+        (touch1.clientX + touch2.clientX) / 2,
+        (touch1.clientY + touch2.clientY) / 2
+    );
+}
+
+
+function handleTouchStart(event) {
+    event.preventDefault(); // Prevent default touch actions like scrolling/zooming
+    console.log("Touch Start:", event.touches.length); // Debug
+
+    touchState.lastTouches = Array.from(event.touches); // Store current touches
+
+    if (event.touches.length === 1 && !touchState.isDown) {
+        // --- Single Touch Start (Simulate MouseDown) ---
+        touchState.isDown = true;
+        touchState.isMultiTouch = false;
+        const touch = event.touches[0];
+        touchState.lastSingleTouchId = touch.identifier;
+
+        // Simulate MouseDown event object for handleMouseDown
+        const simulatedMouseEvent = {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            button: 0, // Main button
+            preventDefault: () => event.preventDefault(), // Pass preventDefault
+            // Add other properties if handleMouseDown uses them directly
+        };
+        handleMouseDown(simulatedMouseEvent); // Call existing mouse down logic
+
+    } else if (event.touches.length === 2) {
+        // --- Multi Touch Start (Pan/Zoom Prep) ---
+        // If a single drag was ongoing, end it cleanly before starting multi-touch
+        if (isDragging && draggingComponent) {
+            console.log("Switching from single drag to multi-touch, ending drag.");
+            handleMouseUp({ button: 0 }); // Simulate mouse up to finalize single drag command
+        }
+
+        touchState.isDown = true; // Still consider touch active
+        touchState.isMultiTouch = true;
+        isDragging = false; // Ensure component dragging stops
+        draggingComponent = null; // Clear component drag
+        ongoingActionState = null; // Clear action state
+        activeGuides = []; // Clear guides
+
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        touchState.pinchStartDistance = getTouchDistance(touch1, touch2);
+        touchState.panStartMidpoint = getTouchMidpoint(touch1, touch2); // Use CSS pixels for panning delta
+        canvas.style.cursor = 'move'; // Indicate panning/zooming visually
+    }
+    // Handle > 2 touches if necessary (e.g., ignore or specific actions)
+}
+
+function handleTouchMove(event) {
+    event.preventDefault(); // Prevent scrolling during canvas interaction
+    // console.log("Touch Move:", event.touches.length); // Debug (can be noisy)
+
+    if (!touchState.isDown) return; // Ignore if touch didn't start here
+
+    touchState.lastTouches = Array.from(event.touches); // Update stored touches
+
+    if (touchState.isMultiTouch && event.touches.length === 2) {
+        // --- Multi Touch Move (Pan/Zoom) ---
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+
+        // Calculate Zoom
+        const currentDistance = getTouchDistance(touch1, touch2);
+        if (touchState.pinchStartDistance > 0) {
+            const scaleChange = currentDistance / touchState.pinchStartDistance;
+            const newScale = cameraScale * scaleChange;
+
+            // Apply Zoom centering on the midpoint
+            const midpointCss = getTouchMidpoint(touch1, touch2);
+            const logicalMidpointBeforeZoom = new Vector(
+                (midpointCss.x - cameraOffset.x) / cameraScale,
+                (midpointCss.y - cameraOffset.y) / cameraScale
+            );
+
+            cameraScale = Math.max(0.1, Math.min(10.0, newScale)); // Apply clamped scale
+
+            // Adjust offset to keep logical midpoint stationary
+            cameraOffset.x = midpointCss.x - logicalMidpointBeforeZoom.x * cameraScale;
+            cameraOffset.y = midpointCss.y - logicalMidpointBeforeZoom.y * cameraScale;
+
+            touchState.pinchStartDistance = currentDistance; // Update for next move delta
+            needsRetrace = true;
+        }
+
+
+        // Calculate Pan (based on midpoint movement in CSS pixels)
+        const currentMidpointCss = getTouchMidpoint(touch1, touch2);
+        if (touchState.panStartMidpoint) {
+            const panDelta = currentMidpointCss.subtract(touchState.panStartMidpoint);
+            cameraOffset = cameraOffset.add(panDelta); // Apply pan delta directly
+            touchState.panStartMidpoint = currentMidpointCss; // Update for next move delta
+            needsRetrace = true;
+        }
+
+
+    } else if (!touchState.isMultiTouch && event.touches.length === 1) {
+        // --- Single Touch Move (Simulate MouseMove) ---
+        const touch = event.touches[0];
+        // Ensure this is the *same* touch finger that started
+        if (touch.identifier === touchState.lastSingleTouchId) {
+            // Simulate MouseMove event object
+            const simulatedMouseEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                preventDefault: () => event.preventDefault(),
+                // Add other properties if handleMouseMove uses them
+            };
+            handleMouseMove(simulatedMouseEvent); // Call existing mouse move logic
+        }
+    }
+}
+
+function handleTouchEnd(event) {
+    // Don't prevent default on touchend usually
+    console.log("Touch End/Cancel:", event.touches.length, "Changed:", event.changedTouches.length); // Debug
+
+    if (!touchState.isDown) return; // Ignore if we weren't tracking
+
+    const endedTouchIds = Array.from(event.changedTouches).map(t => t.identifier);
+
+    if (touchState.isMultiTouch) {
+        // --- Multi Touch End ---
+        if (event.touches.length < 2) {
+            // Transitioning out of multi-touch
+            console.log("Ending multi-touch gesture.");
+            touchState.isMultiTouch = false;
+            touchState.pinchStartDistance = 0;
+            touchState.panStartMidpoint = null;
+            touchState.lastSingleTouchId = null; // Reset single touch tracking too
+            // If one finger remains, treat it as a new touch start? Or just end? Let's just end.
+            if (event.touches.length === 0) {
+                touchState.isDown = false; // No fingers left
+                handleMouseUp({ button: 0 }); // Simulate mouse up to clear states if needed
+                handleMouseMove(event); // Update cursor
+            }
+            canvas.style.cursor = 'default'; // Reset cursor after pan/zoom
+        }
+        // Keep tracking if 2+ touches still remain (unlikely for pinch/pan end)
+
+    } else if (!touchState.isMultiTouch && endedTouchIds.includes(touchState.lastSingleTouchId)) {
+        // --- Single Touch End (Simulate MouseUp) ---
+        console.log("Ending single touch gesture.");
+        const endedTouch = Array.from(event.changedTouches).find(t => t.identifier === touchState.lastSingleTouchId);
+
+        if (endedTouch) {
+            // Simulate MouseUp event object
+            const simulatedMouseEvent = {
+                clientX: endedTouch.clientX,
+                clientY: endedTouch.clientY,
+                button: 0, // Main button
+                preventDefault: () => { }, // Usually not needed for mouseup
+                // Add other properties if handleMouseUp uses them
+            };
+            handleMouseUp(simulatedMouseEvent); // Call existing mouse up logic
+        } else {
+            // Fallback if ended touch not found? Unlikely.
+            handleMouseUp({ button: 0 });
+        }
+
+        // Reset single touch tracking state
+        touchState.isDown = false;
+        touchState.lastSingleTouchId = null;
+        // Cursor update happens in handleMouseUp -> handleMouseMove
+    }
+
+    // Update touchState.lastTouches after processing end
+    touchState.lastTouches = Array.from(event.touches);
+    if (event.touches.length === 0) {
+        touchState.isDown = false; // Ensure state reset if no fingers left
+        touchState.isMultiTouch = false;
+        touchState.lastSingleTouchId = null;
+    }
+}
+
+// --- END Touch Event Handler Functions ---
+
+
+
 
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {

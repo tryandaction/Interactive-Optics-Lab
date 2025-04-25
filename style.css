@@ -928,3 +928,102 @@ hr.thin-hr {
     /* Optional: Adjust font size or margin if needed */
     /* margin-left: 6px; /* Already handled by gap in .dropbtn */
 }
+
+/* --- Responsive Styles --- */
+
+@media (max-width: 768px) {
+    /* Adjust breakpoint as needed */
+
+    /* Hide sidebars by default on small screens */
+    #toolbar {
+        display: none;
+        position: fixed;
+        /* Make it overlay when shown */
+        left: 0;
+        top: var(--menubar-height);
+        /* Position below menubar */
+        height: calc(100vh - var(--menubar-height));
+        width: 200px;
+        /* Fixed width when shown */
+        z-index: 90;
+        /* Below menubar, above canvas */
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        border-right: 1px solid var(--menu-border);
+        background-color: var(--sidebar-bg);
+    }
+
+    #inspector {
+        display: none;
+        position: fixed;
+        /* Make it overlay when shown */
+        right: 0;
+        top: var(--menubar-height);
+        /* Position below menubar */
+        height: calc(100vh - var(--menubar-height));
+        width: 280px;
+        /* Keep its width */
+        z-index: 90;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        border-left: 1px solid var(--menu-border);
+        background-color: var(--sidebar-bg);
+    }
+
+    /* Show the menu toggle button */
+    #menu-toggle-sidebars {
+        display: inline-flex !important;
+        /* Ensure it shows */
+    }
+
+    /* Optionally hide text labels in top menu dropdown buttons */
+    /* This saves space if needed */
+    /*
+    #top-menubar .dropbtn .menu-text {
+        display: none;
+    }
+    #top-menubar .dropbtn {
+        padding: 8px; // Adjust padding if text hidden
+    }
+    */
+
+    /* Make user status area more compact */
+    #user-status-top {
+        display: none;
+        /* Hide username text */
+    }
+
+    .menu-right .menubar-button {
+        margin-left: 4px;
+        /* Reduce spacing */
+    }
+
+    /* Class to show sidebars when toggled */
+    body.toolbar-visible #toolbar {
+        display: block;
+        /* Or flex if needed */
+    }
+
+    body.inspector-visible #inspector {
+        display: flex;
+        /* Use flex for inspector */
+    }
+
+    /* Optional: Add overlay behind sidebars when open */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: var(--menubar-height);
+        left: 0;
+        width: 100%;
+        height: calc(100vh - var(--menubar-height));
+        background-color: rgba(0, 0, 0, 0.3);
+        z-index: 89;
+        /* Below sidebars */
+    }
+
+    body.toolbar-visible .sidebar-overlay,
+    body.inspector-visible .sidebar-overlay {
+        display: block;
+    }
+}
+
+/* End of @media rule */
