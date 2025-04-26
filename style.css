@@ -929,151 +929,331 @@ hr.thin-hr {
     /* margin-left: 6px; /* Already handled by gap in .dropbtn */
 }
 
-/* --- Responsive Styles --- */
-
-@media (max-width: 768px) {
-    /* Adjust breakpoint as needed */
-
-    /* Hide sidebars by default on small screens */
-    #toolbar {
-        display: none;
-        position: fixed;
-        /* Make it overlay when shown */
-        left: 0;
-        top: var(--menubar-height);
-        /* Position below menubar */
-        height: calc(100vh - var(--menubar-height));
-        width: 200px;
-        /* Fixed width when shown */
-        z-index: 90;
-        /* Below menubar, above canvas */
-        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-        border-right: 1px solid var(--menu-border);
-        background-color: var(--sidebar-bg);
-    }
-
-    #inspector {
-        display: none;
-        position: fixed;
-        /* Make it overlay when shown */
-        right: 0;
-        top: var(--menubar-height);
-        /* Position below menubar */
-        height: calc(100vh - var(--menubar-height));
-        width: 280px;
-        /* Keep its width */
-        z-index: 90;
-        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-        border-left: 1px solid var(--menu-border);
-        background-color: var(--sidebar-bg);
-    }
-
-    /* Show the menu toggle button */
-    #menu-toggle-sidebars {
-        display: inline-flex !important;
-        /* Ensure it shows */
-    }
-
-    /* Optionally hide text labels in top menu dropdown buttons */
-    /* This saves space if needed */
-    /*
-    #top-menubar .dropbtn .menu-text {
-        display: none;
-    }
-    #top-menubar .dropbtn {
-        padding: 8px; // Adjust padding if text hidden
-    }
-    */
-
-    /* Make user status area more compact */
-    #user-status-top {
-        display: none;
-        /* Hide username text */
-    }
-
-    .menu-right .menubar-button {
-        margin-left: 4px;
-        /* Reduce spacing */
-    }
-
-    /* Class to show sidebars when toggled */
-    body.toolbar-visible #toolbar {
-        display: block;
-        /* Or flex if needed */
-    }
-
-    body.inspector-visible #inspector {
-        display: flex;
-        /* Use flex for inspector */
-    }
-
-    /* Optional: Add overlay behind sidebars when open */
-    .sidebar-overlay {
-        display: none;
-        position: fixed;
-        top: var(--menubar-height);
-        left: 0;
-        width: 100%;
-        height: calc(100vh - var(--menubar-height));
-        background-color: rgba(0, 0, 0, 0.3);
-        z-index: 89;
-        /* Below sidebars */
-    }
-
-    body.toolbar-visible .sidebar-overlay,
-    body.inspector-visible .sidebar-overlay {
-        display: block;
-    }
-
-
-    /* --- Inside @media (max-width: 768px) --- */
-
-    /* Make toolbar buttons slightly larger for touch */
-    #toolbar button.icon-button {
-        height: 60px;
-        /* Slightly taller */
-        width: calc(50% - 6px);
-        /* Adjust width slightly if needed */
-        margin: 3px;
-    }
-
-    #toolbar button.icon-button svg {
-        width: 22px;
-        /* Larger icon */
-        height: 22px;
-        margin-bottom: 3px;
-    }
-
-    #toolbar button.icon-button .toolbar-button-text {
-        font-size: 10.5px;
-        /* Can adjust text size */
-    }
-
-
-    /* Make inspector property rows taller */
-    .tab-content .prop {
-        min-height: 32px;
-        margin-bottom: 12px;
-    }
-
-    .tab-content .prop label {
-        width: 90px;
-        /* Slightly narrower label */
-        font-size: 12.5px;
-    }
-
-    .tab-content .prop input[type="text"],
-    .tab-content .prop input[type="number"],
-    .tab-content .prop input[type="range"],
-    .tab-content .prop select {
-        height: 30px;
-        /* Taller input fields */
-        font-size: 12.5px;
-    }
-
-    /* --- End Mobile Adjustments --- */
-
-
+#scenes-tab .scene-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
 }
 
-/* End of @media rule */
+#scenes-tab .scene-search {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #222;
+    color: #fff;
+    font-size: 13px;
+}
+
+#scenes-tab .scene-sort {
+    width: 120px;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #222;
+    color: #fff;
+    font-size: 13px;
+}
+
+#saved-scenes-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin: 4px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.saved-scene-item:hover {
+    background: #333;
+    border-color: #555;
+}
+
+.saved-scene-item.selected {
+    background: #2c4f7c;
+    border-color: #4a77aa;
+}
+
+.scene-item-content {
+    flex-grow: 1;
+    cursor: pointer;
+}
+
+.scene-name {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: #fff;
+}
+
+.scene-info {
+    display: block;
+    font-size: 0.9em;
+    color: #888;
+}
+
+.scene-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.scene-action-btn {
+    padding: 5px 10px;
+    border: 1px solid #444;
+    border-radius: 3px;
+    background: #333;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.scene-action-btn:hover {
+    background: #444;
+}
+
+.scene-action-btn.load-btn {
+    background: #2c4f7c;
+    border-color: #4a77aa;
+}
+
+.scene-action-btn.load-btn:hover {
+    background: #3a5f8c;
+}
+
+.scene-action-btn.delete-btn {
+    background: #722f2f;
+    border-color: #933;
+}
+
+.scene-action-btn.delete-btn:hover {
+    background: #823f3f;
+}
+
+.scene-details {
+    padding: 12px;
+    margin-top: 15px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+}
+
+.scene-details-content {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.scene-details-content p {
+    margin: 6px 0;
+    color: #ccc;
+}
+
+.scene-details-content strong {
+    color: #fff;
+    font-weight: 500;
+}
+
+.component-type-list {
+    margin: 8px 0;
+    padding-left: 20px;
+    color: #aaa;
+}
+
+.recycle-bin {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #444;
+}
+
+.recycle-bin h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ccc;
+    font-size: 14px;
+}
+
+#recycle-count {
+    color: #888;
+    font-size: 13px;
+    font-weight: normal;
+}
+
+.deleted-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin: 4px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.delete-date {
+    font-size: 0.85em;
+    color: #888;
+    margin: 0 8px;
+}
+
+.restore-btn {
+    padding: 4px 10px;
+    border: 1px solid #446644;
+    border-radius: 3px;
+    background: #335533;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.restore-btn:hover {
+    background: #446644;
+}
+
+.recycle-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+#deleted-scenes-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.scene-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.scene-actions button {
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.scene-actions .primary-btn {
+    background: #2c4f7c;
+    border: 1px solid #4a77aa;
+    color: white;
+}
+
+.scene-actions .primary-btn:hover {
+    background: #3a5f8c;
+}
+
+/* Style for disabled buttons inside auth modal */
+#auth-form-container button[type="submit"]:disabled {
+    background-color: #cccccc;
+    border-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* --- Styles for Scene Tab Info Box --- */
+.scene-tab-info {
+    font-size: 12px;
+    color: var(--secondary-color);
+    background-color: #f8f9fa;
+    /* Light background */
+    border: 1px solid #e9ecef;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    /* Space below the info box */
+    line-height: 1.4;
+}
+
+/* --- Styles for Saved Scene List Items --- */
+#saved-scenes-list {
+    max-height: 300px;
+    /* Or adjust as needed */
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px;
+    /* Add padding inside the list */
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    /* Adjust padding */
+    margin-bottom: 4px;
+    /* Space between items */
+    background-color: #fff;
+    border: 1px solid transparent;
+    /* Start transparent */
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+    cursor: pointer;
+    /* Indicate clickable name */
+}
+
+.saved-scene-item:hover {
+    background-color: #f1f3f5;
+    /* Light hover */
+    border-color: #dee2e6;
+}
+
+.saved-scene-item span {
+    /* Style for the scene name */
+    flex-grow: 1;
+    /* Allow name to take space */
+    margin-right: 10px;
+    /* Space before delete button */
+    font-size: 13.5px;
+}
+
+.saved-scene-item button.delete-btn {
+    /* Style specific for delete button in list */
+    padding: 3px 8px;
+    /* Smaller button */
+    font-size: 11px;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+    border-radius: 3px;
+    flex-shrink: 0;
+    /* Prevent button shrinking */
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.saved-scene-item button.delete-btn:hover {
+    opacity: 1.0;
+    background-color: #f1c0c5;
+}
+
+/* --- Style for Auth Modal Disabled Buttons --- */
+#auth-form-container button[type="submit"]:disabled {
+    background-color: #cccccc;
+    border-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

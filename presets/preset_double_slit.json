@@ -1,5 +1,6 @@
 {
   "version": "1.0",
+  "currentMode": "ray_trace",
   "components": [
     {
       "type": "LaserSource",

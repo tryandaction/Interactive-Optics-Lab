@@ -268,6 +268,21 @@ class GameObject {
         // Subclasses might add their own selection visuals by overriding or extending this
     }
 
+
+    // --- Inside GameObject class ---
+
+    toJSON() {
+        return {
+            type: this.constructor.name, // Crucial for knowing which class to recreate
+            id: this.id,
+            label: this.label,
+            posX: this.pos.x,
+            posY: this.pos.y,
+            angleDeg: this.angleRad * (180 / Math.PI)
+            // Note: We don't save 'selected', 'dragging' etc. as they are transient states
+        };
+    }
+
     // --- Reset ---
     // Optional method for components that need to reset state (e.g., Screen)
     reset() {
@@ -324,6 +339,27 @@ class LaserSource extends GameObject {
         this.gaussianEnabled = true;
         this._rayColor = this.calculateRayColor(); // Cache color
     } // End constructor
+
+    // --- Inside LaserSource class ---
+
+    toJSON() {
+        const baseData = super.toJSON(); // Get base properties (pos, angle, id, label, type)
+        return {
+            ...baseData, // Spread base properties
+            // Add LaserSource specific properties
+            wavelength: this.wavelength,
+            intensity: this.intensity,
+            numRays: this.numRays,
+            spreadDeg: this.spreadRad * (180 / Math.PI), // Save angle in degrees
+            enabled: this.enabled,
+            // Save angle in degrees if it exists, otherwise save null
+            polarizationAngleDeg: this.polarizationAngleRad === null ? null : this.polarizationAngleRad * (180 / Math.PI),
+            ignoreDecay: this.ignoreDecay,
+            beamDiameter: this.beamDiameter,
+            initialBeamWaist: this.initialBeamWaist,
+            gaussianEnabled: this.gaussianEnabled
+        };
+    }
 
     calculateRayColor() {
         // (Using the simplified wavelength-to-RGB from previous code)
@@ -639,6 +675,25 @@ class FanSource extends GameObject {
         this.ignoreDecay = ignoreDecay;
         this.beamDiameter = beamDiameter; // Store beamDiameter
         this._rayColor = this.calculateRayColor();
+    }
+
+    // --- Inside ThinLens class ---
+
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            diameter: this.diameter,
+            focalLength: this.focalLength, // Save potentially Infinity value
+            baseRefractiveIndex: this.baseRefractiveIndex,
+            dispersionCoeffB: this.dispersionCoeffB,
+            chromaticAberration: this.chromaticAberration,
+            sphericalAberration: this.sphericalAberration,
+            quality: this.quality,
+            coated: this.coated,
+            isThickLens: this.isThickLens,
+            thickLensThickness: this.thickLensThickness
+        };
     }
 
     calculateRayColor() { // Same as LaserSource
@@ -1040,6 +1095,24 @@ class WhiteLightSource extends GameObject {
         this._updateCumulativeDistribution(); // Calculate distribution table
     }
 
+    // --- Add inside WhiteLightSource class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            baseIntensity: this.baseIntensity, // Use baseIntensity
+            rayCount: this.rayCount,
+            spreadDeg: this.spreadRad * (180 / Math.PI), // Save in degrees
+            enabled: this.enabled,
+            ignoreDecay: this.ignoreDecay,
+            beamDiameter: this.beamDiameter, 
+            initialBeamWaist: this.initialBeamWaist,
+            gaussianEnabled: this.gaussianEnabled
+            // No need to save spectrum definition, it's constant
+        };
+    }
+
+
     // Helper to calculate cumulative distribution for weighted sampling
     _updateCumulativeDistribution() {
         this.totalIntensityFactorSum = this.componentWavelengths.reduce((sum, comp) => sum + comp.factor, 0);
@@ -1323,6 +1396,15 @@ class Mirror extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init Mirror Geom Err:", e); }
     }
 
+    // --- Add inside Mirror class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length
+        };
+    }
+
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
         const halfLenVec = Vector.fromAngle(this.angleRad).multiply(this.length / 2);
@@ -1504,6 +1586,17 @@ class SphericalMirror extends OpticalComponent {
         this.isPlane = Math.abs(this.radiusOfCurvature) === Infinity;
 
         try { this._updateGeometry(); } catch (e) { console.error("Init SphericalMirror geom error:", e); }
+    }
+
+    // --- Add inside SphericalMirror class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            // Save Infinity directly, JSON.stringify handles it (becomes null)
+            radiusOfCurvature: this.radiusOfCurvature,
+            centralAngleDeg: this.centralAngleRad * (180 / Math.PI) // Save in degrees
+        };
     }
 
     _updateGeometry() {
@@ -1884,6 +1977,16 @@ class ParabolicMirror extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init ParabolicMirror geom error:", e); }
     }
 
+    // --- Add inside ParabolicMirror class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            focalLength: this.focalLength,
+            diameter: this.diameter
+        };
+    }
+
     _updateGeometry() {
         if (!(this.pos instanceof Vector) || this.focalLength <= 0) return; // Ensure valid state
 
@@ -2231,6 +2334,18 @@ class Screen extends OpticalComponent {
 
         try { this._updateGeometry(); } catch (e) { console.error("Init Screen Geom Err:", e); }
         this.reset(); // Initialize bins
+    }
+
+
+    // --- Add inside Screen class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            numBins: this.numBins,
+            showPattern: this.showPattern
+        };
     }
 
     _updateGeometry() {
@@ -2918,6 +3033,19 @@ class Aperture extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init Aperture Geom Err:", e); }
     }
 
+
+    // --- Add inside Aperture class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            numberOfSlits: this.numberOfSlits,
+            slitWidth: this.slitWidth,
+            slitSeparation: this.slitSeparation
+        };
+    }
+
     // Recalculate blocker and *opening* segments
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
@@ -3141,6 +3269,17 @@ class Polarizer extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init Polarizer Geom Err:", e); }
     }
 
+    // --- Add inside Polarizer class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            transmissionAxisAngleDeg: this.transmissionAxisRad * (180 / Math.PI) // Save in degrees
+        };
+    }
+
+
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
         const halfLenVec = Vector.fromAngle(this.angleRad).multiply(this.length / 2); // Along component angle
@@ -3307,6 +3446,18 @@ class BeamSplitter extends OpticalComponent {
         this.normal = Vector.fromAngle(angleDeg + Math.PI / 2);
 
         try { this._updateGeometry(); } catch (e) { console.error("Init BeamSplitter Geom Err:", e); }
+    }
+
+    // --- Add inside BeamSplitter class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            type: this.type, // 'BS' or 'PBS'
+            splitRatio: this.splitRatio, // Reflectivity for BS
+            pbsUnpolarizedReflectivity: this.pbsUnpolarizedReflectivity // Reflectivity for unpolarized on PBS
+        };
     }
 
     _getP_AxisDirection() {
@@ -3670,6 +3821,20 @@ class DielectricBlock extends OpticalComponent {
         this.worldNormals = []; // Geometric OUTWARD normals
         try { this._updateGeometry(); } catch (e) { console.error("Init DielectricBlock geom error:", e); }
     }
+    // --- Add inside DielectricBlock class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            width: this.width,
+            height: this.height,
+            baseRefractiveIndex: this.baseRefractiveIndex,
+            dispersionCoeffB_nm2: this.dispersionCoeffB_nm2,
+            absorptionCoeff: this.absorptionCoeff,
+            showEvanescentWave: this.showEvanescentWave
+        };
+    }
+
 
     _updateCauchyA() {
         this._cauchyA = this.baseRefractiveIndex - this.dispersionCoeffB_nm2 / (550 * 550);
@@ -3976,6 +4141,17 @@ class Photodiode extends OpticalComponent {
         this.radiusSq = this.radius * this.radius;
     }
 
+
+    // --- Add inside Photodiode class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            diameter: this.diameter
+            // Don't save incidentPower, hitCount, _displayValue (runtime state)
+        };
+    }
+
     // Method to reset accumulated power
     reset() {
         this.incidentPower = 0.0;
@@ -4227,6 +4403,26 @@ class OpticalFiber extends OpticalComponent {
 
         // 初始化几何形状
         this._updateGeometry();
+    }
+
+
+      // --- Ensure this is inside OpticalFiber class ---
+      toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            // Output position and angle
+            outputX: this.outputPos.x,
+            outputY: this.outputPos.y,
+            outputAngleDeg: this.outputAngleRad * (180 / Math.PI),
+            // Optical properties
+            numericalAperture: this.numericalAperture,
+            coreDiameter: this.coreDiameter,
+            fiberIntrinsicEfficiency: this.fiberIntrinsicEfficiency,
+            transmissionLossDbPerKm: this.transmissionLossDbPerKm,
+            facetLength: this.facetLength
+            // We don't save fiberLength, acceptanceAngleRad as they are calculated
+        };
     }
 
     // 更新几何形状
@@ -4823,6 +5019,18 @@ class Prism extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init Prism geom error:", e); }
     }
 
+    // --- Add inside Prism class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            baseLength: this.baseLength,
+            apexAngleDeg: this.apexAngleRad * (180 / Math.PI), // Save in degrees
+            baseRefractiveIndex: this.baseRefractiveIndex,
+            dispersionCoeffB: this.dispersionCoeffB
+        };
+    }
+
     // Get refractive index using simplified Cauchy model n = n_base + B / lambda^2
     getRefractiveIndex(wavelengthNm = DEFAULT_WAVELENGTH_NM) {
         if (wavelengthNm <= 0) return this.baseRefractiveIndex;
@@ -5108,6 +5316,19 @@ class DiffractionGrating extends OpticalComponent {
         try { this._updateGeometry(); } catch (e) { console.error("Init DiffractionGrating geom error:", e); }
     }
 
+    // --- Add inside DiffractionGrating class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            gratingPeriodInMicrons: this.gratingPeriodInMicrons,
+            maxOrder: this.maxOrder
+            // Don't save calculated period in pixels or efficiencies
+        };
+    }
+
+
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
         this.gratingDir = Vector.fromAngle(this.angleRad); // Along component angle
@@ -5317,6 +5538,17 @@ class WavePlate extends OpticalComponent {
 
         try { this._updateGeometry(); } catch (e) { console.error(`Init ${plateType} geom error:`, e); }
     }
+
+    // --- Add inside WavePlate class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            length: this.length,
+            fastAxisAngleDeg: this.fastAxisRad * (180 / Math.PI) // Save in degrees
+        };
+    }
+
 
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
@@ -5626,6 +5858,22 @@ class AcoustoOpticModulator extends OpticalComponent {
             console.error("Init AOM error:", e);
         }
     }
+
+    // --- Add inside AcoustoOpticModulator class ---
+    toJSON() {
+        const baseData = super.toJSON();
+        return {
+            ...baseData,
+            width: this.width,
+            height: this.height,
+            rfFrequencyMHz: this.rfFrequencyMHz,
+            rfPower: this.rfPower
+            // Don't save acousticVelocity_mps (assume constant for now)
+            // Don't save calculated angle or efficiencies
+        };
+    }
+
+
 
     // Update geometry (position, angle, size)
     _updateGeometry() {

@@ -14,7 +14,7 @@
 <body> <!-- Visible content of the webpage -->
 
 
-    <!-- NEW Top Menubar - V2 Corrected Structure -->
+    <!-- NEW Top Menubar - V3 Final Structure & Text -->
     <div id="top-menubar">
         <div class="menu-left">
             <!-- Hamburger button for mobile -->
@@ -40,7 +40,7 @@
                 </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-new-scene">新建场景</a>
-                    <a href="#" id="menu-manage-scenes">管理本地场景...</a>
+                    <a href="#" id="menu-manage-scenes">管理暂存场景...</a> <!-- Changed Text -->
                     <hr>
                     <a href="#" id="menu-import-scene">导入文件...</a>
                     <a href="#" id="menu-export-scene">导出文件...</a>
@@ -135,7 +135,8 @@
                 <line x1="9" y1="15" x2="15" y2="15"></line>
             </svg>
         </button>
-        <button class="menubar-button menubar-icon-button" id="menu-icon-save-local" title="另存到本地 (Ctrl+S)">
+        <button class="menubar-button menubar-icon-button" id="menu-icon-save-local" title="暂存到浏览器 (Ctrl+S)">
+            <!-- Changed Title -->
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
@@ -143,7 +144,7 @@
                 <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
         </button>
-        <button class="menubar-button menubar-icon-button" id="menu-icon-export" title="导出文件 (Ctrl+E)">
+        <button class="menubar-button menubar-icon-button" id="menu-icon-export" title="导出文件... (Ctrl+E)">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -152,6 +153,9 @@
             </svg>
         </button>
         <!-- End Direct Action Icons -->
+
+        <!-- Divider before Undo/Redo -->
+        <div class="menubar-divider"></div>
 
         <!-- Undo/Redo Buttons -->
         <button class="menubar-button menubar-icon-button disabled" id="undo-button" title="撤销 (Ctrl+Z)">
@@ -174,7 +178,6 @@
         <div class="menu-right">
             <div id="user-status-top">未登录</div>
             <button class="menubar-button" id="user-action-btn-top">登录/注册</button>
-            <!-- Cloud Scenes button placeholder -->
             <button class="menubar-button menubar-icon-button" id="user-scenes-btn-top" title="我的云端场景 (开发中)"
                 style="display: none;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -182,7 +185,7 @@
                     <path d="M20 17.5l-2.5 2.5-2.5-2.5" />
                     <path
                         d="M17.5 20V8.6a6 6 0 00-12 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3V8.5a4 4 0 018 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3z" />
-                </svg> <!-- Cloud Icon -->
+                </svg>
             </button>
             <button class="menubar-button secondary" id="logout-btn-top" style="display: none;">登出</button>
         </div> <!-- End menu-right -->
@@ -428,6 +431,12 @@
                     <label for="setting-show-grid" title="切换画布背景网格的可见性">显示网格:</label>
                     <input type="checkbox" id="setting-show-grid">
                 </div>
+                <!-- ADD THIS -->
+                <div class="prop">
+                    <label for="setting-enable-snap" title="拖动元件时自动吸附到网格点">启用网格吸附:</label>
+                    <input type="checkbox" id="setting-enable-snap">
+                </div>
+                <!-- END ADD -->
                 <hr class="thin-hr">
                 <h4>动画选项</h4>
                 <div class="prop">
@@ -466,16 +475,16 @@
             </div>
 
             <div id="scenes-tab" class="tab-content">
-                <h4>本地场景管理</h4>
+                <h4>浏览器暂存场景</h4> <!-- Changed Title -->
+                <p class="scene-tab-info"><i>场景暂存在浏览器中，清理缓存可能丢失。导出文件以永久保存。</i></p> <!-- Added Info -->
                 <div id="saved-scenes-list">
                     <p class="placeholder-text">没有已保存的本地场景。</p>
                 </div>
                 <div class="scene-actions">
-                    <button id="scene-save-as-btn">另存当前...</button>
-                    <button id="scene-import-btn">导入文件...</button>
+                    <button id="scene-save-as-btn">暂存当前场景...</button> <!-- Changed Text -->
+                    <button id="scene-import-btn">导入文件...</button> <!-- Keep as is -->
                 </div>
-                <!-- Cloud scenes list placeholder -->
-                <!-- <hr><h4>云端场景 (开发中)</h4> -->
+                <!-- Cloud scenes placeholder can be added here later -->
             </div>
 
             <div id="info-tab" class="tab-content">
@@ -494,12 +503,45 @@
     <div id="auth-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <span class="modal-close-btn" id="auth-modal-close-btn">×</span>
-            <div id="auth-form-container"> <!-- Content is the same as before -->
+            <div id="auth-form-container">
                 <h2 id="auth-title">登录</h2>
-                <form id="login-form">...</form>
-                <form id="register-form" style="display: none;">...</form>
+                <!-- Added Info Paragraph -->
+                <p style="text-align: center; color: var(--secondary-color); font-size: 13px; margin-bottom: 15px;">
+                    <i>(用户系统及云功能开发中)</i>
+                </p>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">用户名:</label>
+                        <input type="text" id="login-username" required disabled> <!-- Added disabled -->
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">密码:</label>
+                        <input type="password" id="login-password" required disabled> <!-- Added disabled -->
+                    </div>
+                    <button type="submit" disabled>登录</button> <!-- Added disabled -->
+                    <p id="login-error" class="error-text" style="display: none;"></p>
+                    <p class="switch-form-link">还没有账户？ <a href="#" onclick="switchToRegister()">立即注册</a></p>
+                </form>
+                <form id="register-form" style="display: none;">
+                    <div class="form-group">
+                        <label for="register-username">用户名:</label>
+                        <input type="text" id="register-username" required disabled> <!-- Added disabled -->
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">邮箱:</label>
+                        <input type="email" id="register-email" required disabled> <!-- Added disabled -->
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">密码:</label>
+                        <input type="password" id="register-password" required disabled> <!-- Added disabled -->
+                    </div>
+                    <button type="submit" disabled>注册</button> <!-- Added disabled -->
+                    <p id="register-error" class="error-text" style="display: none;"></p>
+                    <p class="switch-form-link">已有账户？ <a href="#" onclick="switchToLogin()">返回登录</a></p>
+                </form>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- User Guide Modal (Placeholder) -->
@@ -507,29 +549,138 @@
         <div class="modal-content" style="max-width: 700px; max-height: 85vh;">
             <span class="modal-close-btn" id="guide-modal-close-btn">×</span>
             <h2>用户指南</h2>
-            <div id="guide-content" style="line-height: 1.6;">
-                <p><i>用户指南内容加载中... (或在此处直接嵌入指南文本)</i></p>
-                <p><strong>基本操作:</strong></p>
-                <ul>
-                    <li>从左侧工具栏选择元件，在中间画布单击放置。</li>
-                    <li>单击画布中的元件以选中，属性显示在右侧“属性”标签页。</li>
-                    <li>拖动选中元件的主体移动。</li>
-                    <li>拖动选中元件的黄色控制柄，或将鼠标悬停于选中的元件上滚动滚轮 (Shift+滚轮微调) 以旋转。</li>
-                    <li>按 Delete/Backspace 删除选中元件。</li>
-                    <li>按住鼠标中键拖动画布平移，滚动滚轮缩放。</li>
-                    <li>使用顶部菜单栏进行文件操作、视图调整、模式切换和打开设置。</li>
-                </ul>
-                <p><strong>场景管理:</strong></p>
-                <ul>
-                    <li>使用“文件”->“管理本地场景”或右侧“场景”标签页来加载、删除或另存为场景到浏览器本地存储。</li>
-                    <li>使用“文件”->“导入/导出文件”与本地 .json 文件交互。</li>
-                </ul>
-                <p><strong>设置:</strong></p>
-                <ul>
-                    <li>使用“模拟”->“参数设置”或右侧“设置”标签页调整全局模拟参数。</li>
-                </ul>
-                <p>(更多详细信息将在未来版本中添加)</p>
-            </div>
+
+            <h2>交互式光学实验室 - 用户指南 (v1.1)</h2>
+
+            <h4>1. 概述</h4>
+            <p>欢迎使用交互式光学实验室！这是一个基于 Web
+                的强大而直观的仿真工具，旨在帮助您探索奇妙的光学世界。通过直接交互，您可以搭建虚拟光学系统、可视化光线传播，并理解基本的光学原理。本模拟器适合学生、教育工作者、光学爱好者以及任何对光学感兴趣的人士。</p>
+
+            <h4>2. 界面布局</h4>
+            <p>模拟器界面主要分为三个区域和一个顶部菜单栏：</p>
+            <ul>
+                <li><strong>顶部菜单栏:</strong> 包含文件操作（新建、导入、导出、场景管理）、编辑（撤销/重做、删除）、视图（重置、网格）、模拟（模式切换、设置、动画控制）、帮助以及用户登录/状态。
+                </li>
+                <li><strong>左侧工具栏:</strong> 陈列所有可用的光学元件，按类别分组，点击即可选择用于添加到画布。</li>
+                <li><strong>中间模拟区域 (画布):</strong> 主要的工作区域，您可以在此放置、移动、旋转光学元件，并观察光线的实时传播。</li>
+                <li><strong>右侧检查器面板:</strong> 包含多个标签页：
+                    <ul>
+                        <li><strong>属性:</strong> 当选中一个元件时，显示并允许编辑该元件的特定参数。</li>
+                        <li><strong>设置:</strong> 提供全局模拟参数和显示选项的调整（如网格、光线数量、反射次数等）。</li>
+                        <li><strong>场景:</strong> 管理保存在浏览器本地存储中的场景（加载、另存为、删除）。</li>
+                        <li><strong>信息:</strong> 显示关于模拟器的基本信息。</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>3. 主要特性</h4>
+            <ul>
+                <li><strong>直观交互:</strong>
+                    <ul>
+                        <li>添加元件: 点击左侧工具栏按钮，然后在画布上单击放置。</li>
+                        <li>选择元件: 直接在画布上单击元件 (Shift/Ctrl+单击可多选)。</li>
+                        <li>移动元件: 拖动选中元件的主体 (可多选拖动)。</li>
+                        <li>旋转元件: 拖动选中元件的角度控制柄，或选中元件并将鼠标悬停其上滚动滚轮 (Shift+滚轮微调)。</li>
+                        <li>撤销/重做: 使用顶部按钮或 Ctrl+Z/Ctrl+Y 撤销/重做大部分操作。</li>
+                    </ul>
+                </li>
+                <li><strong>丰富元件库:</strong> 包含光源、透镜、反射镜、棱镜、光栅、偏振元件、分束器、探测器等多种元件 (详见第 5 节)。</li>
+                <li><strong>实时光线追踪:</strong> 基于物理定律精确可视化光线路径。</li>
+                <li><strong>元件属性调整:</strong> 选中元件后，在右侧“属性”标签页中实时修改参数。</li>
+                <li><strong>灵活视图控制:</strong>
+                    <ul>
+                        <li>缩放: 在画布空白区域滚动鼠标滚轮或双指捏合。</li>
+                        <li>平移: 按住鼠标中键拖动画布或双指拖动。</li>
+                        <li>重置视图: 通过顶部“视图”菜单操作。</li>
+                    </ul>
+                </li>
+                <li><strong>多模拟模式:</strong>
+                    <ul>
+                        <li>光线追踪: 默认模式，模拟光线传播与物理效应。</li>
+                        <li>透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
+                    </ul>
+                </li>
+                <li><strong>物理效应模拟:</strong> 波长相关颜色、偏振、色散、衍射基础、干涉基础、高斯光束初步模拟。</li>
+                <li><strong>场景管理:</strong>
+                    <ul>
+                        <li>本地保存/加载: 通过右侧“场景”标签页或顶部“文件”菜单管理保存在浏览器中的多个场景。</li>
+                        <li>文件导入/导出: 通过顶部“文件”菜单或图标按钮导入/导出 `.json` 场景文件。</li>
+                    </ul>
+                </li>
+                <li><strong>全局设置:</strong> 通过右侧“设置”标签页或顶部“模拟”菜单调整显示和性能参数。</li>
+                <li><strong>动画控制:</strong> 通过顶部“模拟”菜单切换光路箭头的显示和速度。</li>
+            </ul>
+
+            <h4>4. 快速入门</h4>
+            <ul>
+                <li><strong>开始:</strong> 页面加载后画布为空。</li>
+                <li><strong>添加元件:</strong> 点击左侧工具栏图标按钮 (如“点光源”)，鼠标移到画布上会看到预览，单击放置。</li>
+                <li><strong>观察:</strong> 光线会自动从光源发出并与元件交互。</li>
+                <li><strong>选中与调整:</strong> 单击画布上的元件，右侧面板自动切换到“属性”标签页。在此修改参数（如光源波长、透镜焦距），观察模拟结果变化。</li>
+                <li><strong>移动与旋转:</strong> 拖动元件移动，使用角度控制柄或鼠标滚轮（悬停在选中的元件上）旋转。</li>
+                <li><strong>视图操作:</strong> 滚动滚轮/双指捏合缩放，按住中键/双指拖动平移。通过“视图”菜单重置。</li>
+                <li><strong>保存场景(浏览器):</strong> 打开右侧“场景”标签页，点击“另存到浏览器存储...”按钮，输入名称保存。</li>
+                <li><strong>加载场景(浏览器):</strong> 在“场景”标签页点击已保存的场景名称。</li>
+                <li><strong>导出/导入文件:</strong> 使用顶部文件菜单或快捷图标进行 `.json` 文件操作。</li>
+                <li><strong>删除元件:</strong> 选中元件后按 `Delete` 或 `Backspace` 键，或通过“编辑”菜单操作。</li>
+                <li><strong>撤销/重做:</strong> 使用顶部撤销/重做图标按钮或 Ctrl+Z / Ctrl+Y。</li>
+            </ul>
+
+            <h4>5. 可用元件一览 (部分)</h4>
+            <ul>
+                <li><strong>光源:</strong> 点光源(激光), 扇形光源, 线光源, 白光光源(模拟光谱, 可选高斯)</li>
+                <li><strong>透镜:</strong> 薄透镜 (f>0 凸, f<0 凹)</li>
+                <li><strong>反射镜:</strong> 平面镜, 球面镜 (凹/凸), 抛物面镜 (凹)</li>
+                <li><strong>折射/色散:</strong> 棱镜, 介质块</li>
+                <li><strong>衍射:</strong> 衍射光栅, 光阑/多缝 (Aperture), 声光调制器 (AOM)</li>
+                <li><strong>偏振:</strong> 偏振片 (线偏振), 半波片 (λ/2), 四分之一波片 (λ/4)</li>
+                <li><strong>光束控制:</strong> 分束器 (标准/偏振), 光纤</li>
+                <li><strong>探测:</strong> 屏幕 (显示相干光强分布), 光度计 (测量总光强)</li>
+            </ul>
+
+            <h4>6. 模拟模式详解</h4>
+            <ul>
+                <li><strong>光线追踪 (Ray Tracing):</strong> (菜单: 模拟 -> 模式: 光线追踪)
+                    默认模式。模拟大量独立光线的行为，考虑相位进行相干叠加（在屏幕上）。适合观察反射、折射、TIR、色散、衍射级次、偏振效果和干涉图样。</li>
+                <li><strong>透镜成像 (Lens Imaging):</strong> (菜单: 模拟 -> 模式: 透镜成像)
+                    仅当场景中<strong>恰好包含一个受支持的光源和一个薄透镜</strong>时可用。绘制理想薄透镜成像的三条主光线、物和像，并在画布左上角显示 u, v, M, hₒ, hᵢ
+                    及像的性质。不进行复杂的光线追踪。</li>
+            </ul>
+
+            <h4>7. 全局设置与选项 (右侧“设置”标签页)</h4>
+            <ul>
+                <li><strong>显示网格:</strong> 控制画布背景网格的可见性。</li>
+                <li><strong>显示箭头:</strong> 控制光路动画箭头的全局开关。</li>
+                <li><strong>仅选中箭头:</strong> 仅显示当前选中光源的动画箭头。</li>
+                <li><strong>箭头速度:</strong> 调整动画箭头的速度。</li>
+                <li><strong>每源最大光线数:</strong> 限制 Fan/Line/WhiteLight 光源生成的光线数量上限（影响性能和视觉密度）。</li>
+                <li><strong>最大反/折射次数:</strong> 光线追踪的最大弹射次数上限（影响性能和复杂光路显示）。</li>
+                <li><strong>最低强度阈值:</strong> 光线强度低于此值时停止追踪（影响性能和暗光线显示）。</li>
+                <li><strong>快速白光模拟:</strong> 切换白光光源的光线生成方式（精确混合 vs. 随机采样，后者性能更好）。</li>
+                <li><strong>启用网格吸附:</strong> 拖动元件时是否自动吸附到网格点。</li>
+            </ul>
+
+            <h4>8. 场景管理 (右侧“场景”标签页 / 顶部“文件”菜单)</h4>
+            <ul>
+                <li><strong>本地场景列表:</strong> 显示、加载、删除保存在当前浏览器中的场景。</li>
+                <li><strong>另存到浏览器存储:</strong> 将当前画布布局命名并保存到本地浏览器存储。</li>
+                <li><strong>导入文件:</strong> 从本地选择 `.json` 文件加载场景（会覆盖当前场景，加载前会提示）。</li>
+                <li><strong>导出文件:</strong> 将当前画布布局下载为 `.json` 文件。</li>
+            </ul>
+
+            <h4>9. 使用建议</h4>
+            <ul>
+                <li><strong>由简入繁:</strong> 从简单设置开始，理解元件行为，再组合。</li>
+                <li><strong>善用视图:</strong> 缩放和平移对于观察细节和管理复杂布局至关重要。</li>
+                <li><strong>关注属性:</strong> 通过右侧“属性”标签精确控制元件参数。</li>
+                <li><strong>利用设置:</strong> 根据需要调整“设置”标签页中的参数以平衡效果和性能。</li>
+                <li><strong>保存场景:</strong> 经常使用“场景”标签页或文件菜单保存你的工作。</li>
+                <li><strong>利用撤销/重做:</strong> 不怕操作失误，随时可以通过撤销返回上一步。</li>
+                <li><strong>查看信息:</strong> “信息”标签页和“帮助”菜单提供版本和基本指南。</li>
+            </ul>
+
+            <h4>10. 未来展望</h4>
+            <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、用户系统与云同步、协作、更丰富的可视化选项等。</p>
         </div>
     </div>
 

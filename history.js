@@ -315,3 +315,233 @@ class SetPropertyCommand extends Command {
 
 
 console.log("history.js: HistoryManager and Command classes defined.");
+
+
+// --- NEW Command Class ---
+class ClearAllCommand extends Command {
+    constructor(componentsArrayRef) {
+        super();
+        // Store a REFERENCE to the main components array, not a copy
+        this.componentsArrayRef = componentsArrayRef;
+        // Store a COPY of the components that are about to be cleared for undo
+        this.clearedComponents = [...componentsArrayRef];
+        // Store the component that was selected before clearing, if any
+        this.selectedComponentBeforeClear = selectedComponent; // Use global selectedComponent
+        console.log(`ClearAllCommand created. Stored ${this.clearedComponents.length} components for undo.`);
+    }
+
+    execute() { // Perform the "clear all" action
+        console.log(`Executing ClearAllCommand: Clearing ${this.clearedComponents.length} components.`);
+        // Clear the actual components array by setting its length to 0
+        this.componentsArrayRef.length = 0;
+        // Also clear the global selectedComponent variable
+        selectedComponent = null;
+        // Optional: Reset camera view? Maybe not, let user do it manually.
+        // cameraOffset = new Vector(0, 0); cameraScale = 1.0;
+        needsRetrace = true;
+        updateInspector(); // Update inspector to show empty state
+    }
+
+    undo() { // Restore the cleared components
+        console.log(`Undoing ClearAllCommand: Restoring ${this.clearedComponents.length} components.`);
+        // Check if the array is already populated (e.g., multiple undos) - avoid duplication
+        if (this.componentsArrayRef.length > 0) {
+            console.warn("Undo ClearAll: Components array is not empty. Clearing before restoring.");
+            this.componentsArrayRef.length = 0; // Clear it first to be safe
+        }
+
+        // Restore the components from the stored copy
+        // Use push.apply or spread syntax to add all elements back
+        this.componentsArrayRef.push(...this.clearedComponents);
+
+        // Restore the previously selected component, if there was one
+        if (this.selectedComponentBeforeClear && this.componentsArrayRef.includes(this.selectedComponentBeforeClear)) {
+            selectedComponent = this.selectedComponentBeforeClear;
+            selectedComponent.selected = true; // Ensure it's marked as selected
+        } else {
+            selectedComponent = null; // No selection or component not found after restore
+        }
+
+        needsRetrace = true;
+        updateInspector(); // Update inspector to reflect restored state
+    }
+}
+// --- END NEW Command Class ---
+
+
+// --- Select Command (Full Implementation) ---
+class SelectCommand extends Command {
+    constructor(previousSelectionArray, currentSelectionArray) {
+        super();
+        // Store IDs for resilience against component array changes elsewhere
+        this.previousSelectionIds = previousSelectionArray.map(c => c.id);
+        this.currentSelectionIds = currentSelectionArray.map(c => c.id);
+
+        // Store the ID of the primary selected component (for inspector focus)
+        // If array is empty, store null.
+        this.previousPrimaryId = previousSelectionArray.length > 0 ? previousSelectionArray[previousSelectionArray.length - 1].id : null;
+        this.currentPrimaryId = currentSelectionArray.length > 0 ? currentSelectionArray[currentSelectionArray.length - 1].id : null;
+
+        console.log(`SelectCommand created: Prev [${this.previousSelectionIds.join(',')}] -> Curr [${this.currentSelectionIds.join(',')}]`);
+    }
+
+    _applySelection(idsToSelect, primaryId) {
+        // This function performs the actual selection change.
+        // It needs access to the global 'components', 'selectedComponents', 'selectedComponent'.
+        // This is slightly awkward but common in command patterns interacting with global state.
+
+        if (typeof components === 'undefined' || typeof selectedComponents === 'undefined') {
+            console.error("SelectCommand cannot execute: Global 'components' or 'selectedComponents' not found.");
+            return;
+        }
+
+        // Find the component objects based on stored IDs
+        const newlySelectedComponents = components.filter(c => idsToSelect.includes(c.id));
+
+        // --- Update Global State ---
+        // 1. Update the global selectedComponents array
+        // It's crucial to modify the existing array instance if other parts of the code rely on its identity,
+        // OR ensure all parts get the new array reference. Let's modify in place.
+        selectedComponents.length = 0; // Clear the existing array
+        selectedComponents.push(...newlySelectedComponents); // Add the new selection
+
+        // 2. Update the primary selectedComponent for the inspector
+        const primaryComp = primaryId ? components.find(c => c.id === primaryId) : null;
+        // Ensure the primary is actually in the selection, otherwise pick the last one
+        selectedComponent = (primaryComp && selectedComponents.includes(primaryComp))
+            ? primaryComp
+            : (selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null);
+
+        // 3. Update the '.selected' property on all components
+        components.forEach(comp => {
+            comp.selected = selectedComponents.includes(comp);
+        });
+        // --- End Update Global State ---
+
+        // 4. Update UI
+        updateInspector(); // Refresh the inspector panel
+        needsRetrace = true; // Redraw needed to show selection changes
+        console.log(`Selection applied: [${selectedComponents.map(c => c.id).join(',')}] Primary: ${selectedComponent?.id}`);
+    }
+
+    execute() { // Apply the "current" selection state (Redo)
+        console.log("Executing SelectCommand (Redo)");
+        this._applySelection(this.currentSelectionIds, this.currentPrimaryId);
+    }
+
+    undo() { // Apply the "previous" selection state (Undo)
+        console.log("Undoing SelectCommand");
+        this._applySelection(this.previousSelectionIds, this.previousPrimaryId);
+    }
+}
+// --- End Select Command ---
+
+// Remove the helper function 'findComponentsByIds' if it's only used here,
+// as the logic is now inside _applySelection.
+// function findComponentsByIds(ids) { ... } // DELETE this if present
+
+
+
+// --- Move Multiple Components Command (Placeholder - Needs implementation) ---
+class MoveComponentsCommand extends Command {
+    constructor(componentIds, startPositionsMap, finalPositionsMap) {
+        super();
+        this.componentIds = [...componentIds]; // Store array of IDs
+        this.startPositions = new Map(startPositionsMap); // Copy the start Map {id -> Vector}
+        this.finalPositions = new Map(finalPositionsMap); // Copy the final Map {id -> Vector}
+        // Needs reference to main components array
+        console.warn("MoveComponentsCommand created (placeholder - not fully functional yet).");
+    }
+
+    execute() { // Redo the move
+        console.log(`Executing MoveComponentsCommand for ${this.componentIds.length} components.`);
+        this.componentIds.forEach(id => {
+            const comp = components.find(c => c.id === id); // Find component by ID
+            const finalPos = this.finalPositions.get(id);
+            if (comp && finalPos) {
+                comp.pos.set(finalPos.x, finalPos.y);
+                // Manually trigger updates (essential!)
+                if (typeof comp.onPositionChanged === 'function') comp.onPositionChanged();
+                if (typeof comp._updateGeometry === 'function') comp._updateGeometry();
+            } else { console.warn(`MoveComponents execute: Comp ${id} or finalPos not found.`); }
+        });
+        needsRetrace = true;
+    }
+
+    undo() {
+        console.log(`Undoing MoveComponentsCommand for ${this.componentIds.length} components.`);
+        this.componentIds.forEach(id => {
+            const comp = components.find(c => c.id === id); // Find component by ID
+            const startPos = this.startPositions.get(id);
+            if (comp && startPos) {
+                comp.pos.set(startPos.x, startPos.y);
+                // Manually trigger updates (essential!)
+                if (typeof comp.onPositionChanged === 'function') comp.onPositionChanged();
+                if (typeof comp._updateGeometry === 'function') comp._updateGeometry();
+            } else { console.warn(`MoveComponents undo: Comp ${id} or startPos not found.`); }
+        });
+        needsRetrace = true;
+    }
+}
+
+// Helper function (might need to be global or passed differently)
+function findComponentsByIds(ids) {
+    return components.filter(c => ids.includes(c.id));
+}
+
+// --- NEW: Composite Command Class ---
+// Allows grouping multiple commands into a single undo/redo step.
+class CompositeCommand extends Command {
+    constructor(commands = []) { // Accepts an array of Command objects
+        super();
+        // Store commands in the order they should be executed
+        this.commands = [...commands];
+        console.log(`CompositeCommand created with ${this.commands.length} sub-commands.`);
+    }
+
+    add(command) {
+        if (command instanceof Command) {
+            this.commands.push(command);
+        } else {
+            console.error("Attempted to add non-command to CompositeCommand:", command);
+        }
+    }
+
+    execute() {
+        console.log(`Executing CompositeCommand with ${this.commands.length} sub-commands.`);
+        // Execute sub-commands in forward order
+        for (let i = 0; i < this.commands.length; i++) {
+            try {
+                this.commands[i].execute();
+            } catch (e) {
+                console.error(`Error executing sub-command #${i} (${this.commands[i].constructor.name}) in CompositeCommand:`, e);
+                // Option: Should we try to undo preceding commands in this composite on error?
+                // For simplicity now, we log the error and continue. A more robust implementation might undo.
+                // Example rollback:
+                // for (let j = i - 1; j >= 0; j--) {
+                //     try { this.commands[j].undo(); } catch (undoErr) { console.error("Error during rollback undo:", undoErr); }
+                // }
+                // throw e; // Re-throw the error after attempting rollback?
+            }
+        }
+    }
+
+    undo() {
+        console.log(`Undoing CompositeCommand with ${this.commands.length} sub-commands.`);
+        // Undo sub-commands in reverse order
+        for (let i = this.commands.length - 1; i >= 0; i--) {
+            try {
+                this.commands[i].undo();
+            } catch (e) {
+                console.error(`Error undoing sub-command #${i} (${this.commands[i].constructor.name}) in CompositeCommand:`, e);
+                // Roll forward? Complex. Log and continue for now.
+            }
+        }
+    }
+
+    // Optional: Check if composite command is empty
+    isEmpty() {
+        return this.commands.length === 0;
+    }
+}
+// --- END Composite Command Class ---

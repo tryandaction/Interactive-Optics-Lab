@@ -14,8 +14,12 @@ let initialized = false; // Flag to prevent multiple initializations
 
 // --- Global State ---
 let components = []; // Array to hold all GameObject instances
-let selectedComponent = null; // Currently selected component
-let draggingComponent = null; // Component being dragged
+let selectedComponents = []; // Array to hold multiple selected components
+// We can keep selectedComponent temporarily for single-selection property updates
+// Or refactor updateInspector later to handle the array. Let's keep it for now.
+let selectedComponent = null; // Represents the *last* clicked/added for inspector focus
+let draggingComponents = []; // Array for multiple components being dragged
+let dragStartOffsets = new Map(); // Store offset for each dragged component { compId -> Vector }
 let dragStartMousePos = null; // Mouse position when drag started
 let isDragging = false; // General dragging flag (position or angle)
 let needsRetrace = true; // Flag to recalculate ray paths
@@ -38,12 +42,17 @@ let historyManager = new HistoryManager(); // <<<--- 添加这一行
 let lastRecordedMoveState = null; // <<<--- 添加: 用于合并拖动操作
 let lastRecordedRotateState = null; // <<<--- 添加: 用于合并旋转操作
 let lastRecordedPropertyState = null; // <<<--- 添加: 用于合并属性修改
-let ongoingActionState = null; // { type: 'move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
+let ongoingActionState = null; // { type: 'multi-move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
 // --- Alignment Guides State ---
 let activeGuides = []; // Array to store currently active guide lines to draw
 const SNAP_THRESHOLD = 5.0; // Pixel distance threshold for snapping/showing guides (in logical coords)
 const GUIDE_COLOR = 'rgba(0, 255, 255, 0.75)'; // 亮青色 (Cyan)
 const GUIDE_DASH = [3, 3]; // 可以尝试不同的虚线模式，或设置为空数组 
+// --- Grid Settings ---
+const GRID_SIZE = 50; // Grid spacing in logical coordinates (should match drawGrid)
+const GRID_SNAP_THRESHOLD = 10.0; // Max distance (logical coords) to snap to grid
+let enableGridSnap = true; // <<<--- Add a flag to easily toggle snapping
+
 // --- Simulation Settings ---
 let showGrid = true;
 window.maxRaysPerSource = 1001; // Default: Allow up to 1001 rays
@@ -1742,150 +1751,118 @@ function getMousePos(canvasElement, event) {
 }
 // --- END OF REPLACEMENT ---
 
-// --- REPLACEMENT for handleMouseDown (V4 - Undo/Redo Start Logic Refined) ---
+// --- REPLACEMENT for handleMouseDown (V5 - Multi-Select Logic) ---
 function handleMouseDown(event) {
+    if (window.innerWidth <= 768) { closeSidebars(); } // Close sidebars on mobile tap
 
-    if (window.innerWidth <= 768) { // Check if potentially on small screen
-        closeSidebars();
+    if (event.button === 1) { // Middle-click panning
+        event.preventDefault(); isPanning = true; lastPanMousePos = new Vector(event.clientX, event.clientY); canvas.style.cursor = 'grabbing'; ongoingActionState = null; return;
     }
-
-    // --- Middle-click panning start ---
-    if (event.button === 1) {
-        event.preventDefault();
-        isPanning = true;
-        lastPanMousePos = new Vector(event.clientX, event.clientY);
-        canvas.style.cursor = 'grabbing';
-        ongoingActionState = null; // Ensure panning doesn't interfere
-        return;
-    }
-    // --- End of middle-click panning start ---
-
     if (event.button !== 0) return; // Only main button
+
     mouseIsDown = true;
     mousePos = getMousePos(canvas, event);
     isDragging = false;
-    draggingComponent = null;
+    draggingComponents = []; // Use the array
+    dragStartOffsets.clear(); // Clear previous offsets
     dragStartMousePos = mousePos.clone();
-    ongoingActionState = null; // Clear any previous ongoing action state
+    ongoingActionState = null;
+
+    const isShiftPressed = event.shiftKey;
+    const isCtrlCmdPressed = event.ctrlKey || event.metaKey; // Ctrl on Win/Linux, Cmd on Mac
 
     let clickedComponent = null;
-    let clickedAngleHandle = false;
-    let clickedFiberOutputPos = false;
-    let clickedFiberOutputAngle = false;
+    let clickedOnExistingSelection = false;
+    let specificHandleClicked = false; // Track if a specific handle was hit
 
     // --- Determine what was clicked ---
-    // 1. Check handles of the CURRENTLY selected component FIRST
-    if (selectedComponent) {
-        if (selectedComponent.isPointOnAngleHandle && selectedComponent.isPointOnAngleHandle(mousePos)) {
-            clickedComponent = selectedComponent;
-            clickedAngleHandle = true;
-        } else if (selectedComponent instanceof OpticalFiber) {
-            if (selectedComponent._isPointOnOutputAngleHandle && selectedComponent._isPointOnOutputAngleHandle(mousePos)) {
-                clickedComponent = selectedComponent;
-                clickedFiberOutputAngle = true; // Specific flag
-            } else if (selectedComponent.outputPos && mousePos.distanceSquaredTo(selectedComponent.outputPos) <= 8 * 8) {
-                clickedComponent = selectedComponent;
-                clickedFiberOutputPos = true; // Specific flag
+    // 1. Check handles of the *last selected* component first (for single-object rotation etc.)
+    // For now, multi-select rotation/handle interaction is deferred. Let's focus on selection/drag.
+    // We need to decide if clicking a handle on one selected item should affect only that item or the group.
+    // Let's assume handle interaction is only for the primary selected component for now.
+    let primarySelected = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null; // Get last selected
+    if (primarySelected) {
+        // Check angle handle
+        if (primarySelected.isPointOnAngleHandle && primarySelected.isPointOnAngleHandle(mousePos)) {
+            clickedComponent = primarySelected; specificHandleClicked = true;
+            // Don't modify selection if clicking handle of already selected item
+        }
+        // Check fiber handles (if applicable)
+        else if (primarySelected instanceof OpticalFiber) {
+            if (primarySelected._isPointOnOutputAngleHandle && primarySelected._isPointOnOutputAngleHandle(mousePos)) {
+                clickedComponent = primarySelected; specificHandleClicked = true;
+            } else if (primarySelected.outputPos && mousePos.distanceSquaredTo(primarySelected.outputPos) <= 8 * 8) {
+                clickedComponent = primarySelected; specificHandleClicked = true;
             }
         }
     }
 
-    // 2. If no selected handle hit, find component bodies/points under mouse
+    // 2. If no specific handle hit, find component body under mouse
     if (!clickedComponent) {
-        const componentsUnderMouse = [];
         for (let i = components.length - 1; i >= 0; i--) {
             const comp = components[i];
             try {
                 if (comp._containsPointBody(mousePos)) {
-                    if (!componentsUnderMouse.includes(comp)) componentsUnderMouse.push(comp);
+                    clickedComponent = comp;
+                    break; // Found the topmost component under cursor
                 }
-                // Check fiber output point separately if not body hit
+                // Also check fiber output point specifically
                 if (comp instanceof OpticalFiber && comp.outputPos && mousePos.distanceSquaredTo(comp.outputPos) <= 8 * 8) {
-                    if (!componentsUnderMouse.includes(comp)) componentsUnderMouse.push(comp);
+                    clickedComponent = comp;
+                    break;
                 }
             } catch (e) { console.error(`Error checking containsPoint for ${comp?.label}:`, e); }
         }
+    }
 
-        // Prioritize which component was clicked
-        if (componentsUnderMouse.length > 0) {
-            clickedComponent = componentsUnderMouse.find(comp =>
-                !(comp instanceof DielectricBlock) && !(comp instanceof Screen)
-            ) || componentsUnderMouse[0]; // Pick first non-large, or topmost if only large
+    // --- Update Selection State ---
+    const previousSelection = [...selectedComponents]; // Copy previous state for undo command
+    let selectionChanged = false;
 
-            // Now check if the click on this prioritized component was actually on a handle
-            if (clickedComponent === selectedComponent) { // Handles only interactive if selected usually
-                if (clickedComponent.isPointOnAngleHandle && clickedComponent.isPointOnAngleHandle(mousePos)) {
-                    clickedAngleHandle = true;
-                } else if (clickedComponent instanceof OpticalFiber) {
-                    if (clickedComponent._isPointOnOutputAngleHandle && clickedComponent._isPointOnOutputAngleHandle(mousePos)) {
-                        clickedFiberOutputAngle = true;
-                    } else if (clickedComponent.outputPos && mousePos.distanceSquaredTo(clickedComponent.outputPos) <= 8 * 8) {
-                        clickedFiberOutputPos = true; // Click on output position point
-                    }
-                }
-            } else if (clickedComponent instanceof OpticalFiber && clickedComponent.outputPos && mousePos.distanceSquaredTo(clickedComponent.outputPos) <= 8 * 8) {
-                // If clicking directly on the output pos point of a non-selected fiber
-                clickedFiberOutputPos = true;
-            }
-        }
-    } // End finding clicked component
-
-    // --- Process Click Result ---
     if (clickedComponent) {
-        if (selectedComponent !== clickedComponent) {
-            if (selectedComponent) selectedComponent.selected = false;
-            selectedComponent = clickedComponent;
-            selectedComponent.selected = true;
-            updateInspector();
-        }
+        const indexInSelection = selectedComponents.indexOf(clickedComponent);
+        clickedOnExistingSelection = indexInSelection > -1;
 
-        // Start dragging
-        draggingComponent = selectedComponent;
-        // Let startDrag determine the specific drag type internally
-        draggingComponent.startDrag(mousePos); // This might set dragging, isDraggingAngle, draggingOutput, draggingOutputAngle on the component
-
-        // --- Record initial state for Undo/Redo based on determined drag type ---
-        if (draggingComponent.dragging) { // Main body position drag
-            ongoingActionState = { type: 'move', component: draggingComponent, startValue: draggingComponent.pos.clone() };
-            console.log("开始 Move 操作记录, 起始:", ongoingActionState.startValue);
-        } else if (draggingComponent.isDraggingAngle) { // Main angle handle drag
-            ongoingActionState = { type: 'rotate', component: draggingComponent, startValue: draggingComponent.angleRad };
-            console.log("开始 Rotate 操作记录, 起始:", ongoingActionState.startValue);
-        } else if (draggingComponent instanceof OpticalFiber) { // Check fiber specific drags
-            if (draggingComponent.draggingOutput) {
-                ongoingActionState = { type: 'move_fiber_output', component: draggingComponent, startValue: draggingComponent.outputPos.clone() };
-                console.log("开始 Fiber Output Move 操作记录, 起始:", ongoingActionState.startValue);
-            } else if (draggingComponent.draggingOutputAngle) {
-                ongoingActionState = { type: 'rotate_fiber_output', component: draggingComponent, startValue: draggingComponent.outputAngleRad };
-                console.log("开始 Fiber Output Rotate 操作记录, 起始:", ongoingActionState.startValue);
+        if (specificHandleClicked) {
+            // --- Clicked Handle of Currently Selected Component ---
+            // If the clicked component isn't the primary, make it primary
+            if (clickedComponent !== primarySelected) {
+                selectedComponents = selectedComponents.filter(c => c !== clickedComponent); // Remove if exists
+                selectedComponents.push(clickedComponent); // Add to end (makes it primary)
+                selectionChanged = true; // Selection order changed
+            }
+            // We will initiate dragging only for this component's handle later
+        } else if (isShiftPressed || isCtrlCmdPressed) {
+            // --- Shift/Ctrl Click on a Component ---
+            if (clickedOnExistingSelection) {
+                // Remove from selection
+                selectedComponents.splice(indexInSelection, 1);
+                selectionChanged = true;
             } else {
-                ongoingActionState = null; // Should be impossible if startDrag worked correctly
+                // Add to selection
+                selectedComponents.push(clickedComponent);
+                selectionChanged = true;
             }
         } else {
-            ongoingActionState = null; // Not a drag type we track for history
+            // --- Normal Click on a Component ---
+            if (!clickedOnExistingSelection) {
+                // Clicked a new component, deselect others
+                selectedComponents.forEach(comp => comp.selected = false);
+                selectedComponents = [clickedComponent];
+                selectionChanged = true;
+            } else {
+                // Clicked on an already selected component without Shift/Ctrl.
+                // Don't change selection here, prepare for potential drag of the group.
+            }
         }
-        // --- End Recording Initial State ---
-
-        isDragging = true; // Set global dragging flag
-        canvas.style.cursor = 'grabbing';
-        componentToAdd = null;
-        clearToolbarSelection();
 
     } else { // Clicked empty space
-        if (selectedComponent) {
-            console.log("Clicked empty space, deselecting:", selectedComponent.label);
-            if (selectedComponent instanceof OpticalFiber) selectedComponent.endDrag();
-            selectedComponent.selected = false;
-            selectedComponent = null;
-            updateInspector();
-            ongoingActionState = null;
-        }
-
         if (componentToAdd) {
+            // --- Place New Component ---
             let newComp = null;
+            // ... (Existing component creation switch logic - NO CHANGES NEEDED HERE) ...
             try {
                 const compPos = mousePos.clone();
-                // --- Component Creation Switch ---
                 switch (componentToAdd) { // (Keep list complete)
                     case 'LaserSource': newComp = new LaserSource(compPos); break;
                     case 'FanSource': newComp = new FanSource(compPos); break;
@@ -1912,289 +1889,392 @@ function handleMouseDown(event) {
                     case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0); break;
                     default: console.warn("Unknown component type:", componentToAdd);
                 }
-                // --- End Component Switch ---
             } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
 
+            // --- Inside handleMouseDown -> if (componentToAdd) -> if (newComp) ---
             if (newComp) {
-                components.push(newComp);
-                // --- Add Command for Add Component ---
+                const previousSelectionBeforeAdd = [...selectedComponents]; // Capture selection *before* modifying it below
+
+                // Deselect others before adding new one
+                selectedComponents.forEach(comp => comp.selected = false);
+                selectedComponents = [newComp]; // New component is the only selection
+                selectedComponent = newComp; // Update primary selected
+                newComp.selected = true; // Mark the component itself
+
+                components.push(newComp); // Add to main array
+
+                // Add command for the ADD action
                 historyManager.addCommand(new AddComponentCommand(newComp, components));
-                updateUndoRedoUI();
-                // --- End Add Command ---
-                selectedComponent = newComp;
-                selectedComponent.selected = true;
+
+                // Add command for the SELECTION change
+                historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents)); // Command from old selection to new single selection
+
+                updateUndoRedoUI(); // Update UI after adding commands
                 updateInspector();
                 needsRetrace = true;
                 sceneModified = true;
             }
-            componentToAdd = null;
+            componentToAdd = null; // Reset tool AFTER successful placement and command adding
             clearToolbarSelection();
+            // --- End modification for new component placement ---
+
+        } else {
+            // --- Clicked Empty Space, No Tool Selected ---
+            if (selectedComponents.length > 0) {
+                selectionChanged = true; // Selection changing from N to 0
+            }
+            selectedComponents.forEach(comp => comp.selected = false);
+            selectedComponents = []; // Clear selection
         }
-    } // End processing click result
+    }
+
+    // --- Update Selection Visuals & Inspector ---
+    // Mark all components in the current selection array as selected=true
+    components.forEach(comp => comp.selected = selectedComponents.includes(comp));
+    // Set the 'primary' selected component for the inspector (last one added/clicked)
+    selectedComponent = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null;
+    updateInspector();
+    needsRetrace = true; // Redraw needed for selection change
+
+    // --- Add Undo Command for Selection Change ---
+    const currentSelectionIds = selectedComponents.map(c => c.id).sort();
+    const previousSelectionIds = previousSelection.map(c => c.id).sort();
+    if (JSON.stringify(currentSelectionIds) !== JSON.stringify(previousSelectionIds)) {
+        // Selection actually changed, add the command
+        historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents)); // Use the arrays before they were potentially modified further
+        updateUndoRedoUI(); // Update buttons now that a command is added
+        console.log("Selection changed, SelectCommand added.");
+        sceneModified = true; // Changing selection counts as modification
+    } else {
+        // console.log("Selection state did not change."); // Optional log
+    }
+    // --- End Add Undo Command ---
+
+
+    // --- Initiate Dragging ---
+    // Start dragging if clicked on a component (handle or body) that is currently selected
+    if (clickedComponent && selectedComponents.includes(clickedComponent)) {
+        isDragging = true;
+        canvas.style.cursor = 'grabbing';
+
+        if (specificHandleClicked) {
+            // --- Dragging a specific handle (only the primary component moves/rotates) ---
+            draggingComponents = [clickedComponent]; // Only drag the clicked one
+            clickedComponent.startDrag(mousePos); // Let component determine handle type
+            // Record state for single component move/rotate
+            if (clickedComponent.dragging) {
+                ongoingActionState = { type: 'move', component: clickedComponent, startValue: clickedComponent.pos.clone() };
+            } else if (clickedComponent.isDraggingAngle) {
+                ongoingActionState = { type: 'rotate', component: clickedComponent, startValue: clickedComponent.angleRad };
+            } else if (clickedComponent instanceof OpticalFiber) {
+                if (clickedComponent.draggingOutput) { ongoingActionState = { type: 'move_fiber_output', component: clickedComponent, startValue: clickedComponent.outputPos.clone() }; }
+                else if (clickedComponent.draggingOutputAngle) { ongoingActionState = { type: 'rotate_fiber_output', component: clickedComponent, startValue: clickedComponent.outputAngleRad }; }
+            }
+        } else {
+            // --- Dragging the body (move all selected components) ---
+            draggingComponents = [...selectedComponents]; // Drag all selected
+            const startPositions = new Map(); // Use Map for start values { compId -> Vector }
+            draggingComponents.forEach(comp => {
+                if (comp.pos instanceof Vector) {
+                    dragStartOffsets.set(comp.id, comp.pos.subtract(mousePos));
+                    startPositions.set(comp.id, comp.pos.clone());
+                } else {
+                    console.warn(`Component ${comp.id} in multi-drag has no valid position.`);
+                }
+            });
+            ongoingActionState = { type: 'multi-move', components: draggingComponents.map(c => c.id), startValues: startPositions };
+            console.log(`Starting multi-drag for ${draggingComponents.length} components.`);
+        }
+    } else {
+        isDragging = false;
+        draggingComponents = [];
+    }
 }
-// --- END OF REPLACEMENT for handleMouseDown ---
+// --- END REPLACEMENT ---
 
-
-// --- REPLACEMENT for handleMouseMove (V4 - No History Added Here, Includes Snapping) ---
+// --- REPLACEMENT for handleMouseMove (V6 - Fixed Snapping & Guides for Single Drag) ---
 function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
 
-    // --- Panning Cursor & Logic ---
+    // --- Panning Logic ---
     if (isPanning) {
         if (lastPanMousePos) {
             const currentPanClientPos = new Vector(event.clientX, event.clientY);
             const delta = currentPanClientPos.subtract(lastPanMousePos);
             cameraOffset = cameraOffset.add(delta);
             lastPanMousePos = currentPanClientPos;
-            needsRetrace = true; // Panning requires redraw (affects view)
+            needsRetrace = true;
         }
-        if (canvas.style.cursor !== 'grabbing') {
-            canvas.style.cursor = 'grabbing';
-        }
-        return; // Stop further processing during pan
-    }
+        canvas.style.cursor = 'grabbing';
+        return;
+    } // --- End Panning ---
 
     // --- Component Dragging Logic ---
-    if (isDragging && draggingComponent) {
+    if (isDragging && draggingComponents.length > 0) {
         canvas.style.cursor = 'grabbing';
-        try {
-            // Let the component update its internal state based on mouse first
-            draggingComponent.drag(currentMousePos);
+        activeGuides = []; // Reset guides at the start of every move event during drag
 
-            // --- Alignment Guide Detection & Snapping ---
-            // --- Inside handleMouseMove -> if (isDragging && draggingComponent) ---
+        // --- Handle Specific Handle Drags (Rotation, Fiber Ends) ---
+        // These usually involve only one component, even if others are selected.
+        // ongoingActionState helps identify the specific drag type.
+        if (ongoingActionState && ongoingActionState.type !== 'multi-move') {
+            const componentBeingHandled = ongoingActionState.component; // Component whose handle is dragged
+            if (componentBeingHandled && draggingComponents.includes(componentBeingHandled)) { // Ensure it's in the list
+                try {
+                    componentBeingHandled.drag(currentMousePos); // Let component handle its specific handle logic
+                    // No snapping or alignment guides for handle drags currently
+                } catch (e) { console.error(`Error during handle drag for ${componentBeingHandled?.label}:`, e); }
+                needsRetrace = true;
+                sceneModified = true;
+                return; // Stop processing, handle drag is exclusive
+            }
+        }
 
-            // Let the component update its internal state based on mouse first
-            draggingComponent.drag(currentMousePos); // Component updates its own pos
+        // --- Handle Multi-Component Body Drag ---
+        // This applies if ongoingActionState.type === 'multi-move', OR if
+        // a single selected component's body is clicked (which sets draggingComponents=[comp]
+        // and ongoingActionState.type='multi-move' effectively, though we should refine that state naming later).
 
-            // --- Alignment Guide Detection (No Snapping Yet) ---
-            activeGuides = []; // Clear previous guides
-            const currentCenter = draggingComponent.pos; // Use the potentially updated position
+        // Use the *primary* selected component for snapping reference if dragging multiple.
+        // If dragging only one, primaryDraggedComponent will be that one.
+        const primaryDraggedComponent = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : draggingComponents[0]; // Fallback just in case
+        let primaryOriginalPosBeforeSnap = null; // Store position before snapping is applied this frame
+        let finalTargetX = null;
+        let finalTargetY = null;
+        let snappedX = false;
+        let snappedY = false;
 
-            if (currentCenter instanceof Vector && !isNaN(currentCenter.x)) {
-                const VIEW_BUFFER = 20; // Extend guides slightly beyond component bounds
-                const canvasWidth = canvas.width / (window.devicePixelRatio || 1) / cameraScale;
-                const canvasHeight = canvas.height / (window.devicePixelRatio || 1) / cameraScale;
-                const viewMinX = -cameraOffset.x / cameraScale;
-                const viewMinY = -cameraOffset.y / cameraScale;
-                const viewMaxX = viewMinX + canvasWidth;
-                const viewMaxY = viewMinY + canvasHeight;
+        // 1. Calculate Potential Positions based on mouse delta
+        const potentialPositions = new Map(); // { compId -> potentialPos }
+        draggingComponents.forEach(comp => {
+            const offset = dragStartOffsets.get(comp.id);
+            if (offset) {
+                const potentialPos = currentMousePos.add(offset);
+                potentialPositions.set(comp.id, potentialPos);
+                if (comp === primaryDraggedComponent) {
+                    primaryOriginalPosBeforeSnap = potentialPos.clone(); // Store primary's potential position
+                }
+            }
+        });
 
+        // 2. Determine Snapping Targets based on the primary component's potential position
+        if (primaryDraggedComponent && primaryOriginalPosBeforeSnap && enableGridSnap) { // Check grid only if enabled
+            const currentPos = primaryOriginalPosBeforeSnap; // Check against the potential position
+            targetX = currentPos.x;
+            targetY = currentPos.y;
 
-                components.forEach(otherComp => {
-                    // Only check against other valid components, excluding self
-                    if (otherComp !== draggingComponent && otherComp.pos instanceof Vector && !isNaN(otherComp.pos.x)) {
-                        const otherCenter = otherComp.pos;
-                        const dx = Math.abs(currentCenter.x - otherCenter.x);
-                        const dy = Math.abs(currentCenter.y - otherCenter.y);
+            // --- Grid Snap Check ---
+            const nearestGridX = Math.round(currentPos.x / GRID_SIZE) * GRID_SIZE;
+            const nearestGridY = Math.round(currentPos.y / GRID_SIZE) * GRID_SIZE;
+            const distSqX = (currentPos.x - nearestGridX) ** 2;
+            const distSqY = (currentPos.y - nearestGridY) ** 2;
+            const snapThresholdSq = (GRID_SNAP_THRESHOLD / cameraScale) ** 2;
 
-                        // Check Vertical Alignment (X coordinates match)
-                        if (dx < SNAP_THRESHOLD / cameraScale) { // Scale threshold by zoom
-                            // Determine the vertical span for the guide line
-                            const y1 = Math.min(currentCenter.y, otherCenter.y) - VIEW_BUFFER / cameraScale;
-                            const y2 = Math.max(currentCenter.y, otherCenter.y) + VIEW_BUFFER / cameraScale;
-                            // Add guide data
-                            activeGuides.push({
-                                type: 'vertical',
-                                x: otherCenter.x, // Align to the stationary component's X
-                                y1: Math.max(viewMinY, y1), // Clip guide to viewport
-                                y2: Math.min(viewMaxY, y2)
-                            });
-                            // Optional: Implement snapping later by setting draggingComponent.pos.x = otherCenter.x here
-                        }
+            if (distSqX < snapThresholdSq) { targetX = nearestGridX; snappedX = true; }
+            if (distSqY < snapThresholdSq) { targetY = nearestGridY; snappedY = true; }
+            // --- End Grid Snap Check ---
 
-                        // Check Horizontal Alignment (Y coordinates match)
-                        if (dy < SNAP_THRESHOLD / cameraScale) { // Scale threshold by zoom
-                            // Determine the horizontal span for the guide line
-                            const x1 = Math.min(currentCenter.x, otherCenter.x) - VIEW_BUFFER / cameraScale;
-                            const x2 = Math.max(currentCenter.x, otherCenter.x) + VIEW_BUFFER / cameraScale;
-                            // Add guide data
-                            activeGuides.push({
-                                type: 'horizontal',
-                                y: otherCenter.y, // Align to the stationary component's Y
-                                x1: Math.max(viewMinX, x1), // Clip guide to viewport
-                                x2: Math.min(viewMaxX, x2)
-                            });
-                            // Optional: Implement snapping later by setting draggingComponent.pos.y = otherCenter.y here
+            // --- Component Snap Check (Overrides grid if closer) ---
+            let minSnapDistX = snappedX ? Math.abs(currentPos.x - targetX) : (SNAP_THRESHOLD / cameraScale);
+            let minSnapDistY = snappedY ? Math.abs(currentPos.y - targetY) : (SNAP_THRESHOLD / cameraScale);
+            let guidesToShow = []; // Temporary store for potential guides
+
+            components.forEach(otherComp => {
+                if (!draggingComponents.includes(otherComp) && otherComp.pos instanceof Vector) {
+                    const otherCenter = otherComp.pos;
+                    const dx = Math.abs(currentPos.x - otherCenter.x); // Compare potential pos with others
+                    const dy = Math.abs(currentPos.y - otherCenter.y);
+                    const scaledCompSnapThreshold = SNAP_THRESHOLD / cameraScale;
+
+                    if (dx < scaledCompSnapThreshold) {
+                        // Store potential guide info
+                        guidesToShow.push({ type: 'vertical', x: otherCenter.x, y1: Math.min(currentPos.y, otherCenter.y) - 20 / cameraScale, y2: Math.max(currentPos.y, otherCenter.y) + 20 / cameraScale });
+                        if (dx < minSnapDistX) { // Found a closer X snap
+                            minSnapDistX = dx; targetX = otherCenter.x; snappedX = true;
                         }
                     }
-                });
+                    if (dy < scaledCompSnapThreshold) {
+                        guidesToShow.push({ type: 'horizontal', y: otherCenter.y, x1: Math.min(currentPos.x, otherCenter.x) - 20 / cameraScale, x2: Math.max(currentPos.x, otherCenter.x) + 20 / cameraScale });
+                        if (dy < minSnapDistY) {
+                            minSnapDistY = dy; targetY = otherCenter.y; snappedY = true;
+                        }
+                    }
+                }
+            });
+            // --- End Component Snap Check ---
 
-                // --- Apply Snapping (Optional - Deferred) ---
-                // If snapping is desired later, apply changes to draggingComponent.pos here
-                // and filter activeGuides to only show the snapped ones.
-                // For now, we show all potential guides within the threshold.
+            finalTargetX = targetX; // Store the final snap target decided
+            finalTargetY = targetY;
 
-            } // End if(currentCenter instanceof Vector)
-            // --- End Alignment Guide Detection ---
+            // Filter guides based on final snap decision
+            if (snappedX || snappedY) {
+                activeGuides = guidesToShow.filter(guide =>
+                    (snappedX && guide.type === 'vertical' && Math.abs(guide.x - finalTargetX) < 1e-3) ||
+                    (snappedY && guide.type === 'horizontal' && Math.abs(guide.y - finalTargetY) < 1e-3)
+                );
+            }
 
-            needsRetrace = true; // Dragging always needs retrace
-            sceneModified = true; // Mark as modified
-        } catch (e) {
-            console.error(`Error during drag for ${draggingComponent?.label}:`, e);
-            // Reset state on error
-            isDragging = false;
-            if (draggingComponent.endDrag) draggingComponent.endDrag();
-            draggingComponent = null;
-            ongoingActionState = null;
-            activeGuides = [];
-            canvas.style.cursor = 'default';
-        }
+        } // End if primary component exists and snapping enabled
+
+        // 3. Apply Final Positions to ALL Dragged Components
+        draggingComponents.forEach(comp => {
+            let newPosX = potentialPositions.get(comp.id)?.x ?? comp.pos.x; // Start with potential pos
+            let newPosY = potentialPositions.get(comp.id)?.y ?? comp.pos.y;
+
+            // If snapping occurred, adjust position relative to the primary component's snap
+            if (primaryDraggedComponent && primaryOriginalPosBeforeSnap && (snappedX || snappedY)) {
+                const primaryDeltaX = snappedX ? finalTargetX - primaryOriginalPosBeforeSnap.x : 0;
+                const primaryDeltaY = snappedY ? finalTargetY - primaryOriginalPosBeforeSnap.y : 0;
+                newPosX += primaryDeltaX;
+                newPosY += primaryDeltaY;
+            }
+
+            // Apply the calculated position and update geometry if changed
+            if (!comp.pos.equals(new Vector(newPosX, newPosY), 1e-6)) {
+                comp.pos.set(newPosX, newPosY);
+                if (typeof comp.onPositionChanged === 'function') { try { comp.onPositionChanged(); } catch (e) { } }
+                if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (e) { } }
+            }
+        }); // End loop applying positions
+
+        needsRetrace = true;
+        sceneModified = true;
         return; // Stop further cursor checks if dragging
-    } // End if isDragging
+    } // --- End Component Dragging Logic ---
 
-    // --- Hover Cursor Logic (only if not panning or dragging) ---
+    // --- Hover Cursor Logic ---
+    // (Existing hover logic - NO CHANGES NEEDED HERE, should be the same as previous version)
     let newCursor = 'default';
     if (componentToAdd) {
         newCursor = 'crosshair';
     } else {
         let hoveredComponent = null;
         let hoverType = 'body';
-
-        // Check handles of selected component first
-        if (selectedComponent) {
-            if (selectedComponent.isPointOnAngleHandle && selectedComponent.isPointOnAngleHandle(currentMousePos)) {
-                hoveredComponent = selectedComponent; hoverType = 'angle';
-            } else if (selectedComponent instanceof OpticalFiber && selectedComponent._isPointOnOutputAngleHandle && selectedComponent._isPointOnOutputAngleHandle(currentMousePos)) {
-                hoveredComponent = selectedComponent; hoverType = 'output_angle';
-            } else if (selectedComponent instanceof OpticalFiber && selectedComponent.outputPos && currentMousePos.distanceSquaredTo(selectedComponent.outputPos) <= 8 * 8) {
-                hoveredComponent = selectedComponent; hoverType = 'output_pos';
-            }
+        let primarySelectedHover = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null;
+        if (primarySelectedHover) {
+            if (primarySelectedHover.isPointOnAngleHandle && primarySelectedHover.isPointOnAngleHandle(currentMousePos)) { hoveredComponent = primarySelectedHover; hoverType = 'angle'; }
+            else if (primarySelectedHover instanceof OpticalFiber && primarySelectedHover._isPointOnOutputAngleHandle && primarySelectedHover._isPointOnOutputAngleHandle(currentMousePos)) { hoveredComponent = primarySelectedHover; hoverType = 'output_angle'; }
+            else if (primarySelectedHover instanceof OpticalFiber && primarySelectedHover.outputPos && currentMousePos.distanceSquaredTo(primarySelectedHover.outputPos) <= 8 * 8) { hoveredComponent = primarySelectedHover; hoverType = 'output_pos'; }
         }
-
-        // If no selected handle hit, check component bodies/points
         if (!hoveredComponent) {
             for (let i = components.length - 1; i >= 0; i--) {
                 const comp = components[i];
                 try {
-                    if (comp._containsPointBody && comp._containsPointBody(currentMousePos)) {
-                        hoveredComponent = comp; hoverType = 'body';
-                        // Re-check handles if hovering over selected component's body
-                        if (comp === selectedComponent) {
-                            if (comp.isPointOnAngleHandle && comp.isPointOnAngleHandle(currentMousePos)) hoverType = 'angle';
-                            else if (comp instanceof OpticalFiber && comp._isPointOnOutputAngleHandle && comp._isPointOnOutputAngleHandle(currentMousePos)) hoverType = 'output_angle';
-                        }
-                        break;
-                    }
-                    if (comp instanceof OpticalFiber && comp.outputPos && currentMousePos.distanceSquaredTo(comp.outputPos) <= 8 * 8) {
-                        hoveredComponent = comp; hoverType = 'output_pos'; break;
-                    }
-                } catch (e) { /* Ignore errors during hover check */ }
+                    if (comp._containsPointBody && comp._containsPointBody(currentMousePos)) { hoveredComponent = comp; hoverType = 'body'; break; }
+                    if (comp instanceof OpticalFiber && comp.outputPos && currentMousePos.distanceSquaredTo(comp.outputPos) <= 8 * 8) { hoveredComponent = comp; hoverType = 'output_pos'; break; }
+                } catch (e) { /* Ignore */ }
             }
         }
-
-        // Determine cursor
         if (hoveredComponent) {
-            if (hoverType === 'angle' || hoverType === 'output_angle') newCursor = 'pointer'; // Or rotate
-            else if (hoverType === 'output_pos') newCursor = 'move';
-            else newCursor = 'move'; // Or grab
-        } else {
-            newCursor = 'default';
-        }
+            if (selectedComponents.includes(hoveredComponent)) {
+                if (hoverType === 'angle' || hoverType === 'output_angle') newCursor = 'pointer';
+                else if (hoverType === 'output_pos') newCursor = 'grab';
+                else newCursor = 'grab';
+            } else { newCursor = 'pointer'; }
+        } else { newCursor = 'default'; }
     }
-
-    if (canvas.style.cursor !== newCursor) {
-        canvas.style.cursor = newCursor;
-    }
+    if (canvas.style.cursor !== newCursor) { canvas.style.cursor = newCursor; }
     // --- End Hover Logic ---
 }
-// --- END OF REPLACEMENT for handleMouseMove ---
+// --- END REPLACEMENT ---
 
-
-// --- REPLACEMENT for handleMouseUp (V4 - Undo/Redo End Logic Refined) ---
+// --- REPLACEMENT for handleMouseUp (V5 - Multi-Drag Command) ---
 function handleMouseUp(event) {
-
-    // --- Middle button release while panning ---
-    if (event.button === 1 && isPanning) {
-        isPanning = false;
-        lastPanMousePos = null;
-        canvas.style.cursor = 'default';
-        ongoingActionState = null;
-        return;
+    if (event.button === 1 && isPanning) { // Middle button release panning
+        isPanning = false; lastPanMousePos = null; canvas.style.cursor = 'default'; ongoingActionState = null; return;
     }
-    // --- End of middle-click panning stop ---
-
     if (event.button !== 0) return; // Only main button release
-    mouseIsDown = false;
-    let dragJustEnded = false; // Flag to track if we processed a drag end
 
-    if (isDragging && draggingComponent) {
-        dragJustEnded = true; // Mark that a drag operation finished
-        console.log(`Drag ended for ${draggingComponent.label}. Current action state:`, ongoingActionState);
+    mouseIsDown = false;
+    let dragJustEnded = false;
+
+    // Check if a drag operation (single or multi) was in progress
+    if (isDragging && draggingComponents.length > 0) {
+        dragJustEnded = true;
+        console.log(`Drag ended for ${draggingComponents.length} component(s). Current action state:`, ongoingActionState);
+
         try {
             // --- Finalize Action and Add Command ---
-            // Check if we were tracking an action for this component
-            if (ongoingActionState && ongoingActionState.component === draggingComponent) {
-                let commandToAdd = null; // Prepare command variable
+            if (ongoingActionState && ongoingActionState.components?.length > 0 && ongoingActionState.type === 'multi-move') {
+                // --- Multi-Component Move ---
+                const finalPositions = new Map();
+                let changed = false;
+                ongoingActionState.components.forEach(compId => {
+                    const comp = components.find(c => c.id === compId);
+                    const startPos = ongoingActionState.startValues.get(compId);
+                    if (comp && comp.pos instanceof Vector && startPos) {
+                        finalPositions.set(compId, comp.pos.clone());
+                        if (!changed && !comp.pos.equals(startPos, 1e-3)) {
+                            changed = true;
+                        }
+                    }
+                });
 
-                // Determine final state and create command based on action type
-                if (ongoingActionState.type === 'move') {
-                    const finalPos = draggingComponent.pos.clone();
-                    if (!finalPos.equals(ongoingActionState.startValue, 1e-3)) {
-                        commandToAdd = new MoveComponentCommand(draggingComponent, ongoingActionState.startValue, finalPos);
-                        console.log("准备添加 Move 命令 (拖动结束)");
-                    } else { console.log("Move 未发生显著变化，不添加命令"); }
-                } else if (ongoingActionState.type === 'rotate') {
-                    const finalAngle = draggingComponent.angleRad;
-                    if (Math.abs(finalAngle - ongoingActionState.startValue) > 1e-4) {
-                        commandToAdd = new RotateComponentCommand(draggingComponent, ongoingActionState.startValue, finalAngle);
-                        console.log("准备添加 Rotate 命令 (角度拖动结束)");
-                    } else { console.log("Rotate 未发生显著变化，不添加命令"); }
-                } else if (ongoingActionState.type === 'move_fiber_output' && draggingComponent instanceof OpticalFiber) {
-                    const finalOutputPos = draggingComponent.outputPos.clone();
-                    if (!finalOutputPos.equals(ongoingActionState.startValue, 1e-3)) {
-                        // Adapt SetProperty for fiber output position change
-                        commandToAdd = new SetPropertyCommand(draggingComponent, 'outputPos', ongoingActionState.startValue, finalOutputPos);
-                        console.log("准备添加 Fiber Output Move 命令");
-                    } else { console.log("Fiber Output Move 未发生显著变化，不添加命令"); }
-                } else if (ongoingActionState.type === 'rotate_fiber_output' && draggingComponent instanceof OpticalFiber) {
-                    const finalOutputAngle = draggingComponent.outputAngleRad;
-                    if (Math.abs(finalOutputAngle - ongoingActionState.startValue) > 1e-4) {
-                        // Adapt SetProperty for fiber output angle change
-                        commandToAdd = new SetPropertyCommand(draggingComponent, 'outputAngleRad', ongoingActionState.startValue, finalOutputAngle);
-                        console.log("准备添加 Fiber Output Rotate 命令");
-                    } else { console.log("Fiber Output Rotate 未发生显著变化，不添加命令"); }
+                if (changed) {
+                    // Create and add the multi-move command
+                    historyManager.addCommand(new MoveComponentsCommand(ongoingActionState.components, ongoingActionState.startValues, finalPositions));
+                    updateUndoRedoUI();
+                    sceneModified = true;
+                    console.log("Multi-move command added.");
+                } else {
+                    console.log("Multi-move: No significant change detected.");
                 }
 
-                // Add the command if one was created
+            } else if (ongoingActionState && ongoingActionState.component) {
+                // --- Single Component Handle Drag ---
+                const comp = ongoingActionState.component;
+                let commandToAdd = null;
+                if (ongoingActionState.type === 'move') { // Should only happen if handle logic failed?
+                    const finalPos = getComponentPropertyValue(comp, 'pos');
+                    if (finalPos && !areValuesEqual(ongoingActionState.startValue, finalPos)) { commandToAdd = new MoveComponentCommand(comp, ongoingActionState.startValue, finalPos); }
+                } else if (ongoingActionState.type === 'rotate') {
+                    const finalAngle = getComponentPropertyValue(comp, 'angleDeg'); // Get radians
+                    if (typeof finalAngle === 'number' && !areValuesEqual(ongoingActionState.startValue, finalAngle)) { commandToAdd = new RotateComponentCommand(comp, ongoingActionState.startValue, finalAngle); }
+                } else if (ongoingActionState.type === 'move_fiber_output' && comp instanceof OpticalFiber) {
+                    const finalOutputPos = getComponentPropertyValue(comp, 'outputPos');
+                    if (finalOutputPos && !areValuesEqual(ongoingActionState.startValue, finalOutputPos)) { commandToAdd = new SetPropertyCommand(comp, 'outputPos', ongoingActionState.startValue, finalOutputPos); }
+                } else if (ongoingActionState.type === 'rotate_fiber_output' && comp instanceof OpticalFiber) {
+                    const finalOutputAngle = getComponentPropertyValue(comp, 'outputAngleDeg'); // Get radians
+                    if (typeof finalOutputAngle === 'number' && !areValuesEqual(ongoingActionState.startValue, finalOutputAngle)) { commandToAdd = new SetPropertyCommand(comp, 'outputAngleRad', ongoingActionState.startValue, finalOutputAngle); }
+                }
+
                 if (commandToAdd) {
                     historyManager.addCommand(commandToAdd);
                     updateUndoRedoUI();
-                    // sceneModified was likely set during drag, ensure it's true
                     sceneModified = true;
+                    console.log(`Single handle drag command added: ${commandToAdd.constructor.name}`);
+                } else {
+                    console.log("Single handle drag: No significant change detected.");
                 }
             } else {
-                // This case might happen if mouseup occurs without a proper mousedown drag start for history
-                console.warn("Drag ended but no matching ongoing action state found.");
-            }
-            // --- End Finalize Action ---
+                console.warn("Drag ended but no valid ongoing action state found.");
+            } // --- End Finalize Action ---
 
-            // Call endDrag after potentially adding command
-            draggingComponent.endDrag();
+            // Call endDrag for the primary component (if exists) or all?
+            // Let's call on all, components should handle it internally.
+            draggingComponents.forEach(comp => comp.endDrag?.());
 
         } catch (e) {
             console.error("Error in endDrag or command adding:", e);
-            if (draggingComponent && draggingComponent.endDrag) draggingComponent.endDrag();
+            draggingComponents.forEach(comp => comp.endDrag?.()); // Try to end drag anyway
         }
     } // End if isDragging
 
-    // Clear dragging state AFTER processing the potential command
+    // Clear dragging state AFTER processing
     isDragging = false;
-    draggingComponent = null; // Keep component selected, but stop tracking drag state
-    ongoingActionState = null; // Clear action state tracker
+    draggingComponents = [];
+    dragStartOffsets.clear();
+    ongoingActionState = null;
 
-    // Clear alignment guides if drag just ended
     if (dragJustEnded && activeGuides.length > 0) {
         activeGuides = [];
-        needsRetrace = true; // Need redraw to remove guides
+        needsRetrace = true;
     }
 
-    // Restore default cursor if not hovering over something interactive
-    handleMouseMove(event); // Re-evaluate cursor based on final position
+    handleMouseMove(event); // Re-evaluate cursor
 }
-// --- END OF REPLACEMENT for handleMouseUp ---
-
+// --- END REPLACEMENT ---
 
 // --- REPLACEMENT for handleMouseLeave function ---
 function handleMouseLeave(event) {
@@ -2336,9 +2416,9 @@ function handleKeyDown(event) {
     // --- End Undo/Redo Shortcuts ---
 
     // --- Delete selected component ---
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedComponent) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedComponents.length > 0) {
         event.preventDefault();
-        deleteComponent(selectedComponent);
+        deleteSelectedComponents(); // Call the new function
     }
 
     // --- Rotate selected component (R key, Shift+R for reverse) ---
@@ -2394,40 +2474,103 @@ function handleKeyDown(event) {
 // --- END OF REPLACEMENT for handleKeyDown ---
 
 
-// --- REPLACEMENT for deleteComponent (V3 - Undo/Redo Aware) ---
-function deleteComponent(componentToDelete) {
-    if (!componentToDelete) return;
-    console.log("Attempting to delete:", componentToDelete.label, componentToDelete.id);
-    const index = components.indexOf(componentToDelete);
-    if (index > -1) {
-        const wasSelected = (selectedComponent === componentToDelete);
+// // --- REPLACEMENT for deleteComponent (V3 - Undo/Redo Aware) ---
+// function deleteComponent(componentToDelete) {
+//     if (!componentToDelete) return;
+//     console.log("Attempting to delete:", componentToDelete.label, componentToDelete.id);
+//     const index = components.indexOf(componentToDelete);
+//     if (index > -1) {
+//         const wasSelected = (selectedComponent === componentToDelete);
 
-        // --- Add Command BEFORE actual deletion ---
-        ongoingActionState = null; // <<-- Clear any potential ongoing action state first
-        historyManager.addCommand(new DeleteComponentCommand(componentToDelete, components, index));
-        updateUndoRedoUI();
-        // --- End Add Command ---
+//         // --- Add Command BEFORE actual deletion ---
+//         ongoingActionState = null; // <<-- Clear any potential ongoing action state first
+//         historyManager.addCommand(new DeleteComponentCommand(componentToDelete, components, index));
+//         updateUndoRedoUI();
+//         // --- End Add Command ---
 
-        components.splice(index, 1); // Actual deletion
-        sceneModified = true; // Mark modified AFTER command is added
+//         components.splice(index, 1); // Actual deletion
+//         sceneModified = true; // Mark modified AFTER command is added
 
-        if (wasSelected) {
-            selectedComponent = null;
-            updateInspector();
+//         if (wasSelected) {
+//             selectedComponent = null;
+//             updateInspector();
+//         }
+//         needsRetrace = true;
+//         console.log("Component deleted and DeleteCommand added.");
+
+//     } else {
+//         console.warn("Component to delete not found in array.");
+//         if (selectedComponent === componentToDelete) { // Cleanup selection if needed
+//             selectedComponent = null;
+//             updateInspector();
+//             ongoingActionState = null;
+//         }
+//     }
+// }
+// // --- END OF REPLACEMENT for deleteComponent ---
+
+
+// --- NEW Function for Deleting Multiple Selected Components ---
+function deleteSelectedComponents() {
+    if (selectedComponents.length === 0) {
+        console.log("Delete action ignored: No components selected.");
+        return; // Nothing to delete
+    }
+
+    console.log(`Attempting to delete ${selectedComponents.length} selected component(s).`);
+
+    // --- Create a Composite Command ---
+    const deleteCommands = [];
+    // It's safer to iterate over a copy and find indices in the main array,
+    // as splicing modifies the array during iteration if not careful.
+    const componentsToDelete = [...selectedComponents]; // Copy the selection
+
+    // Sort components by their index in the main 'components' array in descending order.
+    // This ensures that splicing higher indices first doesn't affect the indices of subsequent items.
+    componentsToDelete.sort((a, b) => components.indexOf(b) - components.indexOf(a));
+
+    componentsToDelete.forEach(comp => {
+        const index = components.indexOf(comp);
+        if (index > -1) {
+            // Create a command for deleting this specific component
+            deleteCommands.push(new DeleteComponentCommand(comp, components, index));
+        } else {
+            console.warn(`Component ${comp.id} was selected but not found in main components array during delete.`);
         }
-        needsRetrace = true;
-        console.log("Component deleted and DeleteCommand added.");
+    });
+
+    if (deleteCommands.length > 0) {
+        const compositeCommand = new CompositeCommand(deleteCommands);
+
+        // Execute the composite command (which executes individual deletes)
+        try {
+            compositeCommand.execute(); // This will perform the actual splices
+            historyManager.addCommand(compositeCommand); // Add the single composite command to history
+            updateUndoRedoUI();
+            sceneModified = true;
+            console.log(`${deleteCommands.length} component(s) deleted via CompositeCommand.`);
+        } catch (e) {
+            console.error("Error executing composite delete command:", e);
+            // Attempt to undo the partial execution? (Complex)
+            // For now, just log the error. State might be inconsistent.
+            alert("删除元件时发生错误！部分元件可能已被删除。");
+            // Force a redraw and update UI
+            needsRetrace = true;
+            updateInspector(); // Inspector should be empty now
+            updateUndoRedoUI(); // Reflect potential history change
+        }
+
+        // Clear selection state AFTER successful deletion
+        selectedComponents = [];
+        selectedComponent = null;
+        updateInspector(); // Update inspector for cleared selection
+        needsRetrace = true; // Ensure redraw after deletion
 
     } else {
-        console.warn("Component to delete not found in array.");
-        if (selectedComponent === componentToDelete) { // Cleanup selection if needed
-            selectedComponent = null;
-            updateInspector();
-            ongoingActionState = null;
-        }
+        console.log("No valid components found to delete among selection.");
     }
 }
-// --- END OF REPLACEMENT for deleteComponent ---
+// --- END deleteSelectedComponents ---
 
 
 function clearToolbarSelection() {
@@ -2523,6 +2666,18 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 components.push(newComp);
             }
         });
+
+
+        // --- ADD MODE RESTORATION ---
+        if (sceneData.currentMode === 'lens_imaging' || sceneData.currentMode === 'ray_trace') {
+            switchMode(sceneData.currentMode);
+            console.log(`Restored simulation mode from preset to: ${sceneData.currentMode}`);
+        } else {
+            switchMode('ray_trace');
+            console.warn("Preset scene data missing or has invalid mode, defaulting to ray_trace.");
+        }
+        // --- END MODE RESTORATION ---
+
 
         // 3. Trigger retrace and save this loaded state
         needsRetrace = true;
@@ -2766,27 +2921,24 @@ function saveSceneDataToStorage(sceneName, sceneData) {
     }
 }
 
-// Deletes a scene from localStorage by name
 function deleteSceneFromStorage(sceneName) {
     if (!sceneName) return;
     const key = SCENE_KEY_PREFIX + sceneName;
     if (localStorage.getItem(key)) {
-        if (confirm(`确定要删除本地保存的场景 "${sceneName}" 吗？此操作无法撤销。`)) {
+        // Updated confirmation message
+        if (confirm(`确定要删除浏览器暂存的场景 "${sceneName}" 吗？此操作无法撤销。`)) {
             localStorage.removeItem(key);
-            console.log(`Scene '${sceneName}' deleted from localStorage.`);
-            // Refresh the scene list (assuming it's currently visible in a modal/tab)
+            console.log(`暂存场景 '${sceneName}' deleted from localStorage.`);
             updateSavedScenesList(); // Refresh the list in the UI
         }
     } else {
-        console.warn(`Scene '${sceneName}' not found for deletion.`);
+        console.warn(`暂存场景 '${sceneName}' not found for deletion.`);
     }
 }
 
 
-// --- NEW FUNCTION: Update Saved Scenes List in UI (e.g., Scenes Tab) ---
 function updateSavedScenesList() {
-    // Target the list container in the 'Scenes' tab
-    const listContainer = document.getElementById('saved-scenes-list'); // Ensure this ID matches your HTML in the scenes tab
+    const listContainer = document.getElementById('saved-scenes-list');
     if (!listContainer) {
         console.warn("Scene list container #saved-scenes-list not found.");
         return;
@@ -2796,45 +2948,48 @@ function updateSavedScenesList() {
     listContainer.innerHTML = ''; // Clear previous list
 
     if (sceneNames.length === 0) {
-        listContainer.innerHTML = '<p class="placeholder-text">没有已保存的本地场景。</p>'; // Use class for styling
+        listContainer.innerHTML = '<p class="placeholder-text">没有已暂存的场景。</p>'; // Updated placeholder text
     } else {
         sceneNames.forEach(name => {
             const itemDiv = document.createElement('div');
-            itemDiv.className = 'saved-scene-item'; // Use class for styling
+            itemDiv.className = 'saved-scene-item';
 
             const nameSpan = document.createElement('span');
             nameSpan.textContent = name;
-            nameSpan.title = `加载场景: ${name}`;
-            nameSpan.onclick = () => { // Add click listener to load
-                console.log(`Load requested for scene: ${name}`);
-                if (sceneModified) { // Check for unsaved changes
-                    if (!confirm("当前场景已被修改。加载场景将【覆盖】当前更改。是否继续？")) {
+            // Update tooltip
+            nameSpan.title = `加载暂存场景: ${name}`;
+            nameSpan.onclick = () => {
+                console.log(`Load requested for暂存 scene: ${name}`);
+                if (sceneModified) {
+                    if (!confirm("当前场景已被修改。加载暂存场景将【覆盖】当前更改。是否继续？")) { // Updated confirm text
                         console.log("Load cancelled by user.");
-                        return; // Stop loading
+                        return;
                     }
-                    // sceneModified = false; // Will be set inside loadSceneFromData
                 }
                 const sceneData = loadSceneDataFromStorage(name);
                 if (sceneData) {
-                    if (loadSceneFromData(sceneData)) { // Call helper to load
-                        console.log(`Scene '${name}' loaded via list.`);
-                        // No need to close modal if it's a tab
+                    if (loadSceneFromData(sceneData)) {
+                        console.log(`暂存场景 '${name}' loaded via list.`);
                     } else {
-                        alert(`加载场景 "${name}" 时发生内部错误。`);
-                        updateSavedScenesList(); // Refresh list if load failed internally
+                        // Update alert text
+                        alert(`加载暂存场景 "${name}" 时发生内部错误。`);
+                        updateSavedScenesList();
                     }
                 } else {
-                    alert(`无法加载场景 "${name}"！数据可能已损坏或丢失。`);
-                    updateSavedScenesList(); // Refresh list if data was invalid
+                    // Update alert text
+                    alert(`无法加载暂存场景 "${name}"！数据可能已损坏或丢失。`);
+                    updateSavedScenesList();
                 }
             };
 
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = '删除';
-            deleteBtn.title = `删除场景: ${name}`;
+            // Update tooltip
+            deleteBtn.title = `删除暂存场景: ${name}`;
+            deleteBtn.className = 'scene-action-btn delete-btn'; // Added class for styling
             deleteBtn.onclick = (e) => {
-                e.stopPropagation(); // Prevent triggering load when clicking delete
-                deleteSceneFromStorage(name); // Call delete helper
+                e.stopPropagation();
+                deleteSceneFromStorage(name); // Calls the function with updated confirm message
             };
 
             itemDiv.appendChild(nameSpan);
@@ -2843,8 +2998,6 @@ function updateSavedScenesList() {
         });
     }
 }
-// --- END Update Saved Scenes List ---
-
 
 // --- REPLACEMENT for updateUndoRedoUI (V2 - Handles Buttons & Menu Items) ---
 function updateUndoRedoUI() {
@@ -2875,127 +3028,202 @@ function updateUndoRedoUI() {
 
 
 
-// --- NEW Helper to Generate Scene Data Object ---
-// (Extracts logic used by both export and save as)
+// --- REPLACEMENT for generateSceneDataObject (Uses toJSON) ---
 function generateSceneDataObject() {
-    const sceneData = { version: "1.0", components: [] };
+    const sceneData = {
+        version: "1.0",
+        currentMode: currentMode,
+        components: []
+    };
     components.forEach(comp => {
-        let compProps = {};
         try {
-            compProps.type = comp.constructor.name; compProps.id = comp.id;
-            compProps.posX = comp.pos.x; compProps.posY = comp.pos.y;
-            compProps.angleDeg = comp.angleRad * (180 / Math.PI); compProps.label = comp.label;
-            const specificPropsData = comp.getProperties();
-            for (const propName in specificPropsData) {
-                if (!['posX', 'posY', 'angleDeg', 'label'].includes(propName) && !specificPropsData[propName].readonly) {
-                    // Check if property exists directly on the instance or its prototype chain
-                    if (comp[propName] !== undefined || typeof comp[propName] === 'boolean' || typeof comp[propName] === 'number' || comp[propName] === null) { // Check more reliably
-                        // Special handling for angles stored in radians but exposed in degrees
-                        if (propName === 'transmissionAxisAngleDeg' && comp.hasOwnProperty('transmissionAxisRad')) compProps[propName] = comp.transmissionAxisRad * (180 / Math.PI);
-                        else if (propName === 'fastAxisAngleDeg' && comp.hasOwnProperty('fastAxisRad')) compProps[propName] = comp.fastAxisRad * (180 / Math.PI);
-                        else if (propName === 'outputAngleDeg' && comp.hasOwnProperty('outputAngleRad')) compProps[propName] = comp.outputAngleRad * (180 / Math.PI);
-                        else if (propName === 'fanAngleDeg' && comp.hasOwnProperty('fanAngleRad')) compProps[propName] = comp.fanAngleRad * (180 / Math.PI);
-                        else if (propName === 'spreadDeg' && comp.hasOwnProperty('spreadRad')) compProps[propName] = comp.spreadRad * (180 / Math.PI);
-                        else if (propName === 'apexAngleDeg' && comp.hasOwnProperty('apexAngleRad')) compProps[propName] = comp.apexAngleRad * (180 / Math.PI);
-                        else if (propName === 'centralAngleDeg' && comp.hasOwnProperty('centralAngleRad')) compProps[propName] = comp.centralAngleRad * (180 / Math.PI);
-                        // Add other angle conversions here...
-                        else compProps[propName] = comp[propName]; // Direct access
-                    } else {
-                        // Fallback for properties like outputX/Y in OpticalFiber
-                        if (propName === 'outputX' && comp.outputPos) compProps.outputX = comp.outputPos.x;
-                        else if (propName === 'outputY' && comp.outputPos) compProps.outputY = comp.outputPos.y;
-                        else console.warn(`Property '${propName}' not found directly on component ${comp.label} during save.`);
-                    }
-                }
+            if (typeof comp.toJSON === 'function') {
+                sceneData.components.push(comp.toJSON()); // Call component's toJSON method
+            } else {
+                console.warn(`Component ${comp?.label} (${comp?.constructor?.name}) is missing toJSON method. Skipping.`);
             }
-            // Ensure specific necessary properties are included even if not exposed by getProperties
-            if (comp instanceof OpticalFiber && comp.outputPos) { if (!compProps.hasOwnProperty('outputX')) compProps.outputX = comp.outputPos.x; if (!compProps.hasOwnProperty('outputY')) compProps.outputY = comp.outputPos.y; }
-            if (comp instanceof LaserSource || comp instanceof WhiteLightSource) { if (!compProps.hasOwnProperty('initialBeamWaist')) compProps.initialBeamWaist = comp.initialBeamWaist; if (!compProps.hasOwnProperty('gaussianEnabled')) compProps.gaussianEnabled = comp.gaussianEnabled; }
-            if (comp instanceof WhiteLightSource) { if (!compProps.hasOwnProperty('baseIntensity')) compProps.baseIntensity = comp.baseIntensity; } // Save baseIntensity for WLS
-            sceneData.components.push(compProps);
-        } catch (e) { console.error(`Error extracting data for component ${comp?.label} (${comp?.id}):`, e); }
+        } catch (e) {
+            console.error(`Error calling toJSON for component ${comp?.label} (${comp?.id}):`, e);
+        }
     });
+    console.log("Generated scene data using toJSON. Mode:", currentMode);
     return sceneData;
 }
+// --- END REPLACEMENT ---
 
-
-// --- NEW HELPER FUNCTION: Load Scene from Data Object ---
-// (Extracts the component loading logic from importScene/loadPresetScene)
+// --- REPLACEMENT for loadSceneFromData (V2 - Uses constructor & setProperty correctly) ---
 function loadSceneFromData(sceneData) {
+    console.log("--- Loading Scene from Data Object ---"); // Log start
     try {
         components = [];
         selectedComponent = null;
         draggingComponent = null;
-        updateInspector();
+        historyManager.clear(); // Clear history when loading a new scene
+        updateUndoRedoUI(); // Update UI after clearing history
+
+        if (!sceneData || !Array.isArray(sceneData.components)) {
+            throw new Error("Invalid scene data format: 'components' array not found.");
+        }
+
+        console.log(`  Loading ${sceneData.components.length} components...`);
 
         sceneData.components.forEach((compData, index) => {
             let newComp = null;
             const compType = compData.type;
             const pos = new Vector(compData.posX ?? 100 + index * 10, compData.posY ?? 100 + index * 10);
             const angleDeg = compData.angleDeg ?? 0;
+            const id = compData.id; // Get the original ID
+            const label = compData.label; // Get the label
 
-            // --- Component Creation Switch Statement (Keep this complete!) ---
-            switch (compType) {
-                case 'LaserSource': newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); break;
-                case 'FanSource': newComp = new FanSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.fanAngleDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter); break;
-                case 'LineSource': newComp = new LineSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.length, compData.enabled, compData.ignoreDecay, compData.beamDiameter); break;
-                case 'Mirror': newComp = new Mirror(pos, compData.length, angleDeg); break;
-                case 'SphericalMirror': newComp = new SphericalMirror(pos, compData.radiusOfCurvature, compData.centralAngleDeg, angleDeg); break;
-                case 'ParabolicMirror': newComp = new ParabolicMirror(pos, compData.focalLength, compData.diameter, angleDeg); break;
-                case 'Screen': newComp = new Screen(pos, compData.length, angleDeg, compData.numBins); if (compData.hasOwnProperty('showPattern')) newComp.showPattern = compData.showPattern; break;
-                case 'ThinLens': newComp = new ThinLens(pos, compData.diameter, compData.focalLength, angleDeg); if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex); if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB); if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality); if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated); if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens); if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration); if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration); break;
-                case 'Aperture': newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg); break;
-                case 'Polarizer': newComp = new Polarizer(pos, compData.length, compData.transmissionAxisAngleDeg, angleDeg); break;
-                case 'BeamSplitter': newComp = new BeamSplitter(pos, compData.length, angleDeg, compData.type, compData.splitRatio, compData.pbsUnpolarizedReflectivity); break;
-                case 'DielectricBlock': newComp = new DielectricBlock(pos, compData.width, compData.height, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB_nm2, compData.absorptionCoeff, compData.showEvanescentWave); break;
-                case 'Photodiode': newComp = new Photodiode(pos, angleDeg, compData.diameter); break;
-                case 'OpticalFiber': const outputPos = new Vector(compData.outputX ?? pos.x + 100, compData.outputY ?? pos.y); newComp = new OpticalFiber(pos, outputPos, angleDeg, compData.outputAngleDeg, compData.numericalAperture, compData.coreDiameter, compData.fiberIntrinsicEfficiency, compData.transmissionLossDbPerKm, compData.facetLength); break;
-                case 'Prism': newComp = new Prism(pos, compData.baseLength, compData.apexAngleDeg, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB); break;
-                case 'WhiteLightSource': newComp = new WhiteLightSource(pos, angleDeg, compData.baseIntensity ?? 75.0, compData.rayCount ?? 41, compData.spreadDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist ?? 5.0); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); else newComp.gaussianEnabled = true; break; // Ensure defaults and gaussian state loaded
-                case 'DiffractionGrating': newComp = new DiffractionGrating(pos, compData.length, compData.gratingPeriodInMicrons, angleDeg, compData.maxOrder); break;
-                case 'HalfWavePlate': newComp = new HalfWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
-                case 'QuarterWavePlate': newComp = new QuarterWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
-                case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(pos, compData.width, compData.height, angleDeg, compData.rfFrequencyMHz, compData.rfPower); break;
-                default: console.warn(`Unknown component type during scene load: ${compType}`);
+            console.log(`  -> Loading ${compType} (${id}) at (${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})`);
+
+            // --- Component Creation and Property Restoration ---
+            try {
+                switch (compType) {
+                    case 'LaserSource':
+                        newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist);
+                        // Set properties not in constructor (or needing setProperty logic)
+                        if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled);
+                        break;
+                    case 'FanSource':
+                        newComp = new FanSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.fanAngleDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter);
+                        break;
+                    case 'LineSource':
+                        newComp = new LineSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.length, compData.enabled, compData.ignoreDecay, compData.beamDiameter);
+                        break;
+                    case 'Mirror':
+                        newComp = new Mirror(pos, compData.length, angleDeg);
+                        break;
+                    case 'SphericalMirror':
+                        let roc = compData.radiusOfCurvature;
+                        if (roc === null) roc = Infinity; // Handle Infinity saved as null
+                        newComp = new SphericalMirror(pos, roc, compData.centralAngleDeg, angleDeg);
+                        break;
+                    case 'ParabolicMirror':
+                        newComp = new ParabolicMirror(pos, compData.focalLength, compData.diameter, angleDeg);
+                        break;
+                    case 'Screen':
+                        newComp = new Screen(pos, compData.length, angleDeg, compData.numBins);
+                        if (compData.hasOwnProperty('showPattern')) newComp.setProperty('showPattern', compData.showPattern);
+                        break;
+                    case 'ThinLens':
+                        let fLen = compData.focalLength;
+                        if (fLen === null) fLen = Infinity; // Handle Infinity
+                        newComp = new ThinLens(pos, compData.diameter, fLen, angleDeg);
+                        // Set properties not in constructor
+                        if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex);
+                        if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB);
+                        if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality);
+                        if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated);
+                        if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens);
+                        // if (compData.hasOwnProperty('thickLensThickness')) newComp.setProperty('thickLensThickness', compData.thickLensThickness); // If visual thickness is saved
+                        if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration);
+                        if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration);
+                        break;
+                    case 'Aperture':
+                        newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg);
+                        break;
+                    case 'Polarizer':
+                        newComp = new Polarizer(pos, compData.length, compData.transmissionAxisAngleDeg, angleDeg);
+                        break;
+                    case 'BeamSplitter':
+                        newComp = new BeamSplitter(pos, compData.length, angleDeg, compData.type, compData.splitRatio, compData.pbsUnpolarizedReflectivity);
+                        break;
+                    case 'DielectricBlock':
+                        newComp = new DielectricBlock(pos, compData.width, compData.height, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB_nm2, compData.absorptionCoeff, compData.showEvanescentWave);
+                        break;
+                    case 'Photodiode':
+                        newComp = new Photodiode(pos, angleDeg, compData.diameter);
+                        break;
+                    case 'OpticalFiber':
+                        const outputPos = new Vector(compData.outputX ?? pos.x + 100, compData.outputY ?? pos.y);
+                        // Ensure all relevant properties are passed to constructor or set after
+                        newComp = new OpticalFiber(pos, outputPos, angleDeg, compData.outputAngleDeg, compData.numericalAperture, compData.coreDiameter, compData.fiberIntrinsicEfficiency, compData.transmissionLossDbPerKm, compData.facetLength);
+                        break;
+                    case 'Prism':
+                        newComp = new Prism(pos, compData.baseLength, compData.apexAngleDeg, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB);
+                        break;
+                    case 'WhiteLightSource':
+                        newComp = new WhiteLightSource(pos, angleDeg, compData.baseIntensity ?? 75.0, compData.rayCount ?? 41, compData.spreadDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist ?? 5.0);
+                        if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled);
+                        break;
+                    case 'DiffractionGrating':
+                        newComp = new DiffractionGrating(pos, compData.length, compData.gratingPeriodInMicrons, angleDeg, compData.maxOrder);
+                        break;
+                    case 'HalfWavePlate':
+                        newComp = new HalfWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg);
+                        break;
+                    case 'QuarterWavePlate':
+                        newComp = new QuarterWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg);
+                        break;
+                    case 'AcoustoOpticModulator':
+                        newComp = new AcoustoOpticModulator(pos, compData.width, compData.height, angleDeg, compData.rfFrequencyMHz, compData.rfPower);
+                        break;
+                    default:
+                        console.warn(`Unknown component type during scene load: ${compType}`);
+                }
+            } catch (creationError) {
+                console.error(`Error creating component ${compType} (ID: ${id}) during load:`, creationError, compData);
+                // Optionally skip this component and continue loading others?
+                // Or throw error to stop loading? Let's skip for robustness.
+                newComp = null;
             }
-            // --- End Component Creation Switch ---
+            // --- End Component Creation ---
 
             if (newComp) {
-                if (compData.label) newComp.label = compData.label;
-                if (compData.id) newComp.id = compData.id; // Restore ID
+                if (label) newComp.label = label; // Restore label
+                if (id) newComp.id = id; // Restore original ID
                 components.push(newComp);
             }
-        });
+        }); // End forEach component
+
+        // --- Restore Mode ---
+        if (sceneData.currentMode === 'lens_imaging' || sceneData.currentMode === 'ray_trace') {
+            switchMode(sceneData.currentMode);
+            console.log(`  Restored simulation mode to: ${sceneData.currentMode}`);
+        } else {
+            switchMode('ray_trace');
+            console.warn("  Saved scene data missing or has invalid mode, defaulting to ray_trace.");
+        }
+        // --- End Restore Mode ---
 
         needsRetrace = true;
-        sceneModified = false; // Mark as unmodified after load
-        console.log(`Scene loaded successfully from data object. Components: ${components.length}`);
+        sceneModified = false; // Mark as unmodified after successful load
+        updateInspector(); // Clear inspector as nothing is selected initially
+        activateTab('properties-tab'); // Ensure properties tab is active
+        console.log(`--- Scene loaded successfully. Components: ${components.length}, Mode: ${currentMode} ---`);
         return true; // Indicate success
 
     } catch (loadError) {
-        console.error("Error loading scene components from data:", loadError);
+        console.error("--- Error loading scene components from data: ---", loadError);
         alert(`加载场景组件时出错: ${loadError.message}`);
-        components = []; // Clear on error
+        // Reset state on error
+        components = [];
+        selectedComponent = null;
+        historyManager.clear();
+        updateUndoRedoUI();
+        updateInspector();
+        activateTab('properties-tab');
         needsRetrace = true;
         sceneModified = false;
         return false; // Indicate failure
     }
 }
-// --- END Load Scene Helper ---
+// --- END REPLACEMENT ---
 
-
-// --- NEW Helper to handle "Save As" click (e.g., from Scene Manager Tab) ---
 function handleSaveAsClick() {
     const defaultName = `场景 ${new Date().toLocaleDateString()}`;
-    const sceneName = prompt("请输入要保存的场景名称:", defaultName);
+    // Use the updated term "暂存场景" in the prompt
+    const sceneName = prompt("请输入要暂存场景的名称:", defaultName);
 
     if (sceneName !== null && sceneName.trim() !== "") {
         const trimmedName = sceneName.trim();
         const existingNames = getSavedSceneNames();
 
         if (existingNames.includes(trimmedName)) {
-            if (!confirm(`场景 "${trimmedName}" 已存在。是否覆盖？`)) {
-                console.log("Save As cancelled, name exists.");
+            // Update the confirmation message
+            if (!confirm(`暂存场景 "${trimmedName}" 已存在。是否覆盖？`)) {
+                console.log("Save As (LocalStorage) cancelled, name exists.");
                 return; // Don't save if user cancels overwrite
             }
         }
@@ -3004,11 +3232,14 @@ function handleSaveAsClick() {
         if (sceneData && saveSceneDataToStorage(trimmedName, sceneData)) {
             sceneModified = false; // Mark as saved AFTER successful save
             updateSavedScenesList(); // Refresh the list in the modal/tab
-            // Removed alert for smoother experience, confirmation is implicit
-            // alert(`场景 "${trimmedName}" 已成功保存到本地浏览器！`);
+            // Provide feedback without alert for smoother UX
+            console.log(`场景 "${trimmedName}" 已成功暂存到浏览器！`);
+            // Optionally show a temporary success message on the screen instead of alert
+            // showTemporaryMessage(`场景 "${trimmedName}" 已暂存`, 'success'); 
         }
+        // Error alerts are handled inside saveSceneDataToStorage
     } else {
-        console.log("Save As cancelled by user.");
+        console.log("Save As (LocalStorage) cancelled by user.");
     }
 }
 
@@ -3147,8 +3378,41 @@ function setupEventListeners() {
     document.getElementById('menu-manage-scenes')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('scenes-tab'); });
 
     // Edit Menu
-    document.getElementById('menu-delete-selected')?.addEventListener('click', (e) => { e.preventDefault(); if (selectedComponent) deleteComponent(selectedComponent); });
-    document.getElementById('menu-clear-all')?.addEventListener('click', (e) => { e.preventDefault(); if (components.length > 0 && confirm("确定要清空画布上的所有元件吗？此操作无法撤销。")) { components = []; selectedComponent = null; updateInspector(); activateTab('properties-tab'); sceneModified = false; needsRetrace = true; localStorage.removeItem(LOCALSTORAGE_SCENE_KEY); /* Clear last auto-save? Or just don't save the empty state? Let's not save empty.*/ console.log("Scene cleared."); } });
+    document.getElementById('menu-delete-selected')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        deleteSelectedComponents(); // Call the new function
+    });
+    // --- Inside setupEventListeners, listener for #menu-clear-all ---
+    document.getElementById('menu-clear-all')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Only proceed if there are components to clear
+        if (components.length > 0) {
+            // Ask for confirmation (Update message to indicate it IS undoable)
+            if (confirm("确定要清空画布上的所有元件吗？此操作可以撤销。")) {
+                console.log("User confirmed clear all.");
+
+                // --- Use the ClearAllCommand ---
+                const command = new ClearAllCommand(components); // Pass the components array by reference
+                command.execute(); // Execute the command immediately
+                historyManager.addCommand(command); // Add it to the history
+                updateUndoRedoUI(); // Update buttons
+                sceneModified = true; // Clearing modifies the scene
+
+                // Optional: Should clearing also clear the auto-save? Maybe not.
+                // localStorage.removeItem(LOCALSTORAGE_SCENE_KEY); 
+
+                console.log("ClearAllCommand executed and added to history.");
+                // activateTab('properties-tab'); // updateInspector called in execute handles this if needed
+            } else {
+                console.log("Clear all cancelled by user.");
+            }
+        } else {
+            console.log("Clear all ignored, no components on canvas.");
+            // Optionally show a small message to the user?
+            // alert("画布上没有元件可供清除。"); 
+        }
+    });
+    // --- End listener for #menu-clear-all ---
     document.getElementById('menu-undo')?.addEventListener('click', (e) => { e.preventDefault(); alert('撤销功能开发中...'); });
     document.getElementById('menu-redo')?.addEventListener('click', (e) => { e.preventDefault(); alert('重做功能开发中...'); });
 
@@ -3193,7 +3457,12 @@ function setupEventListeners() {
 
     // --- Inspector Controls (within Tabs) ---
     // Delete Button (Properties Tab)
-    if (deleteBtn) deleteBtn.addEventListener('click', () => { if (selectedComponent) deleteComponent(selectedComponent); });
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            // Delete button should delete ALL selected items
+            deleteSelectedComponents();
+        });
+    }
 
     // Settings Tab Controls
     const gridCheckbox = document.getElementById('setting-show-grid');
@@ -3202,6 +3471,18 @@ function setupEventListeners() {
     if (showArrowsCheckbox) showArrowsCheckbox.addEventListener('change', () => { globalShowArrows = showArrowsCheckbox.checked; if (globalShowArrows) arrowAnimationStartTime = performance.now() / 1000.0; else arrowAnimationStates.clear(); saveSettings(); });
     const selectedArrowCheckbox = document.getElementById('setting-selected-arrow');
     if (selectedArrowCheckbox) selectedArrowCheckbox.addEventListener('change', () => { onlyShowSelectedSourceArrow = selectedArrowCheckbox.checked; saveSettings(); });
+    // --- ADD Listener for Grid Snap ---
+    const gridSnapCheckbox = document.getElementById('setting-enable-snap');
+    if (gridSnapCheckbox) {
+        gridSnapCheckbox.addEventListener('change', () => {
+            enableGridSnap = gridSnapCheckbox.checked;
+            console.log("Grid Snap Toggled:", enableGridSnap);
+            // No need to save this setting currently, it's a session preference
+        });
+    }
+    // --- END Listener for Grid Snap ---
+
+
     // Arrow Speed Slider (ensure arrowSpeedSlider is assigned in initialize)
     arrowSpeedSlider = document.getElementById('arrow-speed'); // Assign it here if not already global
     if (arrowSpeedSlider) { arrowSpeedSlider.addEventListener('input', (e) => { arrowAnimationSpeed = parseFloat(e.target.value); saveSettings(); }); } else { console.warn("Arrow speed slider not found in Settings tab.") }
@@ -3505,6 +3786,7 @@ function activateTab(tabId) {
 // --- NEW Helper: Load settings into controls (when settings tab is opened) ---
 function loadSettingsIntoControls() {
     const gridCheckbox = document.getElementById('setting-show-grid');
+    const gridSnapCheckbox = document.getElementById('setting-enable-snap'); // Get snap checkbox
     const maxRaysInput = document.getElementById('setting-max-rays');
     const maxRaysValueSpan = document.getElementById('setting-max-rays-value');
     const maxBouncesInput = document.getElementById('setting-max-bounces');
@@ -3519,6 +3801,7 @@ function loadSettingsIntoControls() {
     const updateSpan = (span, value, formatFn) => { if (span) span.textContent = `(${formatFn(value)})`; };
 
     if (gridCheckbox) gridCheckbox.checked = showGrid;
+    if (gridSnapCheckbox) gridSnapCheckbox.checked = enableGridSnap; // Set snap checkbox state
     if (maxRaysInput) maxRaysInput.value = window.maxRaysPerSource;
     if (maxBouncesInput) maxBouncesInput.value = window.globalMaxBounces;
     if (minIntensityInput) minIntensityInput.value = window.globalMinIntensity;
@@ -3886,8 +4169,30 @@ function handleTouchEnd(event) {
 
 // --- END Touch Event Handler Functions ---
 
+// --- Auth Modal Form Switching ---
+function switchToRegister() {
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const authTitle = document.getElementById('auth-title');
+    const loginError = document.getElementById('login-error');
 
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'block';
+    if (authTitle) authTitle.textContent = '注册';
+    if (loginError) loginError.style.display = 'none'; // Hide errors on switch
+}
 
+function switchToLogin() {
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const authTitle = document.getElementById('auth-title');
+    const registerError = document.getElementById('register-error');
+
+    if (registerForm) registerForm.style.display = 'none';
+    if (loginForm) loginForm.style.display = 'block';
+    if (authTitle) authTitle.textContent = '登录';
+    if (registerError) registerError.style.display = 'none'; // Hide errors on switch
+}
 
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
