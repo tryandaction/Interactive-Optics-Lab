@@ -3454,326 +3454,255 @@ class Polarizer extends OpticalComponent {
     }
 }
 
+
 // --- BeamSplitter (Enhanced with BS/PBS types & Adjustable PBS Ratio) ---
 class BeamSplitter extends OpticalComponent {
     static functionDescription = "分光器将入射光分为两路，可为非偏振或偏振型。";
-    // Added pbsUnpolarizedReflectivity to constructor defaults
-    constructor(pos, length = 100, angleDeg = 45, type = 'BS', splitRatio = 0.5, pbsUnpolarizedReflectivity = 0.5) {
+    constructor(pos, length = 80, angleDeg = 45, type = 'BS', splitRatio = 0.5, pbsUnpolarizedReflectivity = 0.5) {
+        // If creating a PBS, its visual side length will be smaller so its diagonal is about half of a default BS line.
+        const effectiveLength = (type === 'PBS') ? length / 2 : length;
         const initialLabel = type === 'PBS' ? "偏振分束器" : "分束器";
         super(pos, angleDeg, initialLabel);
 
-        this.length = Math.max(10, length);
-        this.type = type === 'PBS' ? 'PBS' : 'BS'; // Ensure type is valid
-        // splitRatio: Reflectivity for BS type (0 to 1)
+        this.length = Math.max(20, effectiveLength);
+        this.type = type === 'PBS' ? 'PBS' : 'BS';
         this.splitRatio = Math.max(0, Math.min(1, splitRatio));
-        // pbsUnpolarizedReflectivity: Controls the R/T split for UNPOLARIZED light hitting a PBS.
-        // A perfect PBS might be 0.5 here. Real ones might differ slightly.
-        // This also implicitly affects how mixed-polarization states are split.
         this.pbsUnpolarizedReflectivity = Math.max(0, Math.min(1, pbsUnpolarizedReflectivity));
 
-        // Geometry cache
-        this.p1 = pos.clone(); this.p2 = pos.clone();
+        // --- Geometry Cache ---
+        // For PBS (visual square)
+        this.worldVertices = [];
+        // For PBS (optical diagonal) and BS (optical line)
+        this.p1 = pos.clone();
+        this.p2 = pos.clone();
         this.normal = Vector.fromAngle(angleDeg + Math.PI / 2);
 
-        try { this._updateGeometry(); } catch (e) { console.error("Init BeamSplitter Geom Err:", e); }
+        try {
+            this._updateGeometry();
+        } catch (e) {
+            console.error("Init BeamSplitter Geom Err:", e);
+        }
     }
 
-    // --- Add inside BeamSplitter class ---
     toJSON() {
         const baseData = super.toJSON();
         return {
             ...baseData,
             length: this.length,
-            splitterType: this.type, // 'BS' or 'PBS' (avoid clashing with base 'type')
-            splitRatio: this.splitRatio, // Reflectivity for BS
-            pbsUnpolarizedReflectivity: this.pbsUnpolarizedReflectivity // Reflectivity for unpolarized on PBS
+            splitterType: this.type,
+            splitRatio: this.splitRatio,
+            pbsUnpolarizedReflectivity: this.pbsUnpolarizedReflectivity
         };
     }
 
-    _getP_AxisDirection() {
-        return Vector.fromAngle(this.angleRad);
-    }
-    _getS_AxisDirection() {
-        return Vector.fromAngle(this.angleRad + Math.PI / 2);
-    }
-
-    _updateGeometry() { // Same as before - updates label
+    _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
-        const halfLenVec = Vector.fromAngle(this.angleRad).multiply(this.length / 2);
-        this.p1 = this.pos.subtract(halfLenVec); this.p2 = this.pos.add(halfLenVec);
-        const edgeVec = this.p2.subtract(this.p1);
-        this.normal = new Vector(-edgeVec.y, edgeVec.x).normalize();
         this.label = this.type === 'PBS' ? "偏振分束器" : "分束器";
-    }
 
-    onAngleChanged() { try { this._updateGeometry(); } catch (e) { console.error("BS AngleChange Err:", e); } }
-    onPositionChanged() { try { this._updateGeometry(); } catch (e) { console.error("BS PosChange Err:", e); } }
-
-
-draw(ctx) {
-    if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return;
-
-    // --- NEW: Custom drawing logic for PBS ---
-    if (this.type === 'PBS') {
-        ctx.save();
-        const center = this.pos;
-        const size = this.length; // Use length property to define the size of the cube
-        const halfSize = size / 4;
-
-        // Rotate the context around the component's center
-        ctx.translate(center.x, center.y);
-        ctx.rotate(this.angleRad); // Use the component's main angle for orientation
-
-        // Define cube vertices relative to the rotated center (0,0)
-        const p1_local = new Vector(-halfSize, -halfSize);
-        const p2_local = new Vector(halfSize, -halfSize);
-        const p3_local = new Vector(halfSize, halfSize);
-        const p4_local = new Vector(-halfSize, halfSize);
-
-        // Set styles
-        ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
-        ctx.fillStyle = this.selected ? 'rgba(100, 200, 255, 0.3)' : 'rgba(100, 200, 255, 0.15)';
-        ctx.lineWidth = this.selected ? 2 : 1.5;
-
-        // Draw the cube outline and fill
-        ctx.beginPath();
-        ctx.moveTo(p1_local.x, p1_local.y);
-        ctx.lineTo(p2_local.x, p2_local.y);
-        ctx.lineTo(p3_local.x, p3_local.y);
-        ctx.lineTo(p4_local.x, p4_local.y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Draw the diagonal splitting surface
-        ctx.beginPath();
-        ctx.moveTo(p1_local.x, p1_local.y);
-        ctx.lineTo(p3_local.x, p3_local.y);
-        ctx.stroke();
-
-        // Restore the context to its original state
-        ctx.restore();
-
-    } else { // Original drawing logic for standard Beam Splitter (BS)
-        ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
-        ctx.lineWidth = this.selected ? 3 : 2;
-        ctx.beginPath();
-        ctx.moveTo(this.p1.x, this.p1.y);
-        ctx.lineTo(this.p2.x, this.p2.y);
-        ctx.stroke();
-    }
-}
-
-    getBoundingBox() { // Same as before
-        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return super.getBoundingBox();
-        const minX = Math.min(this.p1.x, this.p2.x), maxX = Math.max(this.p1.x, this.p2.x);
-        const minY = Math.min(this.p1.y, this.p2.y), maxY = Math.max(this.p1.y, this.p2.y);
-        const buffer = 5;
-        return { x: minX - buffer, y: minY - buffer, width: (maxX - minX) + 2 * buffer, height: (maxY - minY) + 2 * buffer };
-    }
-    _containsPointBody(point) { // Same as before
-        if (!point || !(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return false;
-        const lenSq = this.p1.distanceSquaredTo(this.p2); if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25;
-        const p1pt = point.subtract(this.p1), p1p2 = this.p2.subtract(this.p1);
-        const t = p1pt.dot(p1p2) / lenSq, cT = Math.max(0, Math.min(1, t));
-        const closest = this.p1.add(p1p2.multiply(cT)); return point.distanceSquaredTo(closest) < 25;
-    }
-
-    intersect(rayOrigin, rayDirection) { // Enhanced: PBS uses square body, BS keeps line
         if (this.type === 'PBS') {
-            // Build a small square body around the center similar to draw()
-            const size = this.length; const halfSize = size / 4;
-            const local = [
+            const halfSize = this.length / 2.0;
+            // --- Visual Geometry: The Square Box ---
+            const localVertices = [
                 new Vector(-halfSize, -halfSize), new Vector(halfSize, -halfSize),
                 new Vector(halfSize, halfSize), new Vector(-halfSize, halfSize)
             ];
-            const world = local.map(v => v.rotate(this.angleRad).add(this.pos));
-            // Ray-quad intersection: check each edge for crossing, take closest
-            let closest = null; let minT = Infinity; let hitNormal = null;
-            for (let i = 0; i < 4; i++) {
-                const a = world[i]; const b = world[(i + 1) % 4];
-                const v1 = rayOrigin.subtract(a); const v2 = b.subtract(a);
-                const v3 = new Vector(-rayDirection.y, rayDirection.x);
-                const denom = v2.dot(v3); if (Math.abs(denom) < 1e-9) continue;
-                const t1 = v2.cross(v1) / denom; const t2 = v1.dot(v3) / denom;
-                if (t1 > 1e-6 && t2 >= -1e-6 && t2 <= 1 + 1e-6) {
-                    if (t1 < minT) {
-                        minT = t1;
-                        closest = rayOrigin.add(rayDirection.multiply(t1));
-                        const edge = b.subtract(a);
-                        hitNormal = new Vector(-edge.y, edge.x).normalize();
-                    }
-                }
-            }
-            if (closest && hitNormal) {
-                if (rayDirection.dot(hitNormal) > 0) hitNormal = hitNormal.multiply(-1);
-                return [{ distance: minT, point: closest, normal: hitNormal, surfaceId: 'pbs_body' }];
-            }
-            return [];
-        } else {
-            if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return [];
-            const v1 = rayOrigin.subtract(this.p1), v2 = this.p2.subtract(this.p1);
-            const v3 = new Vector(-rayDirection.y, rayDirection.x);
-            const d_v2_v3 = v2.dot(v3); if (Math.abs(d_v2_v3) < 1e-9) return [];
-            const t1 = v2.cross(v1) / d_v2_v3, t2 = v1.dot(v3) / d_v2_v3;
-            if (t1 > 1e-6 && t2 >= 0 && t2 <= 1) {
-                const iP = rayOrigin.add(rayDirection.multiply(t1));
-                let sN = this.normal.clone();
-                if (rayDirection.dot(sN) > 0) sN = sN.multiply(-1);
-                if (isNaN(iP.x) || isNaN(sN.x)) { console.error(`BeamSplitter (${this.id}) Intersect produced NaN.`); return []; }
-                return [{ distance: t1, point: iP, normal: sN, surfaceId: 'beamsplitter' }];
-            } return [];
+            this.worldVertices = localVertices.map(v => v.rotate(this.angleRad).add(this.pos));
+
+            // --- Optical Geometry: The Diagonal Line ---
+            // The main angle (this.angleRad) orients the square. The diagonal is fixed at 45deg inside it.
+            const diagAngle = this.angleRad + Math.PI / 4;
+            const diagLength = Math.sqrt(2) * halfSize; // Length from center to corner
+            const diagVec = Vector.fromAngle(diagAngle).multiply(diagLength);
+            this.p1 = this.pos.subtract(diagVec);
+            this.p2 = this.pos.add(diagVec);
+            const edgeVec = this.p2.subtract(this.p1);
+            this.normal = new Vector(-edgeVec.y, edgeVec.x).normalize();
+
+        } else { // BS (line) geometry
+            const halfLenVec = Vector.fromAngle(this.angleRad).multiply(this.length / 2);
+            this.p1 = this.pos.subtract(halfLenVec);
+            this.p2 = this.pos.add(halfLenVec);
+            const edgeVec = this.p2.subtract(this.p1);
+            this.normal = new Vector(-edgeVec.y, edgeVec.x).normalize();
         }
     }
 
-    // --- Main Interaction Dispatcher ---
+    onAngleChanged() {
+        this._updateGeometry();
+    }
+    onPositionChanged() {
+        this._updateGeometry();
+    }
+
+    draw(ctx) {
+        if (this.type === 'PBS') {
+            if (!this.worldVertices || this.worldVertices.length !== 4) return;
+            // Draw the visual square box
+            ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
+            ctx.fillStyle = this.selected ? 'rgba(100, 200, 255, 0.3)' : 'rgba(100, 200, 255, 0.15)';
+            ctx.lineWidth = this.selected ? 2 : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(this.worldVertices[0].x, this.worldVertices[0].y);
+            ctx.lineTo(this.worldVertices[1].x, this.worldVertices[1].y);
+            ctx.lineTo(this.worldVertices[2].x, this.worldVertices[2].y);
+            ctx.lineTo(this.worldVertices[3].x, this.worldVertices[3].y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw the internal diagonal line (the optical surface)
+            if (this.p1 && this.p2) {
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(this.p1.x, this.p1.y);
+                ctx.lineTo(this.p2.x, this.p2.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        } else { // Original BS drawing
+            if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return;
+            ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
+            ctx.lineWidth = this.selected ? 3 : 2;
+            ctx.beginPath();
+            ctx.moveTo(this.p1.x, this.p1.y);
+            ctx.lineTo(this.p2.x, this.p2.y);
+            ctx.stroke();
+        }
+    }
+    
+    _containsPointBody(point) {
+        if (!point) return false;
+        if (this.type === 'PBS') {
+            // For selection, we check against the visual square body
+            if (!this.worldVertices || this.worldVertices.length !== 4) return false;
+            const p_local = point.subtract(this.pos).rotate(-this.angleRad);
+            const halfSize = this.length / 2.0;
+            return Math.abs(p_local.x) <= halfSize && Math.abs(p_local.y) <= halfSize;
+        } else {
+             // Original BS line check
+            if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return false;
+            const lenSq = this.p1.distanceSquaredTo(this.p2);
+            if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25;
+            const p1pt = point.subtract(this.p1);
+            const p1p2 = this.p2.subtract(this.p1);
+            const t = p1pt.dot(p1p2) / lenSq;
+            const cT = Math.max(0, Math.min(1, t));
+            const closest = this.p1.add(p1p2.multiply(cT));
+            return point.distanceSquaredTo(closest) < 25;
+        }
+    }
+
+
+    intersect(rayOrigin, rayDirection) {
+        // For both PBS and BS, the optical surface is now the line from p1 to p2.
+        // The square of the PBS is purely visual.
+        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return [];
+
+        const v1 = rayOrigin.subtract(this.p1);
+        const v2 = this.p2.subtract(this.p1);
+        const v3 = new Vector(-rayDirection.y, rayDirection.x); // Perpendicular to ray direction
+        const dot_v2_v3 = v2.dot(v3);
+
+        if (Math.abs(dot_v2_v3) < 1e-9) return []; // Parallel lines
+
+        const t1 = v2.cross(v1) / dot_v2_v3; // Distance along the ray
+        const t2 = v1.dot(v3) / dot_v2_v3;   // Parameter along the segment [0, 1]
+
+        // Check if intersection is valid (in front of ray and on the line segment)
+        if (t1 > 1e-6 && t2 >= 0 && t2 <= 1) {
+            const intersectionPoint = rayOrigin.add(rayDirection.multiply(t1));
+            let surfaceNormal = this.normal.clone();
+            // Ensure normal points towards the incoming ray for correct calculations
+            if (rayDirection.dot(surfaceNormal) > 0) {
+                surfaceNormal = surfaceNormal.multiply(-1);
+            }
+            return [{
+                distance: t1,
+                point: intersectionPoint,
+                normal: surfaceNormal,
+                surfaceId: 'optical_surface'
+            }];
+        }
+        return [];
+    }
+
     interact(ray, intersectionInfo, RayClass) {
         if (this.type === 'BS') {
             return this._interactBS(ray, intersectionInfo, RayClass);
         } else if (this.type === 'PBS') {
             return this._interactPBS(ray, intersectionInfo, RayClass);
-        } else {
-            console.warn(`BeamSplitter (${this.id}): Unknown type ${this.type}. Defaulting to BS.`);
-            return this._interactBS(ray, intersectionInfo, RayClass);
         }
+        return [];
     }
 
-    // --- Interaction for Standard Beam Splitter (BS) ---
     _interactBS(ray, intersectionInfo, RayClass) {
-        // This function remains exactly the same as in the previous version
         const hitPoint = intersectionInfo.point;
         const surfaceNormal = intersectionInfo.normal;
-        const incidentDirection = ray.direction;
         const newRays = [];
-        const nextBounces = ray.bouncesSoFar + 1;
-        const incidentIntensity = ray.intensity;
-
-        // Reflected Ray (Intensity based on splitRatio)
-        const reflectedIntensity = incidentIntensity * this.splitRatio;
+        // Reflected Ray
+        const reflectedIntensity = ray.intensity * this.splitRatio;
         if (reflectedIntensity >= ray.minIntensityThreshold) {
-            const N = surfaceNormal; const I = incidentDirection;
-            const dot_I_N = I.dot(N);
-            const reflectedDirection = I.subtract(N.multiply(2 * dot_I_N)).normalize();
+            const reflectedDirection = ray.direction.subtract(surfaceNormal.multiply(2 * ray.direction.dot(surfaceNormal))).normalize();
             const reflectOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
-            try {
-                if (isNaN(reflectedDirection.x)) throw new Error("NaN direction");
-                const reflectedRay = new RayClass(
-                    reflectOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity,
-                    ray.phase + Math.PI, nextBounces, ray.mediumRefractiveIndex,
-                    ray.sourceId, ray.polarizationAngle,
-                    ray.ignoreDecay,
-                    ray.history.concat([reflectOrigin.clone()]) // Pass history + new origin
-                );
-                newRays.push(reflectedRay);
-            } catch (e) { console.error(`BS (${this.id}): Error creating reflected ray:`, e); }
+            newRays.push(new RayClass(reflectOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([reflectOrigin.clone()])));
         }
-
         // Transmitted Ray
-        const transmittedRatio = 1.0 - this.splitRatio;
-        const transmittedIntensity = incidentIntensity * transmittedRatio;
+        const transmittedIntensity = ray.intensity * (1.0 - this.splitRatio);
         if (transmittedIntensity >= ray.minIntensityThreshold) {
-            const transmittedDirection = incidentDirection;
-            const transmitOrigin = hitPoint.add(transmittedDirection.multiply(1e-6));
-            try {
-                if (isNaN(transmittedDirection.x)) throw new Error("NaN direction");
-                const transmittedRay = new RayClass(
-                    transmitOrigin, transmittedDirection, ray.wavelengthNm, transmittedIntensity,
-                    ray.phase, nextBounces, ray.mediumRefractiveIndex,
-                    ray.sourceId, ray.polarizationAngle,
-                    ray.ignoreDecay,
-                    ray.history.concat([transmitOrigin.clone()]) // Pass history + new origin
-                );
-                newRays.push(transmittedRay);
-            } catch (e) { console.error(`BS (${this.id}): Error creating transmitted ray:`, e); }
+            const transmitOrigin = hitPoint.add(ray.direction.multiply(1e-6));
+            newRays.push(new RayClass(transmitOrigin, ray.direction, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()])));
         }
-
         ray.terminate('split_bs');
         return newRays;
     }
 
-    // --- Interaction for Polarizing Beam Splitter (PBS) ---
     _interactPBS(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const incidentDirection = ray.direction;
+        const surfaceNormal = intersectionInfo.normal; // Normal of the diagonal
         const newRays = [];
-        const nextBounces = ray.bouncesSoFar + 1;
-        let diagDir = Vector.fromAngle(this.angleRad + Math.PI / 4);
-        let diagNormal = new Vector(-diagDir.y, diagDir.x).normalize();
-        // Orient normal to face the ray
-        if (incidentDirection.dot(diagNormal) > 0) diagNormal = diagNormal.multiply(-1);
-        // Choose p-axis direction closest to incident direction for consistency across faces
-        const dot1 = Math.abs(diagDir.normalize().dot(incidentDirection.normalize()));
-        const dot2 = Math.abs(diagDir.multiply(-1).normalize().dot(incidentDirection.normalize()));
-        if (dot2 > dot1) diagDir = diagDir.multiply(-1);
-        const pAxisAngle = diagDir.angle();
-        const sAxisAngle = Math.atan2(Math.sin(pAxisAngle + Math.PI / 2), Math.cos(pAxisAngle + Math.PI / 2));
 
-        if (ray.hasJones && ray.hasJones()) {
-            const Rp = Ray._rot2(-pAxisAngle);
-            const v_ps = Ray._apply2x2(Rp, ray.jones);
-            const v_p = { Ex: v_ps.Ex, Ey: { re: 0, im: 0 } };
-            const v_s = { Ex: { re: 0, im: 0 }, Ey: v_ps.Ey };
-            const Rb = Ray._rot2(pAxisAngle);
-            const j_trans = Ray._apply2x2(Rb, v_p);
-            const minus1 = { re: -1, im: 0 };
-            const j_refl0 = Ray._apply2x2(Rb, v_s);
-            const j_refl = { Ex: Ray._cMul(j_refl0.Ex, minus1), Ey: Ray._cMul(j_refl0.Ey, minus1) };
+        // P-polarization is parallel to the splitting surface line (p1->p2)
+        const p_dir_world = this.p2.subtract(this.p1).normalize();
+        const polarizationAngle = ray.polarizationAngle;
 
-            const inAmp2 = ray.jonesIntensity();
-            const tAmp2 = Ray._cAbs2(j_trans.Ex) + Ray._cAbs2(j_trans.Ey);
-            const rAmp2 = Ray._cAbs2(j_refl.Ex) + Ray._cAbs2(j_refl.Ey);
-            const tI = inAmp2 > 1e-12 ? ray.intensity * (tAmp2 / inAmp2) : 0;
-            const rI = inAmp2 > 1e-12 ? ray.intensity * (rAmp2 / inAmp2) : 0;
+        let transmittedIntensity, reflectedIntensity;
+        if (typeof polarizationAngle === 'number') {
+            const relativeAngle = polarizationAngle - p_dir_world.angle();
+            const cos2 = Math.cos(relativeAngle) * Math.cos(relativeAngle);
+            transmittedIntensity = ray.intensity * cos2; // P-pol transmits
+            reflectedIntensity = ray.intensity * (1 - cos2); // S-pol reflects
+        } else { // Unpolarized light
+            transmittedIntensity = ray.intensity * (1 - this.pbsUnpolarizedReflectivity);
+            reflectedIntensity = ray.intensity * this.pbsUnpolarizedReflectivity;
+        }
 
-            if (tI >= ray.minIntensityThreshold) {
-                const o = hitPoint.add(incidentDirection.multiply(1e-6));
-                const tRay = new RayClass(o, incidentDirection, ray.wavelengthNm, tI, ray.phase, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, pAxisAngle, ray.ignoreDecay, ray.history.concat([o.clone()]));
-                tRay.setJones(j_trans);
-                newRays.push(tRay);
-            }
+        // --- Transmitted Ray (P-polarized component) ---
+        if (transmittedIntensity >= ray.minIntensityThreshold) {
+            const newDirection = ray.direction.clone();
+            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
+            const transmittedRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
+            transmittedRay.setLinearPolarization(p_dir_world.angle());
+            newRays.push(transmittedRay);
+        }
 
-            const I = incidentDirection; const N = diagNormal; const dot_I_N = I.dot(N);
-            const Rdir = I.subtract(N.multiply(2 * dot_I_N)).normalize();
-            if (rI >= ray.minIntensityThreshold && !isNaN(Rdir.x)) {
-                const o = hitPoint.add(Rdir.multiply(1e-6));
-                const rRay = new RayClass(o, Rdir, ray.wavelengthNm, rI, ray.phase + Math.PI, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, sAxisAngle, ray.ignoreDecay, ray.history.concat([o.clone()]));
-                rRay.setJones(j_refl);
-                newRays.push(rRay);
-            }
-        } else {
-            // Fallback
-            let tI, rI;
-            if (typeof ray.polarizationAngle === 'number') {
-                const d = ray.polarizationAngle - pAxisAngle;
-                const c2 = Math.cos(d) ** 2; const s2 = 1 - c2;
-                tI = ray.intensity * c2; rI = ray.intensity * s2;
-            } else {
-                tI = ray.intensity * (1 - this.pbsUnpolarizedReflectivity);
-                rI = ray.intensity * this.pbsUnpolarizedReflectivity;
-            }
-            if (tI >= ray.minIntensityThreshold) {
-                const o = hitPoint.add(incidentDirection.multiply(1e-6));
-                newRays.push(new RayClass(o, incidentDirection, ray.wavelengthNm, tI, ray.phase, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, pAxisAngle, ray.ignoreDecay, ray.history.concat([o.clone()])));
-            }
-            const I = incidentDirection; const N = diagNormal; const dot_I_N = I.dot(N);
-            const Rdir = I.subtract(N.multiply(2 * dot_I_N)).normalize();
-            if (rI >= ray.minIntensityThreshold && !isNaN(Rdir.x)) {
-                const o = hitPoint.add(Rdir.multiply(1e-6));
-                newRays.push(new RayClass(o, Rdir, ray.wavelengthNm, rI, ray.phase + Math.PI, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, sAxisAngle, ray.ignoreDecay, ray.history.concat([o.clone()])));
-            }
+        // --- Reflected Ray (S-polarized component) ---
+        if (reflectedIntensity >= ray.minIntensityThreshold) {
+            const reflectedDirection = ray.direction.subtract(surfaceNormal.multiply(2 * ray.direction.dot(surfaceNormal))).normalize();
+            const newOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
+            const reflectedRay = new RayClass(newOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
+            reflectedRay.setLinearPolarization(p_dir_world.angle() + Math.PI / 2); // S-pol is perpendicular to P-pol
+            newRays.push(reflectedRay);
         }
 
         ray.terminate('split_pbs');
         return newRays;
     }
 
-
-    // --- Property Management ---
     getProperties() {
         const baseProps = super.getProperties();
         const props = {
             ...baseProps,
-            length: { value: this.length.toFixed(1), label: '长度', type: 'number', min: 1, step: 1 },
+            length: { value: this.length.toFixed(1), label: this.type === 'PBS' ? '边长' : '长度', type: 'number', min: 10, step: 1 },
             type: {
                 value: this.type,
                 label: '类型',
@@ -3784,43 +3713,16 @@ draw(ctx) {
                 ]
             }
         };
-
-        // Add appropriate ratio property based on type
         if (this.type === 'BS') {
-            props.splitRatio = { // Reflectivity Ratio for BS
-                value: this.splitRatio.toString(),
-                label: '反射比(BS %)', // Clarify label
-                type: 'select',
-                options: [ // Common R/T ratios
-                    { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' },
-                    { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' },
-                    { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' },
-                    { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' },
-                    { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' },
-                    { value: '0.0', label: '0/100 (Window)' }
-                ]
-            };
+            props.splitRatio = { value: this.splitRatio.toString(), label: '反射比(BS %)', type: 'select', options: [ { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' }, { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' }, { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' }, { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' }, { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' }, { value: '0.0', label: '0/100 (Window)' } ] };
         } else if (this.type === 'PBS') {
-            props.pbsUnpolarizedReflectivity = { // Ratio for unpolarized input for PBS
-                value: this.pbsUnpolarizedReflectivity.toString(),
-                label: '反射比(PBS Unpol %)', // Clarify label: This ratio applies to unpolarized input
-                type: 'select',
-                options: [ // Use the same broad range as BS ratio
-                    { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' },
-                    { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' },
-                    { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' },
-                    { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' },
-                    { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' },
-                    { value: '0.0', label: '0/100 (Window)' }
-                ]
-            };
+            props.pbsUnpolarizedReflectivity = { value: this.pbsUnpolarizedReflectivity.toString(), label: '反射比(PBS Unpol %)', type: 'select', options: [ { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' }, { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' }, { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' }, { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' }, { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' }, { value: '0.0', label: '0/100 (Window)' } ] };
         }
         return props;
     }
 
     setProperty(propName, value) {
         if (super.setProperty(propName, value)) { return true; }
-
         let needsGeomUpdate = false;
         let needsOpticUpdate = false;
         let needsInspectorRefresh = false;
@@ -3828,54 +3730,27 @@ draw(ctx) {
         switch (propName) {
             case 'length':
                 const l = parseFloat(value);
-                if (!isNaN(l) && l >= 1 && Math.abs(l - this.length) > 1e-6) {
-                    this.length = l; needsGeomUpdate = true;
-                }
+                if (!isNaN(l) && l >= 10 && Math.abs(l - this.length) > 1e-6) { this.length = l; needsGeomUpdate = true; }
                 break;
             case 'type':
-                if ((value === 'BS' || value === 'PBS') && this.type !== value) {
-                    this.type = value;
-                    needsOpticUpdate = true;
-                    needsInspectorRefresh = true;
-                    this._updateGeometry(); // Update label immediately
-                }
+                if ((value === 'BS' || value === 'PBS') && this.type !== value) { this.type = value; needsGeomUpdate = true; needsOpticUpdate = true; needsInspectorRefresh = true; }
                 break;
-            case 'splitRatio': // Only used by BS
-                if (this.type === 'BS') {
-                    const r = parseFloat(value);
-                    if (!isNaN(r)) {
-                        const c = Math.max(0, Math.min(1, r));
-                        if (Math.abs(c - this.splitRatio) > 1e-9) {
-                            this.splitRatio = c; needsOpticUpdate = true;
-                        }
-                    } else { console.warn("Invalid value received for splitRatio:", value); }
-                }
+            case 'splitRatio':
+                if (this.type === 'BS') { const r = parseFloat(value); if (!isNaN(r)) { const c = Math.max(0, Math.min(1, r)); if (Math.abs(c - this.splitRatio) > 1e-9) { this.splitRatio = c; needsOpticUpdate = true; } } }
                 break;
-            case 'pbsUnpolarizedReflectivity': // Only used by PBS
-                if (this.type === 'PBS') {
-                    const r = parseFloat(value);
-                    if (!isNaN(r)) {
-                        const c = Math.max(0, Math.min(1, r));
-                        if (Math.abs(c - this.pbsUnpolarizedReflectivity) > 1e-9) {
-                            this.pbsUnpolarizedReflectivity = c; needsOpticUpdate = true;
-                        }
-                    } else { console.warn("Invalid value received for pbsUnpolarizedReflectivity:", value); }
-                }
+            case 'pbsUnpolarizedReflectivity':
+                if (this.type === 'PBS') { const r = parseFloat(value); if (!isNaN(r)) { const c = Math.max(0, Math.min(1, r)); if (Math.abs(c - this.pbsUnpolarizedReflectivity) > 1e-9) { this.pbsUnpolarizedReflectivity = c; needsOpticUpdate = true; } } }
                 break;
-            default:
-                return false;
+            default: return false;
         }
 
-        if (needsGeomUpdate) { try { this._updateGeometry(); } catch (e) { console.error("Error updating BS geometry:", e); } needsRetrace = true; }
+        if (needsGeomUpdate) { this._updateGeometry(); needsRetrace = true; }
         if (needsOpticUpdate) { needsRetrace = true; }
-        if (needsInspectorRefresh) {
-            if (selectedComponent === this) {
-                updateInspector(); // Refresh inspector immediately if selected
-            }
-        }
+        if (needsInspectorRefresh && selectedComponent === this) { updateInspector(); }
         return true;
     }
 }
+
 
 // --- DielectricBlock (Revision 2: Physics Accuracy Focus) ---
 class DielectricBlock extends OpticalComponent {
@@ -5602,87 +5477,74 @@ class DiffractionGrating extends OpticalComponent {
 
 // --- END OF NEW COMPONENT: DiffractionGrating ---
 
-// --- START OF NEW COMPONENT: WavePlate ---
-
+// --- START OF REPLACEMENT: WavePlate Base Class ---
 class WavePlate extends OpticalComponent {
     static functionDescription = "改变光的偏振相位差，实现偏振态转换。";
-    constructor(pos, length = 80, fastAxisAngleDeg = 0, angleDeg = 90, plateType = "WavePlate") {
-        // angleDeg: Orientation of the plate component itself (often perpendicular to beam)
-        // fastAxisAngleDeg: Orientation of the fast axis relative to global X
-        super(pos, angleDeg, plateType); // Pass type to label
+    constructor(pos, length = 80, fastAxisAngleDeg = 0, angleDeg = 90, plateType = "波片") {
+        super(pos, angleDeg, plateType);
         this.length = Math.max(10, length);
-        this.fastAxisRad = fastAxisAngleDeg * (Math.PI / 180); // Store fast axis angle in radians
+        this.fastAxisRad = fastAxisAngleDeg * (Math.PI / 180);
 
-        // Geometry cache
         this.p1 = pos.clone();
         this.p2 = pos.clone();
-        this.plateDir = Vector.fromAngle(angleDeg); // Direction along the plate line
-        this.normal = Vector.fromAngle(angleDeg + Math.PI / 2); // Normal to the plate surface
+        this.normal = Vector.fromAngle(angleDeg + Math.PI / 2);
 
         try { this._updateGeometry(); } catch (e) { console.error(`Init ${plateType} geom error:`, e); }
     }
 
-    // --- Add inside WavePlate class ---
     toJSON() {
         const baseData = super.toJSON();
         return {
             ...baseData,
             length: this.length,
-            fastAxisAngleDeg: this.fastAxisRad * (180 / Math.PI) // Save in degrees
+            fastAxisAngleDeg: this.fastAxisRad * (180 / Math.PI)
         };
     }
 
-
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
-        this.plateDir = Vector.fromAngle(this.angleRad); // Along component angle
-        const halfLenVec = this.plateDir.multiply(this.length / 2);
+        const plateDir = Vector.fromAngle(this.angleRad);
+        const halfLenVec = plateDir.multiply(this.length / 2);
         this.p1 = this.pos.subtract(halfLenVec);
         this.p2 = this.pos.add(halfLenVec);
-        // Normal is perpendicular to the plate line
-        this.normal = new Vector(-this.plateDir.y, this.plateDir.x);
+        this.normal = new Vector(-plateDir.y, plateDir.x);
     }
 
-    // Update geometry if component angle changes
-    onAngleChanged() { try { this._updateGeometry(); } catch (e) { console.error(`WavePlate AngleChange error:`, e); } }
-    onPositionChanged() { try { this._updateGeometry(); } catch (e) { console.error(`WavePlate PosChange error:`, e); } } // Geometry depends on pos
+    onAngleChanged() { this._updateGeometry(); }
+    onPositionChanged() { this._updateGeometry(); }
 
     draw(ctx) {
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return;
-        // Draw main plate line
-        ctx.strokeStyle = this.selected ? '#FFFF00' : '#DDA0DD'; // Plum/light purple, yellow selected
+        ctx.strokeStyle = this.selected ? '#FFFF00' : '#DDA0DD';
         ctx.lineWidth = this.selected ? 3 : 2;
         ctx.beginPath(); ctx.moveTo(this.p1.x, this.p1.y); ctx.lineTo(this.p2.x, this.p2.y); ctx.stroke();
 
-        // Draw fast axis indicator line at the center
-        const axisVec = Vector.fromAngle(this.fastAxisRad); // Use the fast axis angle
+        const axisVec = Vector.fromAngle(this.fastAxisRad);
         const indicatorLength = Math.min(this.length * 0.4, 20);
         const start = this.pos.subtract(axisVec.multiply(indicatorLength / 2));
         const end = this.pos.add(axisVec.multiply(indicatorLength / 2));
 
-        ctx.strokeStyle = this.selected ? '#FFFFFF' : '#FFC0CB'; // White when selected, Pink indicator otherwise
+        ctx.strokeStyle = this.selected ? '#FFFFFF' : '#FFC0CB';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
-        // Add small tick marks at ends
         const tickSize = 3;
         const tickPerp = axisVec.rotate(Math.PI / 2).multiply(tickSize);
         ctx.moveTo(start.x - tickPerp.x, start.y - tickPerp.y); ctx.lineTo(start.x + tickPerp.x, start.y + tickPerp.y);
         ctx.moveTo(end.x - tickPerp.x, end.y - tickPerp.y); ctx.lineTo(end.x + tickPerp.x, end.y + tickPerp.y);
         ctx.stroke();
 
-        // Add text label (HWP or QWP)
         ctx.fillStyle = this.selected ? 'yellow' : 'white';
         ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const textOffset = this.normal.multiply(10); // Offset text perpendicular to plate
+        const textOffset = this.normal.multiply(10);
         ctx.fillText(this.constructor.name === 'HalfWavePlate' ? 'λ/2' : (this.constructor.name === 'QuarterWavePlate' ? 'λ/4' : '?'),
             this.pos.x + textOffset.x, this.pos.y + textOffset.y);
     }
 
-    getBoundingBox() { // Same as Mirror
+    getBoundingBox() {
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return super.getBoundingBox();
         const minX = Math.min(this.p1.x, this.p2.x); const maxX = Math.max(this.p1.x, this.p2.x);
         const minY = Math.min(this.p1.y, this.p2.y); const maxY = Math.max(this.p1.y, this.p2.y);
@@ -5690,7 +5552,7 @@ class WavePlate extends OpticalComponent {
         return { x: minX - buffer, y: minY - buffer, width: (maxX - minX) + 2 * buffer, height: (maxY - minY) + 2 * buffer };
     }
 
-    _containsPointBody(point) { // Same as Mirror
+    _containsPointBody(point) {
         if (!point || !(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return false;
         const lenSq = this.p1.distanceSquaredTo(this.p2); if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25;
         const p1pt = point.subtract(this.p1), p1p2 = this.p2.subtract(this.p1);
@@ -5698,7 +5560,7 @@ class WavePlate extends OpticalComponent {
         const closest = this.p1.add(p1p2.multiply(cT)); return point.distanceSquaredTo(closest) < 25;
     }
 
-    intersect(rayOrigin, rayDirection) { // Same as Mirror
+    intersect(rayOrigin, rayDirection) {
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return [];
         const v1 = rayOrigin.subtract(this.p1), v2 = this.p2.subtract(this.p1);
         const v3 = new Vector(-rayDirection.y, rayDirection.x);
@@ -5706,49 +5568,74 @@ class WavePlate extends OpticalComponent {
         const t1 = v2.cross(v1) / d_v2_v3, t2 = v1.dot(v3) / d_v2_v3;
         if (t1 > 1e-6 && t2 >= -1e-6 && t2 <= 1.0 + 1e-6) {
             const iP = rayOrigin.add(rayDirection.multiply(t1));
-            let sN = this.normal.clone(); // Use the plate normal
-            if (rayDirection.dot(sN) > 0) sN = sN.multiply(-1); // Point towards ray
+            let sN = this.normal.clone();
+            if (rayDirection.dot(sN) > 0) sN = sN.multiply(-1);
             if (isNaN(iP.x) || isNaN(sN.x)) { console.error(`WavePlate ${this.id} intersect NaN`); return []; }
             return [{ distance: t1, point: iP, normal: sN, surfaceId: 'waveplate_surface' }];
         } return [];
     }
 
-    // Base interact method - specific logic in subclasses
+    // --- NEW UNIFIED INTERACT METHOD ---
     interact(ray, intersectionInfo, RayClass) {
-        console.warn(`Base WavePlate interact called for ${this.label}. Subclass should override.`);
-        // Default: Pass through without change
+        // 1. 确保光线有一个琼斯矢量用于计算
+        ray.ensureJonesVector();
+
+        // 2. 如果光线没有偏振 (非偏振光)，波片对其没有影响，直接穿过
+        if (!ray.hasJones()) {
+            const newDirection = ray.direction;
+            const newOrigin = intersectionInfo.point.add(newDirection.multiply(1e-6));
+            const transmittedRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
+            ray.terminate('pass_unpolarized_waveplate');
+            return [transmittedRay];
+        }
+
+        // 3. 获取特定波片 (HWP 或 QWP) 的琼斯矩阵
+        const retarderMatrix = this._getJonesMatrix();
+        const fastAxis = this.fastAxisRad;
+
+        // 4. 应用琼斯矩阵变换: V_out = R(phi) * W * R(-phi) * V_in
+        const Rm = Ray._rot2(-fastAxis);         // 旋转到快轴坐标系
+        const Rp = Ray._rot2(fastAxis);          // 从快轴坐标系旋转回来
+        const v_in_local = Ray._apply2x2(Rm, ray.jones); // v' = R(-phi) * V_in
+        const v_out_local = Ray._apply2x2(retarderMatrix, v_in_local); // v'' = W * v'
+        const v_out_world = Ray._apply2x2(Rp, v_out_local); // V_out = R(phi) * v''
+        
+        // 5. 创建出射光线
         const newDirection = ray.direction;
         const newOrigin = intersectionInfo.point.add(newDirection.multiply(1e-6));
-        let transmittedRay = null;
-        if (ray.intensity >= ray.minIntensityThreshold) {
-            try {
-                transmittedRay = new RayClass(
-                    newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase,
-                    ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId,
-                    ray.polarizationAngle, // Pass original polarization
-                    ray.ignoreDecay, ray.history.concat([newOrigin.clone()])
-                );
-            } catch (e) { console.error(`Error creating pass-through Ray in WavePlate (${this.id}):`, e); }
-        }
-        ray.terminate('pass_waveplate_base');
-        return transmittedRay ? [transmittedRay] : [];
+        
+        const outRay = new RayClass(
+            newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase,
+            ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId,
+            ray.polarizationAngle, // 构造函数中的这个旧角度会被 setJones 覆盖
+            ray.ignoreDecay, ray.history.concat([newOrigin.clone()])
+        );
+
+        // 6. 为出射光线设置新的琼斯矢量 (这将自动更新偏振角度)
+        outRay.setJones(v_out_world);
+        
+        ray.terminate('pass_waveplate');
+        return [outRay];
+    }
+    
+    // Abstract method to be implemented by subclasses
+    _getJonesMatrix() {
+        throw new Error("'_getJonesMatrix()' must be implemented by WavePlate subclass.");
     }
 
-    // Common properties for all waveplates
     getProperties() {
         const baseProps = super.getProperties();
         return {
-            ...baseProps, // Includes pos, angleDeg (component orientation)
+            ...baseProps,
             length: { value: this.length.toFixed(1), label: '长度 (px)', type: 'number', min: 10, step: 1 },
             fastAxisAngleDeg: { value: (this.fastAxisRad * (180 / Math.PI)).toFixed(1), label: '快轴角度 (°)', type: 'number', step: 1 }
         };
     }
 
     setProperty(propName, value) {
-        if (super.setProperty(propName, value)) { return true; } // Handles pos, angleDeg
-
+        if (super.setProperty(propName, value)) { return true; }
         let needsGeomUpdate = false;
-        let needsRetraceUpdate = false; // Fast axis change affects optics
+        let needsRetraceUpdate = false;
 
         switch (propName) {
             case 'length': const l = parseFloat(value); if (!isNaN(l) && l >= 10 && Math.abs(l - this.length) > 1e-6) { this.length = l; needsGeomUpdate = true; } break;
@@ -5756,110 +5643,64 @@ class WavePlate extends OpticalComponent {
                 const fa = parseFloat(value);
                 if (!isNaN(fa)) {
                     const r = fa * (Math.PI / 180);
-                    // Normalize comparison angle difference
                     const currentFastAxis = this.fastAxisRad;
                     const diff = Math.atan2(Math.sin(r - currentFastAxis), Math.cos(r - currentFastAxis));
-                    if (Math.abs(diff) > 1e-6) { // Check if angle actually changed
-                        this.fastAxisRad = Math.atan2(Math.sin(r), Math.cos(r)); // Store normalized
-                        needsRetraceUpdate = true; // Fast axis change affects optics
-                        console.log(`[WavePlate setProperty] Fast Axis updated to ${(this.fastAxisRad * 180 / Math.PI).toFixed(1)} deg`); // DEBUG
+                    if (Math.abs(diff) > 1e-6) {
+                        this.fastAxisRad = Math.atan2(Math.sin(r), Math.cos(r));
+                        needsRetraceUpdate = true;
                     }
                 }
                 break;
-            default: return false; // Not handled
+            default: return false;
         }
 
-        if (needsGeomUpdate) { try { this._updateGeometry(); } catch (e) { console.error(`WavePlate (${this.id}) setProperty geom update error:`, e); } needsRetrace = true; } // Geometry change needs retrace too
+        if (needsGeomUpdate) { this._updateGeometry(); needsRetrace = true; }
         if (needsRetraceUpdate) { needsRetrace = true; }
-        return true; // Handled
+        return true;
     }
 }
+// --- END OF REPLACEMENT: WavePlate Base Class ---
 
-// --- HalfWavePlate (λ/2) ---
+
+// --- START OF REPLACEMENT: HalfWavePlate Class ---
 class HalfWavePlate extends WavePlate {
     static functionDescription = "将线偏振方向旋转两倍于快轴与入射夹角。";
     constructor(pos, length = 80, fastAxisAngleDeg = 0, angleDeg = 90) {
         super(pos, length, fastAxisAngleDeg, angleDeg, "半波片 (λ/2)");
     }
 
-    // --- REPLACEMENT for HalfWavePlate.interact with Jones matrix ---
-    interact(ray, intersectionInfo, RayClass) {
-        const hitPoint = intersectionInfo.point;
-        const nextBounces = ray.bouncesSoFar + 1;
-        const intensityIn = ray.intensity;
-        if (intensityIn < ray.minIntensityThreshold) { ray.terminate('low_intensity_hwp'); return []; }
-
-        const phi = this.fastAxisRad;
-        let outJones = null;
-        if (ray.hasJones && ray.hasJones()) {
-            const Rm = Ray._rot2(-phi), Rp = Ray._rot2(phi);
-            const Jd = [[{ re: 0, im: -1 }, { re: 0, im: 0 }], [{ re: 0, im: 0 }, { re: 0, im: 1 }]];
-            const v1 = Ray._apply2x2(Rm, ray.jones);
-            const v2 = Ray._apply2x2(Jd, v1);
-            outJones = Ray._apply2x2(Rp, v2);
-        }
-
-            const newDirection = ray.direction;
-            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
-        let outRay = null;
-        try {
-            outRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, intensityIn, ray.phase, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
-            if (outJones) {
-                outRay.setJones(outJones);
-            } else if (typeof ray.polarizationAngle === 'number') {
-                const thetaOut = Math.atan2(Math.sin(2 * phi - ray.polarizationAngle), Math.cos(2 * phi - ray.polarizationAngle));
-                outRay.setLinearPolarization(thetaOut);
-            }
-        } catch (e) { console.error(`HWP (${this.id}) create ray error:`, e); return []; }
-
-        ray.terminate('pass_hwp');
-        return outRay ? [outRay] : [];
+    _getJonesMatrix() {
+        // Jones matrix for a HWP with fast axis at 0 degrees is [[1, 0], [0, -1]]
+        // Or [[-i, 0], [0, i]] ignoring global phase. The relative phase is pi.
+        // Let's use the common form [[1, 0], [0, -1]] which flips the slow component's phase.
+        return [
+            [{ re: 1, im: 0 }, { re: 0, im: 0 }],
+            [{ re: 0, im: 0 }, { re: -1, im: 0 }]
+        ];
     }
-    // --- END OF REPLACEMENT ---
-    // --- END OF REPLACEMENT ---
 }
+// --- END OF REPLACEMENT: HalfWavePlate Class ---
 
-// --- QuarterWavePlate (λ/4) ---
+
+// --- START OF REPLACEMENT: QuarterWavePlate Class ---
 class QuarterWavePlate extends WavePlate {
     static functionDescription = "将线偏振转换为圆/椭圆偏振或反之。";
     constructor(pos, length = 80, fastAxisAngleDeg = 0, angleDeg = 90) {
         super(pos, length, fastAxisAngleDeg, angleDeg, "四分之一波片 (λ/4)");
     }
 
-    // --- REPLACEMENT for QuarterWavePlate.interact with Jones matrix ---
-    interact(ray, intersectionInfo, RayClass) {
-        const hitPoint = intersectionInfo.point;
-        const nextBounces = ray.bouncesSoFar + 1;
-        const intensityIn = ray.intensity;
-        if (intensityIn < ray.minIntensityThreshold) { ray.terminate('low_intensity_qwp'); return []; }
-
-        const phi = this.fastAxisRad;
-        let outJones = null;
-        if (ray.hasJones && ray.hasJones()) {
-            const Rm = Ray._rot2(-phi), Rp = Ray._rot2(phi);
-            const e1 = { re: Math.SQRT1_2, im: -Math.SQRT1_2 }; // e^{-i pi/4}
-            const e2 = { re: Math.SQRT1_2, im:  Math.SQRT1_2 }; // e^{ i pi/4}
-            const Jd = [[e1, { re: 0, im: 0 }], [{ re: 0, im: 0 }, e2]];
-            const v1 = Ray._apply2x2(Rm, ray.jones);
-            const v2 = Ray._apply2x2(Jd, v1);
-            outJones = Ray._apply2x2(Rp, v2);
-        }
-
-            const newDirection = ray.direction;
-            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
-        let outRay = null;
-        try {
-            outRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, intensityIn, ray.phase, nextBounces, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
-            if (outJones) {
-                outRay.setJones(outJones);
-            }
-        } catch (e) { console.error(`QWP (${this.id}) create ray error:`, e); return []; }
-
-        ray.terminate('pass_qwp');
-        return outRay ? [outRay] : [];
+    _getJonesMatrix() {
+        // Jones matrix for a QWP with fast axis at 0 degrees adds a +pi/2 phase to the slow (y) axis.
+        // Matrix is [[1, 0], [0, e^(i*pi/2)]] = [[1, 0], [0, i]]
+        // Ignoring global phase, this is equivalent to [[e^(-i*pi/4), 0], [0, e^(i*pi/4)]]
+        return [
+            [{ re: 1, im: 0 }, { re: 0, im: 0 }],
+            [{ re: 0, im: 0 }, { re: 0, im: 1 }] // Represents e^(i*pi/2) = i
+        ];
     }
-    // --- END OF REPLACEMENT ---
 }
+// --- END OF REPLACEMENT: QuarterWavePlate Class ---
+
 
 // --- END OF NEW COMPONENT: WavePlate ---
 

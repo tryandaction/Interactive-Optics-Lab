@@ -190,7 +190,8 @@ class Ray {
         if (!this.hasJones()) return null;
         return Ray._cAbs2(this.jones.Ex) + Ray._cAbs2(this.jones.Ey);
     }
-    setJones(j) { this.jones = j; }
+    
+    
     setLinearPolarization(angleRad) {
         this.polarizationAngle = Math.atan2(Math.sin(angleRad), Math.cos(angleRad));
         this.jones = Ray.jonesLinear(this.polarizationAngle);
