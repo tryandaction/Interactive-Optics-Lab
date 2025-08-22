@@ -1,0 +1,1309 @@
+/* style.css - V3 Layout with Top Menu & Tabs */
+
+/* --- Global Styles & Fonts --- */
+:root {
+    /* Define color variables */
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --light-gray: #f8f9fa;
+    --medium-gray: #dee2e6;
+    --dark-gray: #495057;
+    --border-color: #ced4da;
+    --text-color: #343a40;
+    --background-color: #f4f7f9;
+    --sidebar-bg: #ffffff;
+    --canvas-bg: #1f2b38;
+    --canvas-grid: rgba(255, 255, 255, 0.06);
+    --menu-bg: #e9ecef;
+    /* Slightly darker menu background */
+    --menu-border: #ced4da;
+    --menu-hover-bg: #dee2e6;
+    --dropdown-bg: #ffffff;
+    --dropdown-border: #ced4da;
+    --dropdown-shadow: rgba(0, 0, 0, 0.1);
+    --dropdown-hover: #f1f3f5;
+    --error-color: #dc3545;
+    --success-color: #28a745;
+    --menubar-height: 40px;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    /* Stack menubar and main content vertically */
+    height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-size: 14px;
+    overflow: hidden;
+    background-color: var(--background-color);
+    color: var(--text-color);
+}
+
+/* --- Top Menubar Styles --- */
+#top-menubar {
+    background-color: var(--menu-bg);
+    padding: 0 15px;
+    /* Increased padding */
+    height: var(--menubar-height);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--menu-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    position: fixed;
+    /* Keep fixed */
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    /* Prevent menubar from shrinking */
+}
+
+.menu-left,
+.menu-right {
+    display: flex;
+    align-items: center;
+}
+
+.menu-right {
+    margin-right: 5px;
+}
+
+/* Reduce right margin slightly */
+
+.dropbtn {
+    background-color: transparent;
+    color: var(--text-color);
+    padding: 8px 10px;
+    /* Adjust padding if needed */
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    margin: 0 1px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+    display: inline-flex;
+    /* Use flex for alignment */
+    align-items: center;
+    /* Vertically center icon and text */
+    gap: 6px;
+    /* Space between icon and text */
+}
+
+.dropbtn svg {
+    /* Style for SVGs within dropbtn */
+    width: 16px;
+    /* Match SVG size */
+    height: 16px;
+    flex-shrink: 0;
+    /* Prevent icon from shrinking */
+    vertical-align: middle;
+    /* Might help alignment */
+}
+
+/* Keep the :hover style as is */
+.dropbtn:hover {
+    background-color: var(--menu-hover-bg);
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    margin-right: 1px;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: var(--dropdown-bg);
+    min-width: 220px;
+    /* Slightly wider dropdown */
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.12);
+    /* Refined shadow */
+    z-index: 101;
+    border: 1px solid var(--dropdown-border);
+    border-radius: 5px;
+    /* Slightly more rounded */
+    padding: 8px 0;
+    /* Increased vertical padding */
+    margin-top: 3px;
+    /* Small gap below button */
+    overflow: hidden;
+    /* Ensure rounded corners clip content */
+}
+
+.dropdown-content a {
+    color: var(--text-color);
+    padding: 9px 18px;
+    /* Increased padding */
+    text-decoration: none;
+    display: block;
+    font-size: 13.5px;
+    /* Slightly larger font */
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    /* Smooth transition */
+}
+
+.dropdown-content a:hover {
+    background-color: #007bff;
+    /* Use primary color for hover background */
+    color: white;
+    /* White text on hover */
+}
+
+.dropdown-content a.disabled-link {
+    color: #adb5bd;
+    cursor: not-allowed;
+    background-color: transparent !important;
+    opacity: 0.6;
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent !important;
+    /* No background change on hover */
+    color: #adb5bd !important;
+    /* Keep text color disabled */
+}
+
+.dropdown-content hr {
+    margin: 5px 0;
+    border: none;
+    border-top: 1px solid #e9ecef;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+#user-status-top {
+    margin-right: 15px;
+    /* More spacing */
+    font-size: 13px;
+    color: var(--dark-gray);
+    font-weight: 500;
+    padding: 8px 0;
+    /* Match button vertical padding */
+}
+
+.menubar-button {
+    /* Affects Login/Logout buttons */
+    padding: 6px 12px;
+    /* Adjust padding slightly */
+    font-size: 13px;
+    margin-left: 6px;
+    /* Tighter spacing */
+    border: 1px solid transparent;
+    /* Add border for consistency */
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Primary button style (Login/Register or Save) */
+#user-action-btn-top {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+#user-action-btn-top:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+/* Secondary button style (Logout) */
+#logout-btn-top.secondary {
+    /* Ensure class is used if needed */
+    background-color: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+}
+
+#logout-btn-top.secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+/* --- Main Content Layout --- */
+#main-content {
+    display: flex;
+    flex-grow: 1;
+    /* Take remaining vertical space */
+    overflow: hidden;
+    /* Prevent content overflow */
+    height: calc(100vh - var(--menubar-height));
+    /* Fill space below menubar */
+}
+
+/* --- Left Toolbar (Tools Only) --- */
+#toolbar {
+    width: 180px;
+    /* Adjusted width */
+    padding: 15px 10px;
+    /* Adjust padding */
+    box-sizing: border-box;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--menu-border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    height: 100%;
+    /* Fill vertical space */
+}
+
+#toolbar h4 {
+    margin-top: 15px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    padding-bottom: 4px;
+    color: var(--secondary-color);
+}
+
+#toolbar h4:first-of-type {
+    margin-top: 0;
+}
+
+
+/* --- Toolbar Icon Button Styling --- */
+#toolbar button.icon-button {
+    width: calc(50% - 8px); /* 保持两列布局 */
+    margin: 4px;
+    padding: 8px 5px;
+    font-size: 11px; /* 恢复到11px，因为现在高度是弹性的 */
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 55px; /* ***核心修改：使用 min-height 替代固定的 height*** */
+    line-height: 1.3; /* 略微增加行高以改善换行后的外观 */
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    color: var(--text-color);
+    vertical-align: top;
+    box-sizing: border-box; 
+}
+
+#toolbar button.icon-button svg {
+    width: 20px;
+    /* Icon size */
+    height: 20px;
+    margin-bottom: 4px;
+    /* Space between icon and text */
+    flex-shrink: 0;
+    color: #495057;
+    /* Default icon color */
+    transition: color 0.2s ease;
+}
+
+#toolbar button.icon-button .toolbar-button-text {
+    display: block;
+    /* Ensure text takes its own line */
+    white-space: normal;
+    /* Allow text wrap if needed */
+    overflow: hidden;
+    /* Prevent long text overflow */
+    max-height: 2.5em;
+    /* Limit text height */
+}
+
+#toolbar button.icon-button:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+
+#toolbar button.icon-button:hover svg {
+    color: #0056b3;
+    /* Icon color change on hover */
+}
+
+
+#toolbar button.selected-tool {
+    background-color: #cce5ff;
+    border-color: #99caff;
+    color: #004085;
+    font-weight: 600;
+}
+
+#toolbar button.selected-tool svg {
+    color: #004085;
+    /* Match text color when selected */
+}
+
+/* Toolbar Category Headers */
+#toolbar h4 {
+    margin-top: 12px;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+    font-size: 13px;
+    /* Slightly smaller header */
+    color: var(--secondary-color);
+    border-bottom: 1px solid #eee;
+    /* Subtle separator */
+    width: calc(100% - 10px);
+    /* Span across two columns */
+    margin-left: 5px;
+    font-weight: 600;
+}
+
+#toolbar h4:first-of-type {
+    margin-top: 0;
+}
+
+/* Adjust HR */
+hr.thin-hr {
+    border-top: 1px solid #eee;
+    /* Match header separator */
+    margin: 8px 5px;
+    /* Align with button margins */
+    width: calc(100% - 10px);
+}
+
+#toolbar button.selected-tool {
+    background-color: #cce5ff;
+    border-color: #99caff;
+    color: #004085;
+    font-weight: 600;
+}
+
+hr.thin-hr {
+    border-top: 1px dashed #e1e5e8;
+    margin: 8px 0;
+}
+
+/* --- Center Simulation Area --- */
+#simulation-area {
+    flex-grow: 1;
+    position: relative;
+    background-color: var(--dark-gray);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+#opticsCanvas {
+    display: block;
+    background-color: var(--canvas-bg);
+    cursor: default;
+}
+
+#mode-hint {
+    /* Keep existing hint styles */
+    font-style: italic;
+    color: #f8f9fa;
+    text-align: center;
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(44, 62, 80, 0.8);
+    padding: 6px 12px;
+    border-radius: 4px;
+    z-index: 10;
+    pointer-events: none;
+    display: none;
+    font-size: 13px;
+}
+
+/* --- Right Inspector Panel --- */
+#inspector {
+    width: 280px;
+    /* Wider inspector */
+    padding: 0;
+    /* Remove padding, handled by tabs */
+    box-sizing: border-box;
+    background-color: var(--sidebar-bg);
+    border-left: 1px solid var(--menu-border);
+    overflow: hidden;
+    /* Prevent content overflow, tabs handle scrolling */
+    flex-shrink: 0;
+    height: 100%;
+    display: flex;
+    /* Use flex for vertical layout */
+    flex-direction: column;
+}
+
+/* --- Inspector Property Group Styling --- */
+
+.prop-group-title {
+    font-size: 12px;
+    /* Slightly smaller title */
+    font-weight: 600;
+    color: var(--secondary-color);
+    /* Gray title */
+    margin-top: 18px;
+    /* Space above title */
+    margin-bottom: 8px;
+    padding-bottom: 3px;
+    text-transform: uppercase;
+    /* Optional: Uppercase title */
+    letter-spacing: 0.5px;
+    /* Optional: Adjust spacing */
+}
+
+.prop-group-divider {
+    border: none;
+    border-top: 1px solid #e9ecef;
+    /* Light separator line */
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+/* Adjust spacing for the first group title */
+#inspector-content>.prop-group-title:first-of-type {
+    margin-top: 5px;
+}
+
+/* Style for readonly/disabled inputs */
+.readonly-or-disabled {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    opacity: 0.7;
+    /* Optional: slightly fade */
+}
+
+/* Tabs */
+.tab-container {
+    display: flex;
+    border-bottom: 1px solid var(--menu-border);
+    flex-shrink: 0;
+    /* Prevent tabs from shrinking */
+}
+
+.tab-button {
+    flex-grow: 1;
+    /* Distribute space evenly */
+    padding: 10px 5px;
+    /* Adjust padding */
+    cursor: pointer;
+    border: none;
+    border-bottom: 3px solid transparent;
+    /* Indicator line placeholder */
+    background-color: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--secondary-color);
+    text-align: center;
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+    margin-bottom: -1px;
+    /* Overlap bottom border */
+    outline: none;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* Tab Content Panes */
+.tab-content {
+    padding: 15px;
+    flex-grow: 1;
+    /* Allow content to take space */
+    overflow-y: auto;
+    /* Allow content to scroll */
+    display: none;
+    /* Hide inactive tabs */
+}
+
+.tab-content.active {
+    display: block;
+    /* Show active tab */
+}
+
+/* Adjustments for content within tabs */
+.tab-content h4 {
+    margin-top: 5px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+/* --- Inspector Property Row (.prop) Styling --- */
+.tab-content .prop {
+    display: flex;
+    /* Use flexbox for alignment */
+    align-items: center;
+    /* Vertically align label and input */
+    margin-bottom: 10px;
+    /* Reduced bottom margin */
+    min-height: 28px;
+    /* Ensure consistent row height */
+}
+
+/* --- Inspector Label Styling --- */
+.tab-content .prop label {
+    width: 100px;
+    /* Fixed label width */
+    flex-shrink: 0;
+    /* Prevent label from shrinking */
+    font-size: 13px;
+    color: var(--dark-gray);
+    /* Slightly darker label text */
+    padding-right: 8px;
+    /* Space between label and input */
+    text-align: right;
+    /* Align label text to the right */
+    box-sizing: border-box;
+}
+
+/* --- Inspector Input/Select Base Styling --- */
+.tab-content .prop input[type="text"],
+.tab-content .prop input[type="number"],
+.tab-content .prop input[type="range"],
+.tab-content .prop select {
+    flex-grow: 1;
+    /* Allow input to fill remaining space */
+    padding: 5px 8px;
+    /* Adjust padding */
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #fff;
+    /* White background */
+    color: var(--text-color);
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    height: 28px;
+    /* Match min-height of .prop */
+    min-width: 50px;
+    /* Prevent inputs from becoming too small */
+}
+
+/* Focus style for inputs/selects */
+.tab-content .prop input[type="text"]:focus,
+.tab-content .prop input[type="number"]:focus,
+.tab-content .prop input[type="range"]:focus,
+.tab-content .prop select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+    /* Subtle focus glow */
+    outline: none;
+}
+
+/* Specific style for checkboxes */
+.tab-content .prop input[type="checkbox"] {
+    height: auto;
+    /* Let checkbox determine its height */
+    margin-left: 5px;
+    /* Add some left margin */
+    cursor: pointer;
+    /* Optional: Style checkbox appearance more significantly later */
+}
+
+/* Align checkbox label differently if needed */
+.tab-content .prop input[type="checkbox"]+label {
+    /* Potential style override if label needs different alignment for checkbox */
+    /* text-align: left; */
+}
+
+/* Specific style for range sliders */
+.tab-content .prop input[type="range"] {
+    padding: 0;
+    /* Remove default padding */
+    height: auto;
+    /* Adjust height if needed */
+    cursor: pointer;
+}
+
+/* Specific style for select dropdown arrows (basic reset) */
+.tab-content .prop select {
+    appearance: none;
+    /* Remove default arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236c757d%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20128c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4l128-128c3.6-3.6%205.4-7.8%205.4-12.8%200-5-1.8-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    /* Simple SVG arrow */
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 8px 10px;
+    padding-right: 25px;
+    /* Space for the arrow */
+}
+
+/* Styling for the value span next to sliders/numbers */
+.tab-content .prop span {
+    font-size: 12px;
+    /* Slightly smaller */
+    margin-left: 8px;
+    /* More spacing */
+    color: var(--secondary-color);
+    white-space: nowrap;
+    line-height: 28px;
+    /* Align vertically */
+}
+
+/* Readonly/disabled input styles */
+.readonly-or-disabled {
+    background-color: #e9ecef !important;
+    /* Use important to override default white */
+    cursor: not-allowed;
+    opacity: 0.7;
+    border-color: #ced4da;
+    /* Match border */
+}
+
+.readonly-or-disabled:focus {
+    box-shadow: none;
+    /* Remove focus glow */
+    border-color: #ced4da;
+    /* Keep border standard */
+}
+
+/* Error text styling (if used) */
+.error-text {
+    color: var(--error-color);
+    font-weight: bold;
+}
+
+/* Value display */
+.tab-content button {
+    /* Buttons within tabs */
+    width: auto;
+    /* Don't force full width */
+    padding: 6px 12px;
+    font-size: 13px;
+    margin-top: 10px;
+    margin-right: 8px;
+    /* Space between buttons if inline */
+    display: inline-block;
+    /* Allow multiple buttons per line */
+}
+
+#delete-btn {
+    /* Specific style for delete button inside tab */
+    display: block;
+    /* Make delete button full width */
+    width: calc(100% - 30px);
+    /* Adjust width considering padding */
+    margin: 20px 15px 0 15px;
+    /* Center it with margin */
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+#delete-btn:disabled {
+    /* Copied disabled style */
+    background-color: #f5f5f5;
+    border-color: #dddddd;
+    color: #bbbbbb;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.placeholder-text {
+    color: var(--secondary-color);
+    font-style: italic;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.scene-actions button {
+    margin-top: 15px;
+}
+
+/* Buttons below scene list */
+
+
+/* --- Modal Styles (Keep existing, maybe slight adjustments) --- */
+.modal-overlay {
+    /* Keep position fixed etc. */
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    /* Slightly darker overlay */
+    display: none;
+    /* Use JS to control display flex/none */
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+    /* Higher z-index */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.2s ease;
+}
+
+.modal-content {
+    /* General modal content box */
+    background-color: var(--sidebar-bg);
+    padding: 25px 30px;
+    border-radius: 6px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+    min-width: 320px;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform 0.2s ease-out;
+}
+
+.modal-overlay.visible .modal-content {
+    transform: translateY(0);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--text-color);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 10px;
+    font-size: 18px;
+}
+
+.modal-close-btn {
+    /* Keep close button style */
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 26px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+}
+
+.modal-close-btn:hover {
+    color: #333;
+}
+
+/* Keep Auth Form Styles if needed */
+/* Keep Saved Scenes List Styles if using separate modal */
+
+/* Style for User Guide Modal */
+#guide-modal .modal-content {
+    max-width: 700px;
+}
+
+#guide-content {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--dark-gray);
+}
+
+#guide-content ul {
+    padding-left: 25px;
+}
+
+#guide-content li {
+    margin-bottom: 8px;
+}
+
+#guide-content strong {
+    color: var(--text-color);
+}
+
+/* Scrollbar Styling (Keep existing) */
+/* ::-webkit-scrollbar ... */
+
+/* Cursor Styles (Keep existing) */
+/* canvas.cursor-* ... */
+
+
+/* Refined style for icon buttons in the menubar */
+.menubar-icon-button {
+    background-color: transparent;
+    border: none;
+    padding: 6px;
+    /* Slightly more padding for icons */
+    margin: 0 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    vertical-align: middle;
+    line-height: 1;
+    color: #4a80c2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menubar-icon-button svg {
+    display: block;
+    /* Ensure SVG fits well */
+}
+
+/* Keep the :hover and .disabled styles as defined previously */
+
+.menubar-icon-button:hover {
+    background-color: var(--menu-hover-bg);
+    color: #355f99;
+    /* Slightly darker blue on hover */
+}
+
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
+.menubar-icon-button.disabled {
+    color: #adb5bd !important;
+    /* Force disabled color */
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+.menubar-icon-button svg {
+    display: block;
+    /* Remove extra space below SVG */
+}
+
+/* --- Styles for Disabled UI Elements --- */
+
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
+.menubar-icon-button.disabled {
+    color: #adb5bd;
+    /* Light gray icon */
+    opacity: 0.5;
+    /* Make it visually faded */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+/* Disabled state for menu dropdown links (Undo/Redo) */
+.dropdown-content a.disabled-link {
+    color: #adb5bd;
+    /* Light gray text */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Ensure transparent background, override hover */
+    opacity: 0.6;
+    /* Optional: further fade */
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent !important;
+    /* Explicitly disable hover */
+}
+
+/* --- Menubar Divider --- */
+.menubar-divider {
+    width: 1px;
+    height: 20px;
+    /* Adjust height as needed */
+    background-color: var(--menu-border);
+    /* Use menu border color */
+    margin: 0 10px;
+    /* Add horizontal spacing around divider */
+    align-self: center;
+    /* Center vertically */
+}
+
+.menu-text {
+    /* Optional: Adjust font size or margin if needed */
+    /* margin-left: 6px; /* Already handled by gap in .dropbtn */
+}
+
+#scenes-tab .scene-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+#scenes-tab .scene-search {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #222;
+    color: #fff;
+    font-size: 13px;
+}
+
+#scenes-tab .scene-sort {
+    width: 120px;
+    padding: 8px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #222;
+    color: #fff;
+    font-size: 13px;
+}
+
+#saved-scenes-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin: 4px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.saved-scene-item:hover {
+    background: #333;
+    border-color: #555;
+}
+
+.saved-scene-item.selected {
+    background: #2c4f7c;
+    border-color: #4a77aa;
+}
+
+.scene-item-content {
+    flex-grow: 1;
+    cursor: pointer;
+}
+
+.scene-name {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: #fff;
+}
+
+.scene-info {
+    display: block;
+    font-size: 0.9em;
+    color: #888;
+}
+
+.scene-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.scene-action-btn {
+    padding: 5px 10px;
+    border: 1px solid #444;
+    border-radius: 3px;
+    background: #333;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.scene-action-btn:hover {
+    background: #444;
+}
+
+.scene-action-btn.load-btn {
+    background: #2c4f7c;
+    border-color: #4a77aa;
+}
+
+.scene-action-btn.load-btn:hover {
+    background: #3a5f8c;
+}
+
+.scene-action-btn.delete-btn {
+    background: #722f2f;
+    border-color: #933;
+}
+
+.scene-action-btn.delete-btn:hover {
+    background: #823f3f;
+}
+
+.scene-details {
+    padding: 12px;
+    margin-top: 15px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+}
+
+.scene-details-content {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.scene-details-content p {
+    margin: 6px 0;
+    color: #ccc;
+}
+
+.scene-details-content strong {
+    color: #fff;
+    font-weight: 500;
+}
+
+.component-type-list {
+    margin: 8px 0;
+    padding-left: 20px;
+    color: #aaa;
+}
+
+.recycle-bin {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #444;
+}
+
+.recycle-bin h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ccc;
+    font-size: 14px;
+}
+
+#recycle-count {
+    color: #888;
+    font-size: 13px;
+    font-weight: normal;
+}
+
+.deleted-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin: 4px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.delete-date {
+    font-size: 0.85em;
+    color: #888;
+    margin: 0 8px;
+}
+
+.restore-btn {
+    padding: 4px 10px;
+    border: 1px solid #446644;
+    border-radius: 3px;
+    background: #335533;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.restore-btn:hover {
+    background: #446644;
+}
+
+.recycle-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+#deleted-scenes-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.scene-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.scene-actions button {
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.scene-actions .primary-btn {
+    background: #2c4f7c;
+    border: 1px solid #4a77aa;
+    color: white;
+}
+
+.scene-actions .primary-btn:hover {
+    background: #3a5f8c;
+}
+
+/* Style for disabled buttons inside auth modal */
+#auth-form-container button[type="submit"]:disabled {
+    background-color: #cccccc;
+    border-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* --- Styles for Scene Tab Info Box --- */
+.scene-tab-info {
+    font-size: 12px;
+    color: var(--secondary-color);
+    background-color: #f8f9fa;
+    /* Light background */
+    border: 1px solid #e9ecef;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    /* Space below the info box */
+    line-height: 1.4;
+}
+
+/* --- Styles for Saved Scene List Items --- */
+#saved-scenes-list {
+    max-height: 300px;
+    /* Or adjust as needed */
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px;
+    /* Add padding inside the list */
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    /* Adjust padding */
+    margin-bottom: 4px;
+    /* Space between items */
+    background-color: #fff;
+    border: 1px solid transparent;
+    /* Start transparent */
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+    cursor: pointer;
+    /* Indicate clickable name */
+}
+
+.saved-scene-item:hover {
+    background-color: #f1f3f5;
+    /* Light hover */
+    border-color: #dee2e6;
+}
+
+.saved-scene-item span {
+    /* Style for the scene name */
+    flex-grow: 1;
+    /* Allow name to take space */
+    margin-right: 10px;
+    /* Space before delete button */
+    font-size: 13.5px;
+}
+
+.saved-scene-item button.delete-btn {
+    /* Style specific for delete button in list */
+    padding: 3px 8px;
+    /* Smaller button */
+    font-size: 11px;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+    border-radius: 3px;
+    flex-shrink: 0;
+    /* Prevent button shrinking */
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.saved-scene-item button.delete-btn:hover {
+    opacity: 1.0;
+    background-color: #f1c0c5;
+}
+
+/* --- Inspector Info Header --- */
+.inspector-info-header {
+    padding: 5px 0 15px 0;
+    margin: 0;
+}
+
+.inspector-info-header h3 {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 8px 0;
+}
+
+.component-function {
+    font-size: 12.5px;
+    color: var(--secondary-color);
+    text-align: center;
+    font-style: italic;
+    margin: 0 10px 15px 10px;
+    line-height: 1.4;
+}
+
+.notes-prop {
+    flex-direction: column;
+    align-items: flex-start; /* Align label to the left */
+}
+
+.notes-prop label {
+    text-align: left;
+    width: auto;
+    margin-bottom: 5px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.notes-prop textarea {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+    padding: 5px 8px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.notes-prop textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+/* Ensure notes label overrides default inspector label alignment */
+.tab-content .prop.notes-prop label {
+    width: auto !important;
+    text-align: left !important;
+}
+
+/* --- Style for Auth Modal Disabled Buttons --- */
+#auth-form-container button[type="submit"]:disabled {
+    background-color: #cccccc;
+    border-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

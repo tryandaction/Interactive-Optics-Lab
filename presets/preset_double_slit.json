@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "currentMode": "ray_trace",
+  "components": [
+    {
+      "type": "LaserSource",
+      "id": "m9u26psi-vwb06",
+      "posX": 120,
+      "posY": 289,
+      "angleDeg": 0,
+      "label": "激光",
+      "enabled": true,
+      "wavelength": 550,
+      "intensity": 1,
+      "numRays": 1,
+      "ignoreDecay": false,
+      "gaussianEnabled": true
+    },
+    {
+      "type": "AcoustoOpticModulator",
+      "id": "m9u3r36k-0bpup",
+      "posX": 333,
+      "posY": 295,
+      "angleDeg": -68.4985656759521,
+      "label": "声光调制器",
+      "width": 50,
+      "height": 20,
+      "rfFrequencyMHz": 80,
+      "rfPower": 0.5
+    }
+  ]
+}
