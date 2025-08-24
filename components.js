@@ -330,40 +330,42 @@ class OpticalComponent extends GameObject {
 }
 
 
-// --- Concrete Component Implementations ---
-
-// --- LaserSource ---
+// --- START OF REPLACEMENT: LaserSource Class (Polarization Overhaul) ---
 class LaserSource extends GameObject {
     static functionDescription = "发射一束或多束具有特定波长和强度的相干光。";
-    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, numRays = 1, spreadDeg = 0, enabled = true, polarizationAngleDeg = null, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) {
+    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, numRays = 1, spreadDeg = 0, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) {
         super(pos, angleDeg, "激光");
         this.wavelength = wavelength;
         this.intensity = Math.max(0, intensity);
         this.numRays = Math.max(1, numRays);
         this.spreadRad = spreadDeg * (Math.PI / 180);
         this.enabled = enabled;
-        this.polarizationAngleRad = (polarizationAngleDeg === null || isNaN(polarizationAngleDeg)) ? null : polarizationAngleDeg * (Math.PI / 180);
-        this.ignoreDecay = ignoreDecay;
-        // this.arrowAnimationDistance = 0; // For animation state
-        this._rayColor = this.calculateRayColor(); // Cache color
-        this.gaussianEnabled = true;
-        this._rayColor = this.calculateRayColor(); // Cache color
-    } // End constructor
 
-    // --- Inside LaserSource class ---
+        // --- NEW Polarization Properties ---
+        this.polarizationType = polarizationType; // 'unpolarized', 'linear', 'circular-right', 'circular-left'
+        this.polarizationAngleRad = polarizationAngleDeg * (Math.PI / 180); // Only for 'linear'
+
+        this.ignoreDecay = ignoreDecay;
+        this.gaussianEnabled = true;
+        this.beamDiameter = beamDiameter;
+        this.initialBeamWaist = initialBeamWaist;
+        
+        this._rayColor = this.calculateRayColor(); // Cache color
+    }
 
     toJSON() {
-        const baseData = super.toJSON(); // Get base properties (pos, angle, id, label, type)
+        const baseData = super.toJSON();
         return {
-            ...baseData, // Spread base properties
-            // Add LaserSource specific properties
+            ...baseData,
             wavelength: this.wavelength,
             intensity: this.intensity,
             numRays: this.numRays,
-            spreadDeg: this.spreadRad * (180 / Math.PI), // Save angle in degrees
+            spreadDeg: this.spreadRad * (180 / Math.PI),
             enabled: this.enabled,
-            // Save angle in degrees if it exists, otherwise save null
-            polarizationAngleDeg: this.polarizationAngleRad === null ? null : this.polarizationAngleRad * (180 / Math.PI),
+            // --- NEW Polarization Data ---
+            polarizationType: this.polarizationType,
+            polarizationAngleDeg: this.polarizationAngleRad * (180 / Math.PI),
+            // --- End New Data ---
             ignoreDecay: this.ignoreDecay,
             beamDiameter: this.beamDiameter,
             initialBeamWaist: this.initialBeamWaist,
@@ -372,74 +374,69 @@ class LaserSource extends GameObject {
     }
 
     calculateRayColor() {
-        // (Using the simplified wavelength-to-RGB from previous code)
         const wl = this.wavelength; let r = 0, g = 0, b = 0;
         if (wl >= 380 && wl < 440) { r = -(wl - 440) / (440 - 380); b = 1.0; } else if (wl >= 440 && wl < 490) { g = (wl - 440) / (490 - 440); b = 1.0; } else if (wl >= 490 && wl < 510) { g = 1.0; b = -(wl - 510) / (510 - 490); } else if (wl >= 510 && wl < 580) { r = (wl - 510) / (580 - 510); g = 1.0; } else if (wl >= 580 && wl < 645) { r = 1.0; g = -(wl - 645) / (645 - 580); } else if (wl >= 645 && wl <= 750) { r = 1.0; }
         const f = 0.3 + 0.7 * Math.min(1, this.intensity); r = Math.min(255, Math.max(0, Math.round(r * 255 * f))); g = Math.min(255, Math.max(0, Math.round(g * 255 * f))); b = Math.min(255, Math.max(0, Math.round(b * 255 * f)));
         return `rgb(${r},${g},${b})`;
     }
 
-    // --- RESTORED LaserSource.generateRays (Does NOT use maxRaysPerSource limit) ---
     generateRays(RayClass) {
-        // Use this.numRays directly, NOT limited by global setting
-        if (!this.enabled || this.numRays <= 0 || typeof RayClass === 'undefined') {
-            // console.log(`[LaserSource ${this.id}] generateRays skipped (enabled=${this.enabled}, numRays=${this.numRays})`);
+        if (!this.enabled || this.numRays <= 0) {
             return [];
         }
-        // console.log(`[LaserSource ${this.id}] generateRays STARTING (numRays=${this.numRays}, intensity=${this.intensity.toFixed(3)})`);
 
         const rays = [];
-        const intensityPerRay = this.intensity > 0 && this.numRays > 0 ? this.intensity / this.numRays : 0; // Use this.numRays
-        // console.log(`  Intensity per ray: ${intensityPerRay.toFixed(4)}`);
-
+        const intensityPerRay = this.intensity / this.numRays;
         const halfSpreadRad = this.spreadRad / 2;
         const startAngle = this.angleRad - halfSpreadRad;
-        const angleStep = (this.numRays > 1 && this.spreadRad > 1e-9) ? this.spreadRad / (this.numRays - 1) : 0; // Use this.numRays
+        const angleStep = (this.numRays > 1 && this.spreadRad > 1e-9) ? this.spreadRad / (this.numRays - 1) : 0;
 
-        for (let i = 0; i < this.numRays; i++) { // Loop using this.numRays
-            const angle = (this.numRays === 1) ? this.angleRad : startAngle + i * angleStep; // Use this.numRays
+        for (let i = 0; i < this.numRays; i++) {
+            const angle = (this.numRays === 1) ? this.angleRad : startAngle + i * angleStep;
             const direction = Vector.fromAngle(angle);
-            if (isNaN(direction.x) || isNaN(direction.y) || direction.magnitudeSquared() < 0.1) {
-                console.error(`LaserSource (${this.id}): Invalid angle/direction ray ${i}`); continue;
+            const origin = this.pos.clone();
+            
+            let useGaussian = this.gaussianEnabled && this.initialBeamWaist > 1e-6;
+            let rayBeamWaist = useGaussian ? this.initialBeamWaist : null;
+            let rayZR = null;
+            if (useGaussian) {
+                const lambda_meters = this.wavelength * 1e-9;
+                rayZR = (Math.PI * rayBeamWaist * rayBeamWaist) / lambda_meters;
+                if (isNaN(rayZR)) useGaussian = false;
             }
 
             try {
-                const origin = this.pos.clone();
-                if (isNaN(origin.x)) throw new Error("Origin is NaN");
-
-                // --- Calculate Gaussian parameters ONLY if enabled ---
-                let rayBeamWaist = null;
-                let rayZR = null;
-                let useGaussian = this.gaussianEnabled && this.initialBeamWaist !== null && this.initialBeamWaist > 1e-6;
-                if (useGaussian) {
-                    rayBeamWaist = this.initialBeamWaist;
-                    const lambda_meters = this.wavelength * 1e-9;
-                    if (lambda_meters > 1e-12) {
-                        rayZR = (Math.PI * rayBeamWaist * rayBeamWaist) / lambda_meters;
-                        if (isNaN(rayZR)) { useGaussian = false; rayBeamWaist = null; rayZR = null; }
-                    } else { useGaussian = false; rayBeamWaist = null; rayZR = null; }
-                }
-
+                // polarizationAngle parameter is now just a hint; Jones vector is primary.
                 const newRay = new RayClass(
                     origin, direction, this.wavelength, intensityPerRay,
-                    0.0, // Phase
-                    0, N_AIR, this.id, this.polarizationAngle, this.ignoreDecay,
-                    null, // initialHistory
+                    0.0, 0, N_AIR, this.id, null, this.ignoreDecay, null,
                     this.beamDiameter,
                     useGaussian ? rayBeamWaist : null,
                     useGaussian ? rayZR : null
                 );
-                // Basic validation
-                if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x) || isNaN(newRay.direction?.x)) {
-                    console.error(`LaserSource ${this.id}: Failed valid ray idx ${i}`); continue;
+
+                // --- NEW: Set Jones Vector based on Polarization Type ---
+                switch (this.polarizationType) {
+                    case 'linear':
+                        newRay.setLinearPolarization(this.polarizationAngleRad);
+                        break;
+                    case 'circular-right':
+                        newRay.setCircularPolarization(true);
+                        break;
+                    case 'circular-left':
+                        newRay.setCircularPolarization(false);
+                        break;
+                    case 'unpolarized':
+                    default:
+                        newRay.setUnpolarized(); // Sets jones to null
+                        break;
                 }
+                
                 rays.push(newRay);
             } catch (e) { console.error(`LaserSource (${this.id}) Error creating Ray idx ${i}:`, e); }
         }
-        // console.log(`[LaserSource ${this.id}] generateRays FINISHED. Returning ${rays.length} rays.`);
         return rays;
     }
-    // --- END OF RESTORED METHOD ---
 
     draw(ctx) {
         const size = 12; const halfHeight = size * 0.4;
@@ -449,7 +446,7 @@ class LaserSource extends GameObject {
         const p4 = this.pos.add(Vector.fromAngle(this.angleRad).multiply(size * 0.8));
 
         ctx.fillStyle = this.enabled ? this._rayColor : 'dimgray';
-        ctx.strokeStyle = this.selected ? 'yellow' : (this.enabled ? 'white' : '#555'); // Add selection highlight
+        ctx.strokeStyle = this.selected ? 'yellow' : (this.enabled ? 'white' : '#555');
         ctx.lineWidth = this.selected ? 2 : 1;
 
         ctx.beginPath();
@@ -459,13 +456,19 @@ class LaserSource extends GameObject {
         ctx.fill(); ctx.stroke();
     }
 
+    _containsPointBody(point) {
+        // A simple bounding box check is sufficient for this shape
+        const bounds = this.getBoundingBox();
+        if (!bounds) return false;
+        return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
+               point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+    }
+
     getBoundingBox() {
-        // Simple bounding box, slightly larger than the drawn shape
         const size = 15;
-        // More accurate calculation considering rotation might be needed if shape is complex
         const cosA = Math.abs(Math.cos(this.angleRad));
         const sinA = Math.abs(Math.sin(this.angleRad));
-        const width = size * cosA + size * 0.8 * sinA; // Approximate rotated width/height
+        const width = size * cosA + size * 0.8 * sinA;
         const height = size * sinA + size * 0.8 * cosA;
         return {
             x: this.pos.x - width / 2,
@@ -475,216 +478,135 @@ class LaserSource extends GameObject {
         };
     }
 
-    // Use raycasting or winding number for accurate point-in-polygon test
-    _containsPointBody(point) {
-        // Simplified: Use bounding box for now
-        const bounds = this.getBoundingBox();
-        if (!bounds) return false;
-        return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
-            point.y >= bounds.y && point.y <= bounds.y + bounds.height;
-        // TODO: Implement point-in-polygon test using vertices p1,p2,p4,p3
-    }
-
-
-    // --- REPLACEMENT for LaserSource.getProperties (V5 - Conditional Showing/Hiding) ---
     getProperties() {
-        // console.log(`[LaserSource ${this.id}] Getting properties...`); // Keep for debugging if needed
-        let baseProps;
-        try {
-            baseProps = super.getProperties();
-            if (!baseProps || typeof baseProps !== 'object') baseProps = {};
-        } catch (e) { console.error(` !!! Error getting base properties for LaserSource ${this.id}:`, e); baseProps = {}; }
-
-        let polarizationAngleDeg = '';
-        try {
-            if (this.polarizationAngleRad !== null && typeof this.polarizationAngleRad === 'number' && !isNaN(this.polarizationAngleRad)) {
-                polarizationAngleDeg = (this.polarizationAngleRad * (180 / Math.PI)).toFixed(1);
-            }
-        } catch (e) { console.error(` !!! Error calculating polarizationAngleDeg for LaserSource ${this.id}:`, e); polarizationAngleDeg = 'Error'; }
-
-        // --- Base properties always shown ---
+        const baseProps = super.getProperties();
+        
         const props = {
             ...baseProps,
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
-            wavelength: { value: this.wavelength ?? DEFAULT_WAVELENGTH_NM, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
-            intensity: { value: (typeof this.intensity === 'number' ? this.intensity.toFixed(2) : '0.00'), label: '强度', type: 'number', min: 0, max: 30, step: 0.1 },
-            numRays: { value: this.numRays ?? 1, label: '#射线', type: 'number', min: 1, max: 501, step: 1 },
-            spreadDeg: { value: (typeof this.spreadRad === 'number' ? (this.spreadRad * 180 / Math.PI).toFixed(1) : '0.0'), label: '发散角 (°)', type: 'number', min: 0, max: 90, step: 1 },
-            polarizationAngleDeg: { value: polarizationAngleDeg, label: '偏振角 (°)', type: 'text', placeholder: '空=非偏振' },
+            wavelength: { value: this.wavelength, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
+            intensity: { value: this.intensity.toFixed(2), label: '强度', type: 'number', min: 0, max: 30, step: 0.1 },
+            numRays: { value: this.numRays, label: '#射线', type: 'number', min: 1, max: 501, step: 1 },
+            spreadDeg: { value: (this.spreadRad * 180 / Math.PI).toFixed(1), label: '发散角 (°)', type: 'number', min: 0, max: 90, step: 1 },
+            
+            // --- NEW Polarization UI ---
+            polarizationType: {
+                value: this.polarizationType || 'unpolarized',
+                label: '偏振类型',
+                type: 'select',
+                options: [
+                    { value: 'unpolarized', label: '非偏振光' },
+                    { value: 'linear', label: '线偏振光' },
+                    { value: 'circular-right', label: '右旋圆偏振' },
+                    { value: 'circular-left', label: '左旋圆偏振' }
+                ]
+            },
+            // --- End New Polarization UI ---
+
             ignoreDecay: { value: !!this.ignoreDecay, label: '强度不衰减', type: 'checkbox' },
-            // --- Mode Switch ---
             gaussianEnabled: { value: !!this.gaussianEnabled, label: '高斯光束模式', type: 'checkbox' },
         };
 
-        // --- Conditionally add beam type specific properties ---
+        // Conditionally add polarization angle control
+        if (this.polarizationType === 'linear') {
+            props.polarizationAngleDeg = {
+                value: (this.polarizationAngleRad * 180 / Math.PI).toFixed(1),
+                label: '↳ 偏振角度 (°)',
+                type: 'number',
+                step: 1
+            };
+        }
+
+        // Conditionally add beam geometry properties
         if (this.gaussianEnabled) {
-            // Properties for Gaussian mode
             props.initialBeamWaist = {
-                value: (typeof this.initialBeamWaist === 'number' && !isNaN(this.initialBeamWaist) ? this.initialBeamWaist.toFixed(2) : '5.00'), // Default value display
+                value: this.initialBeamWaist.toFixed(2),
                 label: '↳ 腰半径 w₀ (px)',
                 type: 'number',
                 min: 0.1,
-                step: 0.1,
-                placeholder: '输入正数'
-                // No 'disabled' flag needed as it's only shown when enabled
+                step: 0.1
             };
-            // DO NOT add beamDiameter when Gaussian is enabled
         } else {
-            // Properties for Geometric (non-Gaussian) mode
             props.beamDiameter = {
-                value: (typeof this.beamDiameter === 'number' ? this.beamDiameter.toFixed(1) : '10.0'), // Match default
+                value: this.beamDiameter.toFixed(1),
                 label: '光束直径 (px)',
                 type: 'number',
                 min: 0,
                 step: 0.5
-                // No 'disabled' flag needed as it's only shown when enabled
             };
-            // DO NOT add initialBeamWaist when Gaussian is disabled
         }
-
-        // console.log(`[LaserSource ${this.id}] Properties generated (Gaussian: ${this.gaussianEnabled}):`, props);
+        
         return props;
     }
-    // --- END OF REPLACEMENT ---
 
     setProperty(propName, value) {
-        // Let base class handle pos/angle FIRST. If it handles it, we are done.
         if (super.setProperty(propName, value)) {
-            // Base class handled pos/angle, and it already called necessary geometry updates and set needsRetrace.
             return true;
         }
 
-        // If base class didn't handle it, check LaserSource specific properties.
-        let needsColorUpdate = false;
-        let needsRayUpdate = false;
+        let needsRetraceUpdate = false;
+        let needsInspectorRefresh = false;
 
         switch (propName) {
-            case 'initialBeamWaist':
-                let newWaistValue = null; // Default to null if invalid
-                const trimmedValue = String(value).trim();
+            case 'enabled': this.enabled = !!value; needsRetraceUpdate = true; break;
+            case 'wavelength': this.wavelength = Math.max(380, Math.min(750, parseFloat(value))); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'intensity': this.intensity = Math.max(0, parseFloat(value)); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'numRays': this.numRays = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'spreadDeg': this.spreadRad = Math.max(0, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
+            case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
+            case 'gaussianEnabled': this.gaussianEnabled = !!value; needsInspectorRefresh = true; needsRetraceUpdate = true; break;
+            case 'initialBeamWaist': this.initialBeamWaist = Math.max(0.1, parseFloat(value)); needsRetraceUpdate = true; break;
+            case 'beamDiameter': this.beamDiameter = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
 
-                if (trimmedValue === '') {
-                    // If input is cleared, maybe reset to default or keep null? Let's keep null for now.
-                    newWaistValue = null; // Or maybe: newWaistValue = 5.0; // Reset to default? Choose one.
-                    console.log("Waist input cleared, setting internal value to null (or default if preferred).");
-                } else {
-                    const bw = parseFloat(trimmedValue);
-                    if (!isNaN(bw) && bw > 1e-6) { // Waist must be positive and valid number
-                        newWaistValue = bw;
-                    } else {
-                        console.warn("Invalid initialBeamWaist input:", value, "- value will not be set.");
-                        // Keep the existing value if input is invalid, prevent setting NaN/invalid
-                        // Return false or break? Let's break and not update.
-                        return false; // Indicate property set failed due to invalid input
-                    }
+            // --- NEW Polarization Handling ---
+            case 'polarizationType':
+                if (this.polarizationType !== value) {
+                    this.polarizationType = value;
+                    needsRetraceUpdate = true;
+                    needsInspectorRefresh = true; // To show/hide the angle input
                 }
-
-                // Check if the valid new value is different from the current one
-                if (this.initialBeamWaist !== newWaistValue) {
-                    // Use tolerance for float comparison if both are numbers
-                    if (typeof this.initialBeamWaist === 'number' && typeof newWaistValue === 'number' && Math.abs(this.initialBeamWaist - newWaistValue) < 1e-6) {
-                        // Difference is too small, don't update
-                    } else {
-                        this.initialBeamWaist = newWaistValue;
-                        needsRayUpdate = true;
-                        console.log(`[LaserSource setProperty] Waist updated to: ${this.initialBeamWaist}`);
-                    }
-                }
-                break;
-            case 'enabled':
-                const newState = !!value;
-                if (this.enabled !== newState) { this.enabled = newState; needsRayUpdate = true; }
-                break;
-            case 'wavelength':
-                const newWl = parseFloat(value);
-                if (!isNaN(newWl)) { const clamped = Math.max(380, Math.min(750, newWl)); if (Math.abs(clamped - this.wavelength) > 1e-6) { this.wavelength = clamped; needsColorUpdate = true; needsRayUpdate = true; } }
-                break;
-            case 'intensity':
-                const newI = parseFloat(value);
-                if (!isNaN(newI)) { const clamped = Math.max(0, newI); if (Math.abs(clamped - this.intensity) > 1e-6) { this.intensity = clamped; needsColorUpdate = true; needsRayUpdate = true; } }
-                break;
-            case 'numRays':
-                const newC = parseInt(value);
-                if (!isNaN(newC)) { const clamped = Math.max(1, Math.min(501, newC)); if (clamped !== this.numRays) { this.numRays = clamped; needsRayUpdate = true; } }
-                break;
-            case 'spreadDeg':
-                const newA = parseFloat(value);
-                if (!isNaN(newA)) { const clampedRad = Math.max(0, Math.min(90, newA)) * Math.PI / 180; if (Math.abs(clampedRad - this.spreadRad) > 1e-6) { this.spreadRad = clampedRad; needsRayUpdate = true; } }
                 break;
             case 'polarizationAngleDeg':
-                if (value === null || value === '' || String(value).trim() === '') {
-                    if (this.polarizationAngleRad !== null) { this.polarizationAngleRad = null; needsRayUpdate = true; }
-                } else {
-                    const newAngle = parseFloat(value);
-                    if (!isNaN(newAngle)) {
-                        const newRad = newAngle * (Math.PI / 180);
-                        const normalizedNewRad = Math.atan2(Math.sin(newRad), Math.cos(newRad));
-                        const currentRad = this.polarizationAngleRad === null ? -Infinity : this.polarizationAngleRad;
-                        if (Math.abs(normalizedNewRad - currentRad) > 1e-6) {
-                            this.polarizationAngleRad = normalizedNewRad; needsRayUpdate = true;
-                        }
-                    } else { console.warn("Invalid polarization angle input:", value); }
+                const newAngleDeg = parseFloat(value);
+                if (!isNaN(newAngleDeg)) {
+                    this.polarizationAngleRad = newAngleDeg * (Math.PI / 180);
+                    needsRetraceUpdate = true;
                 }
                 break;
-            case 'ignoreDecay':
-                const newDecay = !!value;
-                if (this.ignoreDecay !== newDecay) { this.ignoreDecay = newDecay; needsRayUpdate = true; }
-                break;
-            case 'gaussianEnabled':
-                // Explicitly check the type and value passed from the checkbox handler
-                let newGaussianState;
-                if (typeof value === 'boolean') {
-                    newGaussianState = value; // Directly use the boolean value
-                } else {
-                    // Fallback/Warning if the value is not a boolean as expected
-                    console.warn(`LaserSource setProperty('gaussianEnabled'): Received non-boolean value:`, value, `(Type: ${typeof value}). Defaulting to false.`);
-                    newGaussianState = false; // Or keep current state: newGaussianState = this.gaussianEnabled;
-                }
-
-                if (this.gaussianEnabled !== newGaussianState) {
-                    this.gaussianEnabled = newGaussianState;
-                    needsRayUpdate = true; // Toggling mode requires retrace
-
-                    console.log(`[LaserSource setProperty] Gaussian mode set to: ${this.gaussianEnabled}`); // Debug log
-
-                    // Refresh inspector to reflect the change and potentially update dependent fields visually
-                    if (selectedComponent === this) {
-                        // We need to update the inspector AFTER the property has been set.
-                        // Schedule the update slightly later or rely on the main loop redraw triggering it.
-                        // For simplicity, let's call it directly here, but be aware of potential loops if not careful.
-                        updateInspector();
-                    }
-                }
-                break;
-            default:
-                // Property not handled by base class or this class
-                console.warn(`LaserSource: Unknown property ${propName}`); // Log warning
-                return false; // Indicate not handled
+            // --- End New Handling ---
+            
+            default: return false;
         }
 
-        // Apply updates if specific properties changed
-        if (needsColorUpdate) {
-            try { this._rayColor = this.calculateRayColor(); } catch (e) { console.error("Error updating LaserSource color:", e); }
+        if (needsRetraceUpdate) {
+            needsRetrace = true;
         }
-        if (needsRayUpdate) {
-            needsRetrace = true; // Mark global flag
+        if (needsInspectorRefresh && selectedComponent === this) {
+            updateInspector();
         }
-        return true; // Indicate property was handled (by this class)
+        return true;
     }
 }
+// --- END OF REPLACEMENT: LaserSource Class ---
 
-// --- FanSource ---
+
+// --- START OF REPLACEMENT: FanSource Class (Polarization Overhaul) ---
 class FanSource extends GameObject {
     static functionDescription = "以扇形角度发出多束光线，覆盖一定角域。";
-    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 10.0, rayCount = 201, fanAngleDeg = 30, enabled = true, ignoreDecay = false, beamDiameter = 1.0) {
+    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 10.0, rayCount = 201, fanAngleDeg = 30, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 1.0) {
         super(pos, angleDeg, "扇形光源");
         this.wavelength = wavelength;
         this.intensity = Math.max(0, intensity);
-        this.rayCount = Math.max(1, rayCount); // Use this.rayCount for storage
+        this.rayCount = Math.max(1, rayCount);
         this.fanAngleRad = fanAngleDeg * Math.PI / 180;
         this.enabled = enabled;
+
+        // --- NEW Polarization Properties ---
+        this.polarizationType = polarizationType; // 'unpolarized', 'linear', 'circular-right', 'circular-left'
+        this.polarizationAngleRad = polarizationAngleDeg * (Math.PI / 180); // Only for 'linear'
+
         this.ignoreDecay = ignoreDecay;
-        this.beamDiameter = beamDiameter; // Store beamDiameter
+        this.beamDiameter = beamDiameter;
         this._rayColor = this.calculateRayColor();
     }
 
@@ -697,12 +619,16 @@ class FanSource extends GameObject {
             rayCount: this.rayCount,
             fanAngleDeg: this.fanAngleRad * 180 / Math.PI,
             enabled: this.enabled,
+            // --- NEW Polarization Data ---
+            polarizationType: this.polarizationType,
+            polarizationAngleDeg: this.polarizationAngleRad * 180 / Math.PI,
+            // --- End New Data ---
             ignoreDecay: this.ignoreDecay,
             beamDiameter: this.beamDiameter
         };
     }
 
-    calculateRayColor() { // Same as LaserSource
+    calculateRayColor() {
         const wl = this.wavelength; let r = 0, g = 0, b = 0;
         if (wl >= 380 && wl < 440) { r = -(wl - 440) / (440 - 380); b = 1.0; } else if (wl >= 440 && wl < 490) { g = (wl - 440) / (490 - 440); b = 1.0; } else if (wl >= 490 && wl < 510) { g = 1.0; b = -(wl - 510) / (510 - 490); } else if (wl >= 510 && wl < 580) { r = (wl - 510) / (580 - 510); g = 1.0; } else if (wl >= 580 && wl < 645) { r = 1.0; g = -(wl - 645) / (645 - 580); } else if (wl >= 645 && wl <= 750) { r = 1.0; }
         const f = 0.3 + 0.7 * Math.min(1, this.intensity); r = Math.min(255, Math.max(0, Math.round(r * 255 * f))); g = Math.min(255, Math.max(0, Math.round(g * 255 * f))); b = Math.min(255, Math.max(0, Math.round(b * 255 * f)));
@@ -710,161 +636,179 @@ class FanSource extends GameObject {
     }
 
     generateRays(RayClass) {
-        // --- Limit ray count based on global setting ---
-        const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001); // Use global setting, provide fallback
-        // --- End Limit ---
-
-        // Use actualRayCount instead of this.rayCount in the rest of the function logic
-        if (!this.enabled || actualRayCount <= 0 || typeof RayClass === 'undefined') { // Use actualRayCount
-            // console.log(`[FanSource ${this.id}] generateRays skipped (enabled=${this.enabled}, actualRayCount=${actualRayCount})`); // Less noisy log
+        const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001);
+        if (!this.enabled || actualRayCount <= 0) {
             return [];
         }
-        // console.log(`[FanSource ${this.id}] generateRays STARTING (actualRayCount=${actualRayCount}, ...)`); // Less noisy log
 
         const rays = [];
-        const intensityPerRay = this.intensity > 0 && actualRayCount > 0 ? this.intensity / actualRayCount : 0; // Use actualRayCount
-        // console.log(`  Intensity per ray: ${intensityPerRay.toFixed(4)}`);
-
+        const intensityPerRay = this.intensity / actualRayCount;
         const halfFanAngleRad = this.fanAngleRad / 2;
         const startAngleRad = this.angleRad - halfFanAngleRad;
-        // Use actualRayCount for angle step calculation
         const angleStep = actualRayCount > 1 ? this.fanAngleRad / (actualRayCount - 1) : 0;
-        // console.log(`  StartAngle=${(startAngleRad * 180 / Math.PI).toFixed(1)}deg, Step=${(angleStep * 180 / Math.PI).toFixed(1)}deg`);
 
-        for (let i = 0; i < actualRayCount; i++) { // Loop up to actualRayCount
-            const currentAngleRad = actualRayCount === 1 ? this.angleRad : startAngleRad + i * angleStep; // Use actualRayCount
-            if (isNaN(currentAngleRad)) { console.error(`FanSource ${this.id}: NaN angle idx ${i}`); continue; }
-
+        for (let i = 0; i < actualRayCount; i++) {
+            const currentAngleRad = actualRayCount === 1 ? this.angleRad : startAngleRad + i * angleStep;
             const direction = Vector.fromAngle(currentAngleRad);
-            if (isNaN(direction.x) || isNaN(direction.y) || direction.magnitudeSquared() < 0.1) {
-                console.error(`FanSource ${this.id}: Invalid direction idx ${i}`); continue;
-            }
-
             const origin = this.pos.clone();
-            if (isNaN(origin.x) || isNaN(origin.y)) { console.error(`FanSource ${this.id}: NaN origin`); continue; }
 
             try {
-                const newRay = new RayClass(origin, direction, this.wavelength, intensityPerRay,
-                    0.0, // Initial Phase 0.0 for coherence
-                    0, N_AIR, this.id, null, this.ignoreDecay, this.beamDiameter // Pass beamDiameter
+                const newRay = new RayClass(
+                    origin, direction, this.wavelength, intensityPerRay,
+                    0.0, 0, N_AIR, this.id, null, this.ignoreDecay, null, this.beamDiameter
                 );
-                // Basic validation (can be removed if confident)
-                if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x) || isNaN(newRay.direction?.x)) {
-                    console.error(`FanSource ${this.id}: Failed to create valid ray idx ${i}`); continue;
-                }
-                rays.push(newRay);
 
+                // --- NEW: Set Jones Vector based on Polarization Type ---
+                switch (this.polarizationType) {
+                    case 'linear':
+                        newRay.setLinearPolarization(this.polarizationAngleRad);
+                        break;
+                    case 'circular-right':
+                        newRay.setCircularPolarization(true);
+                        break;
+                    case 'circular-left':
+                        newRay.setCircularPolarization(false);
+                        break;
+                    case 'unpolarized':
+                    default:
+                        newRay.setUnpolarized();
+                        break;
+                }
+
+                rays.push(newRay);
             } catch (e) { console.error(`FanSource (${this.id}) Error creating Ray idx ${i}:`, e); }
         }
-        // console.log(`[FanSource ${this.id}] generateRays FINISHED. Returning ${rays.length} rays (limited by setting: ${window.maxRaysPerSource}).`); // Less noisy log
         return rays;
     }
 
-
     draw(ctx) {
-        // Draw center point
         ctx.fillStyle = this.enabled ? (this._rayColor || 'magenta') : 'dimgray';
         ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 5, 0, Math.PI * 2); ctx.fill();
-
-        // Draw fan arc outline
         const radius = 20; const o = this.angleRad, hfa = this.fanAngleRad / 2, sa = o - hfa, ea = o + hfa;
         ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.8)' : 'rgba(150, 150, 150, 0.6)';
         ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.pos.x, this.pos.y);
-        // Ensure start/end angles are correct for arc drawing direction
         ctx.arc(this.pos.x, this.pos.y, radius, sa, ea);
         ctx.closePath(); ctx.stroke();
     }
 
+    _containsPointBody(point) {
+        if (!point || !(this.pos instanceof Vector)) return false;
+        return point.distanceSquaredTo(this.pos) < 25; // 5px radius
+    }
+
     getBoundingBox() {
-        // Bounding box around the center point and the arc
-        const radius = 25; // Slightly larger than draw radius
+        const radius = 25;
         return {
             x: this.pos.x - radius, y: this.pos.y - radius,
             width: radius * 2, height: radius * 2
         };
     }
 
-    _containsPointBody(point) {
-        // Check near center point
-        if (!point || !(this.pos instanceof Vector)) return false;
-        return point.distanceSquaredTo(this.pos) < 25; // 5px radius
-    }
-
-
     getProperties() {
-        // console.log(`[FanSource ${this.id}] Getting properties...`); // DEBUG
-        let baseProps;
-        try {
-            baseProps = super.getProperties();
-            if (!baseProps || typeof baseProps !== 'object') baseProps = {};
-        } catch (e) { console.error(` !!! Error getting base properties for FanSource ${this.id}:`, e); baseProps = {}; }
-
+        const baseProps = super.getProperties();
         const props = {
             ...baseProps,
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
-            wavelength: { value: this.wavelength ?? DEFAULT_WAVELENGTH_NM, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
-            intensity: { value: (typeof this.intensity === 'number' ? this.intensity.toFixed(2) : '0.00'), label: '强度', type: 'number', min: 0, max: 50, step: 0.1 },
-            rayCount: { value: this.rayCount ?? 201, label: '#射线', type: 'number', min: 1, max: 1001, step: 10 }, // Use this.rayCount
-            fanAngleDeg: { value: (typeof this.fanAngleRad === 'number' ? (this.fanAngleRad * 180 / Math.PI).toFixed(1) : '30.0'), label: '扇形角 (°)', type: 'number', min: 1, max: 360, step: 1 },
+            wavelength: { value: this.wavelength, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
+            intensity: { value: this.intensity.toFixed(2), label: '强度', type: 'number', min: 0, max: 50, step: 0.1 },
+            rayCount: { value: this.rayCount, label: '#射线', type: 'number', min: 1, max: 1001, step: 10 },
+            fanAngleDeg: { value: (this.fanAngleRad * 180 / Math.PI).toFixed(1), label: '扇形角 (°)', type: 'number', min: 1, max: 360, step: 1 },
+            
+            // --- NEW Polarization UI ---
+            polarizationType: {
+                value: this.polarizationType || 'unpolarized',
+                label: '偏振类型',
+                type: 'select',
+                options: [
+                    { value: 'unpolarized', label: '非偏振光' },
+                    { value: 'linear', label: '线偏振光' },
+                    { value: 'circular-right', label: '右旋圆偏振' },
+                    { value: 'circular-left', label: '左旋圆偏振' }
+                ]
+            },
+            // --- End New Polarization UI ---
+
             ignoreDecay: { value: !!this.ignoreDecay, label: '强度不衰减', type: 'checkbox' },
-            beamDiameter: { value: (typeof this.beamDiameter === 'number' ? this.beamDiameter.toFixed(1) : '1.0'), label: '光束直径 (px)', type: 'number', min: 0, step: 0.5 },
+            beamDiameter: { value: this.beamDiameter.toFixed(1), label: '光束直径 (px)', type: 'number', min: 0, step: 0.5 },
         };
-        // console.log(`[FanSource ${this.id}] Properties generated:`, props); // DEBUG
+
+        // Conditionally add polarization angle control
+        if (this.polarizationType === 'linear') {
+            props.polarizationAngleDeg = {
+                value: (this.polarizationAngleRad * 180 / Math.PI).toFixed(1),
+                label: '↳ 偏振角度 (°)',
+                type: 'number',
+                step: 1
+            };
+        }
+
         return props;
     }
 
     setProperty(propName, value) {
         if (super.setProperty(propName, value)) { return true; }
 
-        let needsColorUpdate = false, needsRayUpdate = false;
-        try {
-            switch (propName) {
-                case 'enabled': const n = !!value; if (this.enabled !== n) { this.enabled = n; needsRayUpdate = true; } break;
-                case 'wavelength': const w = parseFloat(value); if (!isNaN(w)) { const c = Math.max(380, Math.min(750, w)); if (Math.abs(c - this.wavelength) > 1e-6) { this.wavelength = c; needsColorUpdate = true; needsRayUpdate = true; } } break;
-                case 'intensity': const i = parseFloat(value); if (!isNaN(i)) { const c = Math.max(0, i); if (Math.abs(c - this.intensity) > 1e-6) { this.intensity = c; needsColorUpdate = true; needsRayUpdate = true; } } break;
-                case 'rayCount': // Use this.rayCount
-                    const r = parseInt(value);
-                    if (!isNaN(r)) {
-                        const c = Math.max(1, Math.min(1001, r));
-                        if (c !== this.rayCount) {
-                            this.rayCount = c;
-                            needsRayUpdate = true;
-                        }
-                    }
-                    break;
-                case 'fanAngleDeg': const a = parseFloat(value); if (!isNaN(a)) { const c = Math.max(1, Math.min(360, a)) * Math.PI / 180; if (Math.abs(c - this.fanAngleRad) > 1e-6) { this.fanAngleRad = c; needsRayUpdate = true; } } break;
-                case 'ignoreDecay': const d = !!value; if (this.ignoreDecay !== d) { this.ignoreDecay = d; needsRayUpdate = true; } break;
-                case 'beamDiameter': // Add handling for beamDiameter if needed
-                    const bd = parseFloat(value);
-                    if (!isNaN(bd) && bd >= 0) {
-                        if (Math.abs(bd - this.beamDiameter) > 1e-6) {
-                            this.beamDiameter = bd;
-                            needsRayUpdate = true; // Changing diameter should update rays
-                        }
-                    }
-                    break;
-                default: return false;
-            }
-        } catch (e) { console.error(`Error setting FanSource prop ${propName}:`, e); return false; }
+        let needsRetraceUpdate = false;
+        let needsInspectorRefresh = false;
 
-        if (needsColorUpdate) { try { this._rayColor = this.calculateRayColor(); } catch (e) { console.error("Error updating FanSource color:", e); } }
-        if (needsRayUpdate) { needsRetrace = true; }
+        switch (propName) {
+            case 'enabled': this.enabled = !!value; needsRetraceUpdate = true; break;
+            case 'wavelength': this.wavelength = Math.max(380, Math.min(750, parseFloat(value))); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'intensity': this.intensity = Math.max(0, parseFloat(value)); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'rayCount': this.rayCount = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'fanAngleDeg': this.fanAngleRad = Math.max(1, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
+            case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
+            case 'beamDiameter': this.beamDiameter = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
+            
+            // --- NEW Polarization Handling ---
+            case 'polarizationType':
+                if (this.polarizationType !== value) {
+                    this.polarizationType = value;
+                    needsRetraceUpdate = true;
+                    needsInspectorRefresh = true;
+                }
+                break;
+            case 'polarizationAngleDeg':
+                const newAngleDeg = parseFloat(value);
+                if (!isNaN(newAngleDeg)) {
+                    this.polarizationAngleRad = newAngleDeg * (Math.PI / 180);
+                    needsRetraceUpdate = true;
+                }
+                break;
+            // --- End New Handling ---
+            
+            default: return false;
+        }
+
+        if (needsRetraceUpdate) {
+            needsRetrace = true;
+        }
+        if (needsInspectorRefresh && selectedComponent === this) {
+            updateInspector();
+        }
         return true;
     }
 }
+// --- END OF REPLACEMENT: FanSource Class ---
 
-// --- LineSource ---
+
+// --- START OF REPLACEMENT: LineSource Class (Polarization Overhaul) ---
 class LineSource extends GameObject {
     static functionDescription = "沿线段分布发射多束光线，用于面源近似。";
-    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 10.0, rayCount = 201, length = 50, enabled = true, ignoreDecay = false, beamDiameter = 1.0) {
+    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 10.0, rayCount = 201, length = 50, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 1.0) {
         super(pos, angleDeg, "线光源");
         this.wavelength = wavelength;
         this.intensity = Math.max(0, intensity);
-        this.rayCount = Math.max(1, rayCount); // Use this.rayCount for storage
+        this.rayCount = Math.max(1, rayCount);
         this.length = Math.max(1, length);
         this.enabled = enabled;
+
+        // --- NEW Polarization Properties ---
+        this.polarizationType = polarizationType; // 'unpolarized', 'linear', 'circular-right', 'circular-left'
+        this.polarizationAngleRad = polarizationAngleDeg * (Math.PI / 180); // Only for 'linear'
+
         this.ignoreDecay = ignoreDecay;
-        this.beamDiameter = beamDiameter; // Store beamDiameter
+        this.beamDiameter = beamDiameter;
 
         this.p1 = this.pos.clone();
         this.p2 = this.pos.clone();
@@ -881,12 +825,16 @@ class LineSource extends GameObject {
             rayCount: this.rayCount,
             length: this.length,
             enabled: this.enabled,
+            // --- NEW Polarization Data ---
+            polarizationType: this.polarizationType,
+            polarizationAngleDeg: this.polarizationAngleRad * 180 / Math.PI,
+            // --- End New Data ---
             ignoreDecay: this.ignoreDecay,
             beamDiameter: this.beamDiameter
         };
     }
 
-    calculateRayColor() { // Same as LaserSource
+    calculateRayColor() {
         const wl = this.wavelength; let r = 0, g = 0, b = 0;
         if (wl >= 380 && wl < 440) { r = -(wl - 440) / (440 - 380); b = 1.0; } else if (wl >= 440 && wl < 490) { g = (wl - 440) / (490 - 440); b = 1.0; } else if (wl >= 490 && wl < 510) { g = 1.0; b = -(wl - 510) / (510 - 490); } else if (wl >= 510 && wl < 580) { r = (wl - 510) / (580 - 510); g = 1.0; } else if (wl >= 580 && wl < 645) { r = 1.0; g = -(wl - 645) / (645 - 580); } else if (wl >= 645 && wl <= 750) { r = 1.0; }
         const f = 0.3 + 0.7 * Math.min(1, this.intensity); r = Math.min(255, Math.max(0, Math.round(r * 255 * f))); g = Math.min(255, Math.max(0, Math.round(g * 255 * f))); b = Math.min(255, Math.max(0, Math.round(b * 255 * f)));
@@ -901,75 +849,53 @@ class LineSource extends GameObject {
         this.p2 = this.pos.add(halfLenVec);
     }
 
-    _updateGeometry() {
-        console.log(`[LineSource ${this.id}] _updateGeometry called. Pos: (${this.pos?.x.toFixed(1)},${this.pos?.y.toFixed(1)}), Angle: ${(this.angleRad * 180 / Math.PI).toFixed(1)}, Length: ${this.length}`); // DEBUG
-        if (!(this.pos instanceof Vector) || typeof this.angleRad !== 'number' || typeof this.length !== 'number') {
-            console.error("  !!! Invalid state for geometry update."); // DEBUG
-            return;
-        }
-        const lineDir = Vector.fromAngle(this.angleRad);
-        const halfLenVec = lineDir.multiply(this.length / 2);
-        this.p1 = this.pos.subtract(halfLenVec);
-        this.p2 = this.pos.add(halfLenVec);
-        // --- DEBUG: Log calculated points ---
-        if (isNaN(this.p1?.x) || isNaN(this.p2?.x)) {
-            console.error(`  !!! Calculated NaN endpoints: p1=(${this.p1?.x}, ${this.p1?.y}), p2=(${this.p2?.x}, ${this.p2?.y})`);
-        } else {
-            console.log(`  Updated endpoints: p1=(${this.p1.x.toFixed(1)}, ${this.p1.y.toFixed(1)}), p2=(${this.p2.x.toFixed(1)}, ${this.p2.y.toFixed(1)})`); // DEBUG
-        }
-        // --- END DEBUG ---
-    }
-
     onAngleChanged() { try { this._updateGeometry(); } catch (e) { console.error("LineSource AngleChange Err:", e); } }
     onPositionChanged() { try { this._updateGeometry(); } catch (e) { console.error("LineSource PosChange Err:", e); } }
 
     generateRays(RayClass) {
-        // --- Limit ray count based on global setting ---
-        const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001); // Use global setting
-        // --- End Limit ---
-
-        // Use actualRayCount instead of this.rayCount in the rest of the function logic
-        if (!this.enabled || actualRayCount <= 0 || typeof RayClass === 'undefined' || // Use actualRayCount
-            !(this.p1 instanceof Vector) || !(this.p2 instanceof Vector) || isNaN(this.p1.x) || isNaN(this.p2.x)) {
-            // console.log(`[LineSource ${this.id}] generateRays skipped (enabled=${this.enabled}, actualRayCount=${actualRayCount}, geom valid=${this.p1 instanceof Vector && !isNaN(this.p1.x)})`); // Less noisy
+        const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001);
+        if (!this.enabled || actualRayCount <= 0 || !this.p1 || !this.p2 || isNaN(this.p1.x)) {
             return [];
         }
-        // console.log(`[LineSource ${this.id}] generateRays STARTING (actualRayCount=${actualRayCount}, ...)`); // Less noisy
 
         const rays = [];
-        const intensityPerRay = this.intensity > 0 && actualRayCount > 0 ? this.intensity / actualRayCount : 0; // Use actualRayCount
-        // console.log(`  Intensity per ray: ${intensityPerRay.toFixed(4)}`);
-
+        const intensityPerRay = this.intensity / actualRayCount;
         const emissionAngleRad = this.angleRad + Math.PI / 2;
         const emissionDirection = Vector.fromAngle(emissionAngleRad);
-        if (isNaN(emissionDirection.x)) { console.error(`LineSource ${this.id}: NaN emission direction`); return []; }
-        // console.log(`  Emission Direction: (${emissionDirection.x.toFixed(3)}, ${emissionDirection.y.toFixed(3)})`);
-
-        // Use actualRayCount for interpolation step
         const numSegments = actualRayCount > 1 ? actualRayCount - 1 : 1;
 
-        for (let i = 0; i < actualRayCount; i++) { // Loop up to actualRayCount
-            const t = actualRayCount === 1 ? 0.5 : i / numSegments; // Use actualRayCount
+        for (let i = 0; i < actualRayCount; i++) {
+            const t = actualRayCount === 1 ? 0.5 : i / numSegments;
             const origin = Vector.lerp(this.p1, this.p2, t);
-            if (isNaN(origin.x) || isNaN(origin.y)) { console.error(`LineSource ${this.id}: NaN origin idx ${i}`); continue; }
 
             try {
-                const newRay = new RayClass(origin, emissionDirection.clone(), this.wavelength, intensityPerRay,
-                    0.0, // Initial Phase 0.0 for coherence
-                    0, N_AIR, this.id, null, this.ignoreDecay, this.beamDiameter // Pass beamDiameter
+                const newRay = new RayClass(
+                    origin, emissionDirection.clone(), this.wavelength, intensityPerRay,
+                    0.0, 0, N_AIR, this.id, null, this.ignoreDecay, null, this.beamDiameter
                 );
-                // Basic validation
-                if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x) || isNaN(newRay.direction?.x)) {
-                    console.error(`LineSource ${this.id}: Failed to create valid ray idx ${i}`); continue;
-                }
-                rays.push(newRay);
 
+                // --- NEW: Set Jones Vector based on Polarization Type ---
+                switch (this.polarizationType) {
+                    case 'linear':
+                        newRay.setLinearPolarization(this.polarizationAngleRad);
+                        break;
+                    case 'circular-right':
+                        newRay.setCircularPolarization(true);
+                        break;
+                    case 'circular-left':
+                        newRay.setCircularPolarization(false);
+                        break;
+                    case 'unpolarized':
+                    default:
+                        newRay.setUnpolarized();
+                        break;
+                }
+
+                rays.push(newRay);
             } catch (e) { console.error(`LineSource (${this.id}) Error creating Ray idx ${i}:`, e); }
         }
-        // console.log(`[LineSource ${this.id}] generateRays FINISHED. Returning ${rays.length} rays (limited by setting: ${window.maxRaysPerSource}).`); // Less noisy
         return rays;
     }
-
 
     draw(ctx) {
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return;
@@ -977,170 +903,181 @@ class LineSource extends GameObject {
         ctx.lineWidth = this.selected ? 3 : 2;
         ctx.beginPath(); ctx.moveTo(this.p1.x, this.p1.y); ctx.lineTo(this.p2.x, this.p2.y); ctx.stroke();
 
-        // Draw center point (optional, but helps locate)
         ctx.fillStyle = this.selected ? 'yellow' : ctx.strokeStyle;
         ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, 3, 0, 2 * Math.PI); ctx.fill();
     }
 
-    getBoundingBox() {
-        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return super.getBoundingBox(); // Fallback
-        // Calculate bounding box containing the line segment
-        const minX = Math.min(this.p1.x, this.p2.x); const maxX = Math.max(this.p1.x, this.p2.x);
-        const minY = Math.min(this.p1.y, this.p2.y); const maxY = Math.max(this.p1.y, this.p2.y);
-        const buffer = 5; // Click buffer
-        return {
-            x: minX - buffer, y: minY - buffer,
-            width: (maxX - minX) + 2 * buffer, height: (maxY - minY) + 2 * buffer
-        };
-    }
-
     _containsPointBody(point) {
         if (!point || !(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return false;
-        // Point-to-line-segment distance check
         const lenSq = this.p1.distanceSquaredTo(this.p2);
-        if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25; // Treat as point if length is near zero
-
+        if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25;
         const p1_to_point = point.subtract(this.p1);
         const p1_to_p2 = this.p2.subtract(this.p1);
         const t = p1_to_point.dot(p1_to_p2) / lenSq;
-        const clampedT = Math.max(0, Math.min(1, t)); // Clamp projection onto segment
-
+        const clampedT = Math.max(0, Math.min(1, t));
         const closestPoint = this.p1.add(p1_to_p2.multiply(clampedT));
-        return point.distanceSquaredTo(closestPoint) < 25; // 5px radius check
+        return point.distanceSquaredTo(closestPoint) < 25;
+    }
+
+    getBoundingBox() {
+        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return super.getBoundingBox();
+        const minX = Math.min(this.p1.x, this.p2.x); const maxX = Math.max(this.p1.x, this.p2.x);
+        const minY = Math.min(this.p1.y, this.p2.y); const maxY = Math.max(this.p1.y, this.p2.y);
+        const buffer = 5;
+        return { x: minX - buffer, y: minY - buffer, width: (maxX - minX) + 2 * buffer, height: (maxY - minY) + 2 * buffer };
     }
 
     getProperties() {
-        // console.log(`[LineSource ${this.id}] Getting properties...`); // DEBUG
-        let baseProps;
-        try {
-            baseProps = super.getProperties();
-            if (!baseProps || typeof baseProps !== 'object') baseProps = {};
-        } catch (e) { console.error(` !!! Error getting base properties for LineSource ${this.id}:`, e); baseProps = {}; }
-
+        const baseProps = super.getProperties();
         const props = {
             ...baseProps,
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
-            wavelength: { value: this.wavelength ?? DEFAULT_WAVELENGTH_NM, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
-            intensity: { value: (typeof this.intensity === 'number' ? this.intensity.toFixed(2) : '0.00'), label: '强度', type: 'number', min: 0, max: 50, step: 0.1 },
-            rayCount: { value: this.rayCount ?? 201, label: '#射线', type: 'number', min: 1, max: 1001, step: 10 }, // Use this.rayCount
-            length: { value: (typeof this.length === 'number' ? this.length.toFixed(1) : '50.0'), label: '长度', type: 'number', min: 1, max: 1000, step: 1 },
+            wavelength: { value: this.wavelength, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
+            intensity: { value: this.intensity.toFixed(2), label: '强度', type: 'number', min: 0, max: 50, step: 0.1 },
+            rayCount: { value: this.rayCount, label: '#射线', type: 'number', min: 1, max: 1001, step: 10 },
+            length: { value: this.length.toFixed(1), label: '长度', type: 'number', min: 1, max: 1000, step: 1 },
+            
+            // --- NEW Polarization UI ---
+            polarizationType: {
+                value: this.polarizationType || 'unpolarized',
+                label: '偏振类型',
+                type: 'select',
+                options: [
+                    { value: 'unpolarized', label: '非偏振光' },
+                    { value: 'linear', label: '线偏振光' },
+                    { value: 'circular-right', label: '右旋圆偏振' },
+                    { value: 'circular-left', label: '左旋圆偏振' }
+                ]
+            },
+            // --- End New Polarization UI ---
+
             ignoreDecay: { value: !!this.ignoreDecay, label: '强度不衰减', type: 'checkbox' },
-            beamDiameter: { value: (typeof this.beamDiameter === 'number' ? this.beamDiameter.toFixed(1) : '1.0'), label: '光束直径 (px)', type: 'number', min: 0, step: 0.5 },
+            beamDiameter: { value: this.beamDiameter.toFixed(1), label: '光束直径 (px)', type: 'number', min: 0, step: 0.5 },
         };
-        // console.log(`[LineSource ${this.id}] Properties generated:`, props); // DEBUG
+
+        // Conditionally add polarization angle control
+        if (this.polarizationType === 'linear') {
+            props.polarizationAngleDeg = {
+                value: (this.polarizationAngleRad * 180 / Math.PI).toFixed(1),
+                label: '↳ 偏振角度 (°)',
+                type: 'number',
+                step: 1
+            };
+        }
+
         return props;
     }
 
     setProperty(propName, value) {
         if (super.setProperty(propName, value)) { return true; }
 
-        let needsColorUpdate = false, needsRayUpdate = false, needsGeomUpdate = false;
-        try {
-            switch (propName) {
-                case 'enabled': const n = !!value; if (this.enabled !== n) { this.enabled = n; needsRayUpdate = true; } break;
-                case 'wavelength': const w = parseFloat(value); if (!isNaN(w)) { const c = Math.max(380, Math.min(750, w)); if (Math.abs(c - this.wavelength) > 1e-6) { this.wavelength = c; needsColorUpdate = true; needsRayUpdate = true; } } break;
-                case 'intensity': const i = parseFloat(value); if (!isNaN(i)) { const c = Math.max(0, i); if (Math.abs(c - this.intensity) > 1e-6) { this.intensity = c; needsColorUpdate = true; needsRayUpdate = true; } } break;
-                case 'rayCount': // Use this.rayCount
-                    const r = parseInt(value);
-                    if (!isNaN(r)) {
-                        const c = Math.max(1, Math.min(1001, r));
-                        if (c !== this.rayCount) {
-                            this.rayCount = c;
-                            needsRayUpdate = true;
-                        }
-                    }
-                    break;
-                case 'length': const l = parseFloat(value); if (!isNaN(l)) { const c = Math.max(1, l); if (Math.abs(c - this.length) > 1e-6) { this.length = c; needsGeomUpdate = true; needsRayUpdate = true; } } break; // Length change also needs ray update for origins
-                case 'ignoreDecay': const d = !!value; if (this.ignoreDecay !== d) { this.ignoreDecay = d; needsRayUpdate = true; } break;
-                case 'beamDiameter': // Add handling for beamDiameter
-                    const bd = parseFloat(value);
-                    if (!isNaN(bd) && bd >= 0) {
-                        if (Math.abs(bd - this.beamDiameter) > 1e-6) {
-                            this.beamDiameter = bd;
-                            needsRayUpdate = true;
-                        }
-                    }
-                    break;
-                default: return false;
-            }
-        } catch (e) { console.error(`Error setting LineSource prop ${propName}:`, e); return false; }
+        let needsRetraceUpdate = false;
+        let needsInspectorRefresh = false;
+        let needsGeomUpdate = false;
 
-        if (needsColorUpdate) { try { this._rayColor = this.calculateRayColor(); } catch (e) { console.error("Error updating LineSource color:", e); } }
+        switch (propName) {
+            case 'enabled': this.enabled = !!value; needsRetraceUpdate = true; break;
+            case 'wavelength': this.wavelength = Math.max(380, Math.min(750, parseFloat(value))); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'intensity': this.intensity = Math.max(0, parseFloat(value)); this._rayColor = this.calculateRayColor(); needsRetraceUpdate = true; break;
+            case 'rayCount': this.rayCount = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'length': this.length = Math.max(1, parseFloat(value)); needsGeomUpdate = true; break;
+            case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
+            case 'beamDiameter': this.beamDiameter = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
+
+            // --- NEW Polarization Handling ---
+            case 'polarizationType':
+                if (this.polarizationType !== value) {
+                    this.polarizationType = value;
+                    needsRetraceUpdate = true;
+                    needsInspectorRefresh = true;
+                }
+                break;
+            case 'polarizationAngleDeg':
+                const newAngleDeg = parseFloat(value);
+                if (!isNaN(newAngleDeg)) {
+                    this.polarizationAngleRad = newAngleDeg * (Math.PI / 180);
+                    needsRetraceUpdate = true;
+                }
+                break;
+            // --- End New Handling ---
+            
+            default: return false;
+        }
+
         if (needsGeomUpdate) {
-            try { this._updateGeometry(); } catch (e) { console.error("Error updating LineSource geometry in setProperty:", e); }
-            needsRetrace = true; // Geometry change requires retrace
-        } else if (needsRayUpdate) { // Only set retrace if geometry didn't already set it
+            this._updateGeometry();
             needsRetrace = true;
+        }
+        if (needsRetraceUpdate) {
+            needsRetrace = true;
+        }
+        if (needsInspectorRefresh && selectedComponent === this) {
+            updateInspector();
         }
         return true;
     }
-
 }
+// --- END OF REPLACEMENT: LineSource Class ---
 
 
-
-// --- START OF REPLACEMENT: WhiteLightSource Class (V3 - Gaussian Enabled, Defaults Adjusted) ---
-
+// --- START OF REPLACEMENT: WhiteLightSource Class (Polarization Overhaul) ---
 class WhiteLightSource extends GameObject {
     static functionDescription = "发射包含可见光谱的宽带光线，可观察色散。";
-    constructor(pos, angleDeg = 0, intensity = 75.0, rayCount = 41, spreadDeg = 0, enabled = true, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) { // Updated Defaults
-        // Determine initial label based on default gaussianEnabled = true
-        super(pos, angleDeg, "白光光源(高斯)"); // Default label assumes Gaussian
+    constructor(pos, angleDeg = 0, intensity = 75.0, rayCount = 41, spreadDeg = 0, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) {
+        super(pos, angleDeg, "白光光源");
 
         this.baseIntensity = Math.max(0, intensity);
-        this.rayCount = Math.max(1, rayCount); // User-set desired number of rays/directions
+        this.rayCount = Math.max(1, rayCount);
         this.spreadRad = spreadDeg * (Math.PI / 180);
         this.enabled = enabled;
+
+        // --- NEW Polarization Properties ---
+        this.polarizationType = polarizationType; // 'unpolarized', 'linear', 'circular-right', 'circular-left'
+        this.polarizationAngleRad = polarizationAngleDeg * (Math.PI / 180); // Only for 'linear'
+        
         this.ignoreDecay = ignoreDecay;
+        this.beamDiameter = Math.max(0, beamDiameter);
+        this.initialBeamWaist = initialBeamWaist;
+        this.gaussianEnabled = true;
 
-        // Beam Geometry Properties
-        this.beamDiameter = Math.max(0, beamDiameter); // Used in geometric mode
-        this.initialBeamWaist = initialBeamWaist; // w0, used in Gaussian mode
-        this.gaussianEnabled = true; // <<< DEFAULT to Gaussian mode ON
-
-        // Ensure the label is correct based on the initial gaussianEnabled state
         this.label = this.gaussianEnabled ? "白光光源(高斯)" : "白光光源(几何)";
 
-        // --- Spectrum Definition ---
-        // (Using a slightly smoother distribution)
         this.componentWavelengths = [
             { wl: 380, factor: 0.05 }, { wl: 400, factor: 0.2 }, { wl: 420, factor: 0.5 },
             { wl: 440, factor: 0.9 }, { wl: 460, factor: 1.05 }, { wl: 480, factor: 1.1 },
             { wl: 500, factor: 1.2 }, { wl: 520, factor: 1.3 }, { wl: 540, factor: 1.4 },
-            { wl: 555, factor: 1.4 }, // Peak slightly shifted
+            { wl: 555, factor: 1.4 },
             { wl: 570, factor: 1.3 }, { wl: 590, factor: 1.2 }, { wl: 610, factor: 1.1 },
             { wl: 630, factor: 0.95 }, { wl: 650, factor: 0.8 }, { wl: 670, factor: 0.6 },
             { wl: 690, factor: 0.4 }, { wl: 710, factor: 0.2 }, { wl: 730, factor: 0.1 },
-            { wl: 750, factor: 0.05 } // Include edge
+            { wl: 750, factor: 0.05 }
         ];
         this.numWavelengths = this.componentWavelengths.length;
-        this._updateCumulativeDistribution(); // Calculate distribution table
+        this._updateCumulativeDistribution();
     }
 
-    // --- Add inside WhiteLightSource class ---
     toJSON() {
         const baseData = super.toJSON();
         return {
             ...baseData,
-            baseIntensity: this.baseIntensity, // Use baseIntensity
+            baseIntensity: this.baseIntensity,
             rayCount: this.rayCount,
-            spreadDeg: this.spreadRad * (180 / Math.PI), // Save in degrees
+            spreadDeg: this.spreadRad * (180 / Math.PI),
             enabled: this.enabled,
+            // --- NEW Polarization Data ---
+            polarizationType: this.polarizationType,
+            polarizationAngleDeg: this.polarizationAngleRad * (180 / Math.PI),
+            // --- End New Data ---
             ignoreDecay: this.ignoreDecay,
-            beamDiameter: this.beamDiameter, 
+            beamDiameter: this.beamDiameter,
             initialBeamWaist: this.initialBeamWaist,
             gaussianEnabled: this.gaussianEnabled
-            // No need to save spectrum definition, it's constant
         };
     }
 
-
-    // Helper to calculate cumulative distribution for weighted sampling
     _updateCumulativeDistribution() {
         this.totalIntensityFactorSum = this.componentWavelengths.reduce((sum, comp) => sum + comp.factor, 0);
         if (this.totalIntensityFactorSum <= 1e-9) {
-            console.warn("WhiteLightSource: Total intensity factor sum is zero. Using uniform distribution.");
-            // Handle uniform distribution: assign equal probability
             this.cumulativeDistribution = this.componentWavelengths.map((comp, index) => ({
                 wl: comp.wl,
                 cdf: (index + 1) / this.numWavelengths
@@ -1152,17 +1089,15 @@ class WhiteLightSource extends GameObject {
                 cumulative += comp.factor / this.totalIntensityFactorSum;
                 this.cumulativeDistribution.push({ wl: comp.wl, cdf: cumulative });
             }
-            // Ensure the last value is exactly 1.0
             if (this.cumulativeDistribution.length > 0) {
                 this.cumulativeDistribution[this.cumulativeDistribution.length - 1].cdf = 1.0;
             }
         }
     }
 
-    // Helper to select a wavelength based on the distribution
     _selectWavelength() {
         if (!this.cumulativeDistribution || this.cumulativeDistribution.length === 0) {
-            return DEFAULT_WAVELENGTH_NM; // Fallback
+            return DEFAULT_WAVELENGTH_NM;
         }
         const randomSample = Math.random();
         for (const dist of this.cumulativeDistribution) {
@@ -1170,125 +1105,86 @@ class WhiteLightSource extends GameObject {
                 return dist.wl;
             }
         }
-        // Fallback in case of rounding errors (shouldn't happen if last cdf is 1.0)
         return this.cumulativeDistribution[this.cumulativeDistribution.length - 1].wl;
     }
 
-    // --- REPLACEMENT for WhiteLightSource.generateRays (V4 - Implements Fast Mode & Gaussian) ---
     generateRays(RayClass) {
-        // Limit number of directions/points by global setting
         const actualRayCount = Math.min(this.rayCount, window.maxRaysPerSource || 1001);
-
-        if (!this.enabled || actualRayCount <= 0 || typeof RayClass === 'undefined' || this.componentWavelengths.length === 0) {
+        if (!this.enabled || actualRayCount <= 0 || this.componentWavelengths.length === 0) {
             return [];
         }
 
-        // Check the global fast mode setting
-        const useFastMode = window.fastWhiteLightMode === true; // Explicitly check boolean true
-
-        // Log mode being used
-        console.log(`[WLS ${this.id}] Generating rays. Mode: ${useFastMode ? 'Fast (Random WL)' : 'Accurate (All WL)'}. Directions: ${actualRayCount}. Gaussian: ${this.gaussianEnabled}.`);
-
+        const useFastMode = window.fastWhiteLightMode === true;
         const rays = [];
         const halfSpreadRad = this.spreadRad / 2;
         const startAngle = this.angleRad - halfSpreadRad;
         const angleStep = (actualRayCount > 1 && this.spreadRad > 1e-9) ? this.spreadRad / (actualRayCount - 1) : 0;
+        const intensityPerPoint = this.baseIntensity / actualRayCount;
 
-        // Intensity per direction point (used differently in fast vs accurate)
-        const intensityPerPoint = this.baseIntensity > 0 && actualRayCount > 0 ? this.baseIntensity / actualRayCount : 0;
-
-        // Ensure totalIntensityFactorSum is valid for accurate mode intensity calculation
-        if (!useFastMode && this.totalIntensityFactorSum <= 1e-9) {
-            console.error(`WLS ${this.id}: Invalid totalIntensityFactorSum (${this.totalIntensityFactorSum}) in Accurate Mode. Cannot generate rays.`);
-            return [];
-        }
-
-        for (let i = 0; i < actualRayCount; i++) { // Loop through directions/points
+        for (let i = 0; i < actualRayCount; i++) {
             const angle = (actualRayCount === 1) ? this.angleRad : startAngle + i * angleStep;
             const direction = Vector.fromAngle(angle);
-            if (isNaN(direction.x)) continue; // Skip invalid directions
             const origin = this.pos.clone();
-            if (isNaN(origin.x)) continue; // Skip invalid origins
+            
+            let useGaussian = this.gaussianEnabled && this.initialBeamWaist > 1e-6;
+            let baseBeamWaist = useGaussian ? this.initialBeamWaist : null;
 
-            // --- Determine Gaussian Parameters (Common Logic) ---
-            let useGaussian = this.gaussianEnabled && this.initialBeamWaist !== null && this.initialBeamWaist > 1e-6;
-            let baseBeamWaist = useGaussian ? this.initialBeamWaist : null; // w0
-
-            // --- Helper to get zR for a specific wavelength ---
-            const calculateZR = (wavelengthNm) => {
-                if (!useGaussian || baseBeamWaist === null) return null;
-                const lambda_meters = wavelengthNm * 1e-9;
-                if (lambda_meters <= 1e-12) return null; // Invalid wavelength
-                const zR = (Math.PI * baseBeamWaist * baseBeamWaist) / lambda_meters;
-                return isNaN(zR) ? null : zR;
-            };
-            // --- End Helper ---
-
-
-            // === Branch based on Mode ===
-            if (useFastMode) {
-                // --- FAST MODE: One random ray per direction ---
-                const randomWavelength = this._selectWavelength();
-                const finalIntensity = intensityPerPoint; // Use average intensity for this point
-
-                if (finalIntensity >= MIN_RAY_INTENSITY || this.ignoreDecay) {
-                    const rayZR = calculateZR(randomWavelength);
-                    try {
-                        const newRay = new RayClass(
-                            origin.clone(), direction.clone(), randomWavelength,
-                            Math.max(0, finalIntensity), 0.0, // Phase 0.0
-                            0, N_AIR, this.id, null, this.ignoreDecay, null,
-                            this.beamDiameter, // Pass geometric diameter (Ray handles width calc)
-                            baseBeamWaist, // Pass w0 if Gaussian
-                            rayZR // Pass zR if Gaussian
-                        );
-                        if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x)) continue;
-                        rays.push(newRay);
-                    } catch (e) { console.error(`WLS (${this.id}) Error Fast Mode Ray (idx=${i}):`, e); }
+            const createRayWithPolarization = (wavelength, intensity) => {
+                let rayZR = null;
+                if (useGaussian) {
+                    const lambda_meters = wavelength * 1e-9;
+                    rayZR = (Math.PI * baseBeamWaist * baseBeamWaist) / lambda_meters;
+                    if (isNaN(rayZR)) return null;
                 }
 
-            } else {
-                // --- ACCURATE MODE: All wavelengths per direction ---
-                this.componentWavelengths.forEach(compWl => {
-                    // Intensity for this specific wavelength, normalized by factor sum
-                    const finalIntensity = intensityPerPoint * (compWl.factor / this.totalIntensityFactorSum);
+                try {
+                    const newRay = new RayClass(
+                        origin.clone(), direction.clone(), wavelength,
+                        Math.max(0, intensity), 0.0, 0, N_AIR, this.id, null,
+                        this.ignoreDecay, null, this.beamDiameter, baseBeamWaist, rayZR
+                    );
 
-                    if (finalIntensity >= MIN_RAY_INTENSITY || this.ignoreDecay) {
-                        const rayZR = calculateZR(compWl.wl); // Calculate zR for this specific wavelength
-                        try {
-                            const newRay = new RayClass(
-                                origin.clone(), direction.clone(), compWl.wl, // Use component wavelength
-                                Math.max(0, finalIntensity), 0.0, // Phase 0.0
-                                0, N_AIR, this.id, null, this.ignoreDecay, null,
-                                this.beamDiameter, // Pass geometric diameter
-                                baseBeamWaist, // Pass w0 if Gaussian
-                                rayZR // Pass specific zR if Gaussian
-                            );
-                            if (!newRay || !(newRay instanceof Ray) || isNaN(newRay.origin?.x)) return; // Skip if invalid ray created
-                            rays.push(newRay);
-                        } catch (e) { console.error(`WLS (${this.id}) Error Accurate Mode Ray (wl=${compWl.wl}, idx=${i}):`, e); }
+                    switch (this.polarizationType) {
+                        case 'linear': newRay.setLinearPolarization(this.polarizationAngleRad); break;
+                        case 'circular-right': newRay.setCircularPolarization(true); break;
+                        case 'circular-left': newRay.setCircularPolarization(false); break;
+                        default: newRay.setUnpolarized(); break;
                     }
-                }); // End wavelength loop (Accurate Mode)
-            } // End Mode Branch
-        } // End direction loop
+                    return newRay;
+                } catch (e) {
+                    console.error(`WhiteLightSource (${this.id}) Error creating Ray:`, e);
+                    return null;
+                }
+            };
 
-        console.log(`[WhiteLightSource ${this.id}] Generated ${rays.length} total rays.`);
+            if (useFastMode) {
+                const randomWavelength = this._selectWavelength();
+                const newRay = createRayWithPolarization(randomWavelength, intensityPerPoint);
+                if (newRay) rays.push(newRay);
+            } else {
+                this.componentWavelengths.forEach(compWl => {
+                    const finalIntensity = intensityPerPoint * (compWl.factor / this.totalIntensityFactorSum);
+                    if (finalIntensity >= MIN_RAY_INTENSITY || this.ignoreDecay) {
+                        const newRay = createRayWithPolarization(compWl.wl, finalIntensity);
+                        if (newRay) rays.push(newRay);
+                    }
+                });
+            }
+        }
         return rays;
     }
 
-    // Draw representation (simple white/gray circle)
     draw(ctx) {
         const drawColor = this.enabled ? `rgb(220, 220, 220)` : 'dimgray';
         ctx.fillStyle = drawColor;
         ctx.strokeStyle = this.selected ? 'yellow' : '#CCCCCC';
-        ctx.lineWidth = this.selected ? 2.5 : 1.5; // Slightly thicker when selected
+        ctx.lineWidth = this.selected ? 2.5 : 1.5;
 
         ctx.beginPath();
-        ctx.arc(this.pos.x, this.pos.y, 8, 0, Math.PI * 2); // Slightly larger radius
+        ctx.arc(this.pos.x, this.pos.y, 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Draw spread indicator (similar to FanSource)
         if (this.spreadRad > 1e-3) {
             const radius = 18; const o = this.angleRad; const hfa = this.spreadRad / 2;
             const sa = o - hfa; const ea = o + hfa;
@@ -1296,7 +1192,7 @@ class WhiteLightSource extends GameObject {
             ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.pos.x, this.pos.y);
             ctx.arc(this.pos.x, this.pos.y, radius, sa, ea);
             ctx.closePath(); ctx.stroke();
-        } else { // Draw direction line for collimated beam
+        } else {
             const dir = Vector.fromAngle(this.angleRad);
             const endPoint = this.pos.add(dir.multiply(18));
             ctx.strokeStyle = '#CCCCCC';
@@ -1305,105 +1201,117 @@ class WhiteLightSource extends GameObject {
         }
     }
 
-    // Bounding box for interaction
+    _containsPointBody(point) {
+        return point.distanceSquaredTo(this.pos) < 18 * 18;
+    }
+
     getBoundingBox() {
-        const size = 18; // Match drawing radius + buffer
+        const size = 18;
         return { x: this.pos.x - size, y: this.pos.y - size, width: size * 2, height: size * 2 };
     }
 
-    // Point containment check
-    _containsPointBody(point) {
-        return point.distanceSquaredTo(this.pos) < 18 * 18; // Click radius
-    }
-
-    // Get properties for inspector (V3 - Conditional Gaussian/Geometric Params)
     getProperties() {
-        const baseProps = super.getProperties(); // Gets posX, posY, angleDeg
-
+        const baseProps = super.getProperties();
         const props = {
             ...baseProps,
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
-            intensity: { value: (typeof this.baseIntensity === 'number' ? this.baseIntensity.toFixed(2) : '75.00'), label: '总强度', type: 'number', min: 0, max: 200, step: 1 },
-            rayCount: { value: this.rayCount ?? 41, label: '#方向/点数', type: 'number', min: 1, max: 1001, step: 10, title: '每个方向的光谱分量数取决于精确/快速模式' }, // Updated label slightly
-            spreadDeg: { value: (typeof this.spreadRad === 'number' ? (this.spreadRad * 180 / Math.PI).toFixed(1) : '0.0'), label: '发散角 (°)', type: 'number', min: 0, max: 180, step: 1 },
+            intensity: { value: this.baseIntensity.toFixed(2), label: '总强度', type: 'number', min: 0, max: 200, step: 1 },
+            rayCount: { value: this.rayCount, label: '#方向/点数', type: 'number', min: 1, max: 1001, step: 10, title: '每个方向的光谱分量数取决于精确/快速模式' },
+            spreadDeg: { value: (this.spreadRad * 180 / Math.PI).toFixed(1), label: '发散角 (°)', type: 'number', min: 0, max: 180, step: 1 },
+            
+            // --- NEW Polarization UI ---
+            polarizationType: {
+                value: this.polarizationType || 'unpolarized',
+                label: '偏振类型',
+                type: 'select',
+                options: [
+                    { value: 'unpolarized', label: '非偏振光' },
+                    { value: 'linear', label: '线偏振光' },
+                    { value: 'circular-right', label: '右旋圆偏振' },
+                    { value: 'circular-left', label: '左旋圆偏振' }
+                ]
+            },
+            // --- End New Polarization UI ---
+
             ignoreDecay: { value: !!this.ignoreDecay, label: '强度不衰减', type: 'checkbox' },
-            // --- Gaussian Mode Toggle ---
             gaussianEnabled: { value: !!this.gaussianEnabled, label: '高斯光束模式', type: 'checkbox' },
         };
-
-        // --- Conditionally add beam geometry properties ---
-        if (this.gaussianEnabled) {
-            props.initialBeamWaist = {
-                value: (typeof this.initialBeamWaist === 'number' && !isNaN(this.initialBeamWaist) ? this.initialBeamWaist.toFixed(2) : '5.00'),
-                label: '↳ 腰半径 w₀ (px)', type: 'number', min: 0.1, step: 0.1, placeholder: '输入正数'
+        
+        if (this.polarizationType === 'linear') {
+            props.polarizationAngleDeg = {
+                value: (this.polarizationAngleRad * 180 / Math.PI).toFixed(1),
+                label: '↳ 偏振角度 (°)',
+                type: 'number',
+                step: 1
             };
-            // DO NOT show beamDiameter when Gaussian is enabled
-        } else {
-            props.beamDiameter = {
-                value: (typeof this.beamDiameter === 'number' ? this.beamDiameter.toFixed(1) : '10.0'),
-                label: '光束直径 (px)', type: 'number', min: 0, step: 0.5
-            };
-            // DO NOT show initialBeamWaist when Gaussian is disabled
         }
-
-        // Read-only info about the spectrum simulation
+        
+        if (this.gaussianEnabled) {
+            props.initialBeamWaist = { value: this.initialBeamWaist.toFixed(2), label: '↳ 腰半径 w₀ (px)', type: 'number', min: 0.1, step: 0.1 };
+        } else {
+            props.beamDiameter = { value: this.beamDiameter.toFixed(1), label: '光束直径 (px)', type: 'number', min: 0, step: 0.5 };
+        }
+        
         props.wavelengthInfo = { value: `${this.numWavelengths}波长(模拟光谱)`, label: '光谱模拟', type: 'text', readonly: true };
 
         return props;
     }
 
-    // Set properties from inspector (V3 - Handle Gaussian Toggle and Params)
     setProperty(propName, value) {
-        // Let base class handle pos/angle first
         if (super.setProperty(propName, value)) { return true; }
 
-        let needsRayUpdate = false; // Flag if ray generation logic needs re-run
-        let needsInspectorRefresh = false; // Flag if UI needs update (e.g., label change)
+        let needsRetraceUpdate = false;
+        let needsInspectorRefresh = false;
 
         switch (propName) {
-            case 'enabled': const ne = !!value; if (this.enabled !== ne) { this.enabled = ne; needsRayUpdate = true; } break;
-            case 'intensity': const ni = parseFloat(value); if (!isNaN(ni)) { const c = Math.max(0, ni); if (Math.abs(c - this.baseIntensity) > 1e-6) { this.baseIntensity = c; needsRayUpdate = true; } } break;
-            case 'rayCount': const nc = parseInt(value); if (!isNaN(nc)) { const c = Math.max(1, Math.min(1001, nc)); if (c !== this.rayCount) { this.rayCount = c; needsRayUpdate = true; } } break;
-            case 'spreadDeg': const ns = parseFloat(value); if (!isNaN(ns)) { const r = Math.max(0, Math.min(180, ns)) * Math.PI / 180; if (Math.abs(r - this.spreadRad) > 1e-6) { this.spreadRad = r; needsRayUpdate = true; } } break;
-            case 'ignoreDecay': const nd = !!value; if (this.ignoreDecay !== nd) { this.ignoreDecay = nd; needsRayUpdate = true; } break;
-            case 'gaussianEnabled': // --- Handle Gaussian Toggle ---
-                const newGaussianState = !!value;
-                if (this.gaussianEnabled !== newGaussianState) {
-                    this.gaussianEnabled = newGaussianState;
-                    this.label = this.gaussianEnabled ? "白光光源(高斯)" : "白光光源(几何)"; // Update label
-                    needsRayUpdate = true;
-                    needsInspectorRefresh = true; // Need to refresh UI to show/hide correct params
+            case 'enabled': this.enabled = !!value; needsRetraceUpdate = true; break;
+            case 'intensity': this.baseIntensity = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
+            case 'rayCount': this.rayCount = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'spreadDeg': this.spreadRad = Math.max(0, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
+            case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
+            case 'gaussianEnabled':
+                if (this.gaussianEnabled !== !!value) {
+                    this.gaussianEnabled = !!value;
+                    this.label = this.gaussianEnabled ? "白光光源(高斯)" : "白光光源(几何)";
+                    needsInspectorRefresh = true;
+                    needsRetraceUpdate = true;
                 }
                 break;
-            case 'initialBeamWaist': // --- Handle Waist Input (only relevant if Gaussian enabled) ---
-                let newWaistValue = null;
-                const trimmedValueWaist = String(value).trim();
-                if (trimmedValueWaist === '') { newWaistValue = null; /* Or maybe default: 5.0? */ }
-                else { const bw = parseFloat(trimmedValueWaist); if (!isNaN(bw) && bw > 1e-6) { newWaistValue = bw; } else { return false; /* Invalid input */ } }
-                if (this.initialBeamWaist !== newWaistValue) { if (!(typeof this.initialBeamWaist === 'number' && typeof newWaistValue === 'number' && Math.abs(this.initialBeamWaist - newWaistValue) < 1e-6)) { this.initialBeamWaist = newWaistValue; if (this.gaussianEnabled) needsRayUpdate = true; } }
+            case 'initialBeamWaist': this.initialBeamWaist = Math.max(0.1, parseFloat(value)); needsRetraceUpdate = true; break;
+            case 'beamDiameter': this.beamDiameter = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
+            
+            // --- NEW Polarization Handling ---
+            case 'polarizationType':
+                if (this.polarizationType !== value) {
+                    this.polarizationType = value;
+                    needsRetraceUpdate = true;
+                    needsInspectorRefresh = true;
+                }
                 break;
-            case 'beamDiameter': // --- Handle Diameter Input (only relevant if Gaussian disabled) ---
-                const bd = parseFloat(value);
-                if (!isNaN(bd) && bd >= 0) { if (Math.abs(bd - this.beamDiameter) > 1e-6) { this.beamDiameter = bd; if (!this.gaussianEnabled) needsRayUpdate = true; } }
+            case 'polarizationAngleDeg':
+                const newAngleDeg = parseFloat(value);
+                if (!isNaN(newAngleDeg)) {
+                    this.polarizationAngleRad = newAngleDeg * (Math.PI / 180);
+                    needsRetraceUpdate = true;
+                }
                 break;
-            case 'wavelengthInfo': return true; // Read-only property
-            default: return false; // Property not handled here
+            // --- End New Handling ---
+
+            case 'wavelengthInfo': return true;
+            default: return false;
         }
 
-        // If ray generation parameters changed, flag for retrace
-        if (needsRayUpdate) { needsRetrace = true; }
-
-        // If inspector needs refresh (due to label change or conditional props), update it
+        if (needsRetraceUpdate) {
+            needsRetrace = true;
+        }
         if (needsInspectorRefresh && selectedComponent === this) {
             updateInspector();
         }
 
-        return true; // Indicate property was handled
+        return true;
     }
 }
-
 // --- END OF REPLACEMENT: WhiteLightSource Class ---
-
 
 
 // --- Mirror (Plane Mirror) ---
@@ -3371,55 +3279,73 @@ class Polarizer extends OpticalComponent {
     // --- REPLACEMENT for Polarizer.interact with Jones model ---
     interact(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const axis = this.transmissionAxisRad;
+        const axis = this.transmissionAxisRad; // 透振轴角度
 
-        // Ideal polarizer Jones projector along axis: P = R(-axis) * [[1,0],[0,0]] * R(axis)
-        let transmittedJones = null;
-        if (ray.hasJones && ray.hasJones()) {
-            const Rm = Ray._rot2(-axis);
-            const Rp = Ray._rot2(axis);
-            const J = [[{ re: 1, im: 0 }, { re: 0, im: 0 }], [{ re: 0, im: 0 }, { re: 0, im: 0 }]];
-            const vLocal = Ray._apply2x2(Rm, ray.jones);
-            const vProj = { Ex: Ray._cMul(J[0][0], vLocal.Ex), Ey: Ray._cMul(J[1][1], vLocal.Ey) };
-            transmittedJones = Ray._apply2x2(Rp, vProj);
-        }
+        // 确保入射光有琼斯矢量以供计算
+        ray.ensureJonesVector();
 
-        // If no Jones available, fall back to Malus or half for unpolarized
-        let transmittedIntensity;
-        if (transmittedJones) {
-            // Intensity scales by |Jones|^2 relative to input amplitude. Our ray intensity carries power; project power accordingly.
-            const inAmp2 = ray.jonesIntensity();
-            const outAmp2 = Ray._cAbs2(transmittedJones.Ex) + Ray._cAbs2(transmittedJones.Ey);
-            const scale = inAmp2 > 1e-12 ? (outAmp2 / inAmp2) : 0;
-            transmittedIntensity = ray.intensity * scale;
-        } else {
-            if (typeof ray.polarizationAngle === 'number') {
-                const cos2 = Math.cos(ray.polarizationAngle - axis);
-                transmittedIntensity = ray.intensity * (cos2 * cos2);
-            } else if (ray.polarizationAngle === 'circular' || ray.polarizationAngle === null) {
-                transmittedIntensity = ray.intensity * 0.5;
-            } else {
-                transmittedIntensity = 0;
+        // --- 处理非偏振光 (特殊情况) ---
+        if (!ray.hasJones()) {
+            // 如果光线是非偏振的 (jones is null)，通过偏振片后强度减半，并变为线性偏振
+            const transmittedIntensity = ray.intensity * 0.5;
+            let transmittedRay = null;
+
+            if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
+                const newDirection = ray.direction;
+                const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
+                try {
+                    transmittedRay = new RayClass(
+                        newOrigin, newDirection, ray.wavelengthNm,
+                        transmittedIntensity, ray.phase,
+                        ray.bouncesSoFar + 1, ray.mediumRefractiveIndex,
+                        ray.sourceId,
+                        axis, // 出射光偏振方向为透振轴方向
+                        ray.ignoreDecay,
+                        ray.history.concat([newOrigin.clone()])
+                    );
+                    transmittedRay.setLinearPolarization(axis); // 明确设置其琼斯矢量
+                } catch (e) { console.error(`Polarizer (${this.id}) create ray error for unpolarized light:`, e); }
             }
+            ray.terminate('polarized');
+            return transmittedRay ? [transmittedRay] : [];
         }
+
+        // --- 处理已有偏振的光 (使用琼斯矩阵) ---
+        // 理想偏振片的琼斯矩阵
+        const c = Math.cos(axis);
+        const s = Math.sin(axis);
+        const c2 = c * c;
+        const s2 = s * s;
+        const sc = s * c;
+        const J = [
+            [{ re: c2, im: 0 }, { re: sc, im: 0 }],
+            [{ re: sc, im: 0 }, { re: s2, im: 0 }]
+        ];
+
+        // 应用矩阵: V_out = J * V_in
+        const transmittedJones = Ray._apply2x2(J, ray.jones);
+
+        // 计算新的强度
+        const inIntensity = ray.jonesIntensity();
+        const outIntensity = Ray._cAbs2(transmittedJones.Ex) + Ray._cAbs2(transmittedJones.Ey);
+        const scale = inIntensity > 1e-12 ? (outIntensity / inIntensity) : 0;
+        const transmittedIntensity = ray.intensity * scale;
 
         let transmittedRay = null;
-        const nextBounces = ray.bouncesSoFar + 1;
-        if (transmittedIntensity >= ray.minIntensityThreshold) {
+        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
             const newDirection = ray.direction;
             const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
             try {
                 transmittedRay = new RayClass(
                     newOrigin, newDirection, ray.wavelengthNm,
                     transmittedIntensity, ray.phase,
-                    nextBounces, ray.mediumRefractiveIndex,
+                    ray.bouncesSoFar + 1, ray.mediumRefractiveIndex,
                     ray.sourceId,
-                    axis, // angle fallback for display
+                    axis, // 预设偏振角
                     ray.ignoreDecay,
                     ray.history.concat([newOrigin.clone()])
                 );
-                if (transmittedJones) transmittedRay.setJones(transmittedJones);
-                else transmittedRay.setLinearPolarization(axis);
+                transmittedRay.setJones(transmittedJones); // 应用新的琼斯矢量
             } catch (e) { console.error(`Polarizer (${this.id}) create ray error:`, e); }
         }
 
@@ -5581,10 +5507,17 @@ class WavePlate extends OpticalComponent {
         ray.ensureJonesVector();
 
         // 2. 如果光线没有偏振 (非偏振光)，波片对其没有影响，直接穿过
+        // ensureJonesVector 会处理 unpolarized 的情况，所以 ray.jones 会是 null
         if (!ray.hasJones()) {
+            // 创建一个直接穿过的光线副本
             const newDirection = ray.direction;
             const newOrigin = intersectionInfo.point.add(newDirection.multiply(1e-6));
-            const transmittedRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
+            const transmittedRay = new RayClass(
+                newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase,
+                ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId,
+                ray.polarizationAngle, // 保持为 null (非偏振)
+                ray.ignoreDecay, ray.history.concat([newOrigin.clone()])
+            );
             ray.terminate('pass_unpolarized_waveplate');
             return [transmittedRay];
         }
@@ -5605,7 +5538,8 @@ class WavePlate extends OpticalComponent {
         const newOrigin = intersectionInfo.point.add(newDirection.multiply(1e-6));
         
         const outRay = new RayClass(
-            newOrigin, newDirection, ray.wavelengthNm, ray.intensity, ray.phase,
+            newOrigin, newDirection, ray.wavelengthNm, ray.intensity, // 波片不改变光强
+            ray.phase, // 理想波片不考虑全局相位变化
             ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId,
             ray.polarizationAngle, // 构造函数中的这个旧角度会被 setJones 覆盖
             ray.ignoreDecay, ray.history.concat([newOrigin.clone()])
@@ -6001,9 +5935,7 @@ class AcoustoOpticModulator extends OpticalComponent {
 
 
 
-// Add this new FaradayRotator class and replace the old FaradayIsolator class in components.js
-
-// --- START OF NEW COMPONENT: FaradayRotator ---
+// --- START OF REPLACEMENT COMPONENT: FaradayRotator ---
 
 class FaradayRotator extends OpticalComponent {
     static functionDescription = "利用法拉第效应旋转偏振方向，旋转角与传播方向无关。";
@@ -6013,7 +5945,10 @@ class FaradayRotator extends OpticalComponent {
         this.height = Math.max(10, height);
         this.rotationAngleRad = rotationAngleDeg * (Math.PI / 180);
 
+        // 几何缓存
         this.worldVertices = [];
+        this.worldNormals = []; // 几何外法线
+
         try { this._updateGeometry(); } catch (e) { console.error("Init FaradayRotator geom error:", e); }
     }
 
@@ -6034,6 +5969,15 @@ class FaradayRotator extends OpticalComponent {
             new Vector(this.width / 2, this.height / 2), new Vector(-this.width / 2, this.height / 2)
         ];
         this.worldVertices = localVertices.map(v => v.rotate(this.angleRad).add(this.pos));
+
+        // 计算外法线
+        this.worldNormals = [];
+        for (let i = 0; i < 4; i++) {
+            const p1 = this.worldVertices[i];
+            const p2 = this.worldVertices[(i + 1) % 4];
+            const edgeVec = p2.subtract(p1);
+            this.worldNormals.push(new Vector(edgeVec.y, -edgeVec.x).normalize());
+        }
     }
 
     onAngleChanged() { this._updateGeometry(); }
@@ -6047,7 +5991,7 @@ class FaradayRotator extends OpticalComponent {
         ctx.fillStyle = this.selected ? 'rgba(255, 105, 180, 0.3)' : 'rgba(255, 105, 180, 0.15)';
         ctx.lineWidth = this.selected ? 2 : 1;
 
-        // Draw the main body
+        // 绘制主体
         ctx.beginPath();
         ctx.moveTo(this.worldVertices[0].x, this.worldVertices[0].y);
         for (let i = 1; i < 4; i++) { ctx.lineTo(this.worldVertices[i].x, this.worldVertices[i].y); }
@@ -6055,16 +5999,17 @@ class FaradayRotator extends OpticalComponent {
         ctx.fill();
         ctx.stroke();
 
-        // Draw a curved arrow indicating rotation
+        // 绘制旋转指示箭头
         const center = this.pos;
         const radius = Math.min(this.width, this.height) * 0.3;
         ctx.strokeStyle = this.selected ? 'yellow' : 'white';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
+        // 绘制一个接近完整的圆弧作为旋转指示
         ctx.arc(center.x, center.y, radius, Math.PI * 1.2, Math.PI * 0.2);
         ctx.stroke();
         
-        // Arrowhead
+        // 箭头
         const arrowAngle = Math.PI * 0.2;
         const endPoint = center.add(Vector.fromAngle(arrowAngle).multiply(radius));
         const normDir = Vector.fromAngle(arrowAngle + Math.PI/2);
@@ -6083,7 +6028,7 @@ class FaradayRotator extends OpticalComponent {
     }
 
     intersect(rayOrigin, rayDirection) {
-        // Find intersection with the bounding box, same as DielectricBlock
+        // 与 DielectricBlock 相同的交点检测逻辑
         let closestHit = null; let closestDist = Infinity;
         if (!this.worldVertices || this.worldVertices.length !== 4) return [];
 
@@ -6099,7 +6044,11 @@ class FaradayRotator extends OpticalComponent {
                     if (t1 < closestDist) {
                         closestDist = t1;
                         const intersectionPoint = rayOrigin.add(rayDirection.multiply(t1));
-                        closestHit = { distance: t1, point: intersectionPoint, surfaceId: i };
+                        let interactionNormal = this.worldNormals[i].clone();
+                        if (rayDirection.dot(interactionNormal) > 0) {
+                            interactionNormal.multiply(-1);
+                        }
+                        closestHit = { distance: t1, point: intersectionPoint, normal: interactionNormal, surfaceId: i };
                     }
                 }
             }
@@ -6107,29 +6056,46 @@ class FaradayRotator extends OpticalComponent {
         return closestHit ? [closestHit] : [];
     }
     
-    // Faraday Rotator's core function
     interact(ray, intersectionInfo, RayClass) {
-        // Non-reciprocal polarization rotation by +theta (Faraday effect)
-        const theta = this.rotationAngleRad;
-        const newOrigin = intersectionInfo.point.add(ray.direction.multiply(1e-6));
-        const nextBounces = ray.bouncesSoFar + 1;
-        let outRay = new RayClass(
-            newOrigin, ray.direction, ray.wavelengthNm, ray.intensity,
-            ray.phase, nextBounces, ray.mediumRefractiveIndex,
-            ray.sourceId, ray.polarizationAngle, ray.ignoreDecay,
-            ray.history.concat([newOrigin.clone()])
-        );
-        try {
-            if (ray.hasJones && ray.hasJones()) {
+        const outwardNormal = this.worldNormals[intersectionInfo.surfaceId];
+        const isEntering = ray.direction.dot(outwardNormal) < -1e-9;
+        const newRays = [];
+
+        if (isEntering) {
+            // 光线进入：直接透射，不改变偏振，进入“内部”介质
+            const transmittedRay = new RayClass(
+                intersectionInfo.point.add(ray.direction.multiply(1e-6)),
+                ray.direction, ray.wavelengthNm, ray.intensity, ray.phase,
+                ray.bouncesSoFar + 1, 1.5, // 假设内部折射率为1.5
+                ray.sourceId, ray.polarizationAngle, ray.ignoreDecay,
+                ray.history.concat([intersectionInfo.point.clone()])
+            );
+            transmittedRay.jones = ray.jones; // 复制琼斯矢量
+            newRays.push(transmittedRay);
+        } else {
+            // 光线射出：应用法拉第旋转，然后射出到空气中
+            ray.ensureJonesVector(); // 确保有琼斯矢量
+            
+            let outRay = new RayClass(
+                intersectionInfo.point.add(ray.direction.multiply(1e-6)),
+                ray.direction, ray.wavelengthNm, ray.intensity, ray.phase,
+                ray.bouncesSoFar + 1, N_AIR, // 射出到空气
+                ray.sourceId, ray.polarizationAngle, ray.ignoreDecay,
+                ray.history.concat([intersectionInfo.point.clone()])
+            );
+            
+            if (ray.hasJones()) {
+                const theta = this.rotationAngleRad; // 旋转角
+                // **非互易性**: 无论方向如何，旋转矩阵都是 R(theta)
                 const R = Ray._rot2(theta);
-                const v = Ray._apply2x2(R, ray.jones);
-                outRay.setJones(v);
-            } else if (typeof ray.polarizationAngle === 'number') {
-                outRay.setLinearPolarization(Math.atan2(Math.sin(ray.polarizationAngle + theta), Math.cos(ray.polarizationAngle + theta)));
+                const v_out = Ray._apply2x2(R, ray.jones);
+                outRay.setJones(v_out);
             }
-        } catch (e) { console.error('FaradayRotator set jones error:', e); }
-        ray.terminate('pass_rotator');
-        return [outRay];
+            newRays.push(outRay);
+        }
+        
+        ray.terminate('pass_rotator_surface');
+        return newRays;
     }
     
     _containsPointBody(point) {
@@ -6176,7 +6142,7 @@ class FaradayRotator extends OpticalComponent {
     }
 }
 
-// --- END OF NEW COMPONENT: FaradayRotator ---
+// --- END OF REPLACEMENT COMPONENT: FaradayRotator ---
 
 
 // --- START OF REPLACEMENT COMPONENT: FaradayIsolator ---
@@ -6188,13 +6154,9 @@ class FaradayIsolator extends OpticalComponent {
         this.width = Math.max(40, width);
         this.height = Math.max(20, height);
 
-        // Internal component dimensions relative to total width
-        this.polarizerWidth = this.width * 0.15;
-        this.rotatorWidth = this.width * 0.6;
-        
-        // Geometry cache
+        // 几何缓存
         this.worldVertices = [];
-        this.internalBoundaries = []; // x-coordinates of internal surfaces in local frame
+        this.worldNormals = []; // 几何外法线
         this.forwardDirection = Vector.fromAngle(this.angleRad);
         try { this._updateGeometry(); } catch (e) { console.error("Init FaradayIsolator geom error:", e); }
     }
@@ -6207,10 +6169,6 @@ class FaradayIsolator extends OpticalComponent {
     _updateGeometry() {
         if (!(this.pos instanceof Vector)) return;
         
-        // Update dimensions
-        this.polarizerWidth = this.width * 0.15;
-        this.rotatorWidth = this.width * 0.6;
-        
         this.forwardDirection = Vector.fromAngle(this.angleRad);
         const localVertices = [
             new Vector(-this.width / 2, -this.height / 2), new Vector(this.width / 2, -this.height / 2),
@@ -6218,14 +6176,14 @@ class FaradayIsolator extends OpticalComponent {
         ];
         this.worldVertices = localVertices.map(v => v.rotate(this.angleRad).add(this.pos));
         
-        // Define local x-coordinates for internal component boundaries
-        const halfW = this.width / 2;
-        this.internalBoundaries = [
-            -halfW, // 0: Input face
-            -halfW + this.polarizerWidth, // 1: Input polarizer -> Rotator
-            halfW - this.polarizerWidth, // 2: Rotator -> Output polarizer
-            halfW // 3: Output face
-        ];
+        // 计算外法线
+        this.worldNormals = [];
+        for (let i = 0; i < 4; i++) {
+            const p1 = this.worldVertices[i];
+            const p2 = this.worldVertices[(i + 1) % 4];
+            const edgeVec = p2.subtract(p1);
+            this.worldNormals.push(new Vector(edgeVec.y, -edgeVec.x).normalize());
+        }
     }
 
     onAngleChanged() { this._updateGeometry(); }
@@ -6235,7 +6193,7 @@ class FaradayIsolator extends OpticalComponent {
         if (!this.worldVertices || this.worldVertices.length !== 4) return;
         ctx.save();
         
-        // --- Draw main body ---
+        // 绘制主体
         ctx.strokeStyle = this.selected ? '#FFFF00' : '#8A2BE2'; // BlueViolet
         ctx.fillStyle = this.selected ? 'rgba(138, 43, 226, 0.2)' : 'rgba(138, 43, 226, 0.1)';
         ctx.lineWidth = this.selected ? 2 : 1;
@@ -6246,85 +6204,76 @@ class FaradayIsolator extends OpticalComponent {
         ctx.fill();
         ctx.stroke();
 
-        // --- Draw internal components (in local rotated frame) ---
+        // 绘制内部元件的示意图 (在旋转坐标系内)
         ctx.translate(this.pos.x, this.pos.y);
         ctx.rotate(this.angleRad);
         const halfH = this.height / 2;
-
-        // 1. Input Polarizer (0 deg)
+        const halfW = this.width / 2;
+        const polWidth = this.width * 0.15;
+        
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(this.internalBoundaries[1], -halfH);
-        ctx.lineTo(this.internalBoundaries[1], halfH);
-        ctx.moveTo(this.internalBoundaries[1] - 4, 0); // Polarization indicator
-        ctx.lineTo(this.internalBoundaries[1] + 4, 0);
-        ctx.stroke();
 
-        // 2. Output Polarizer (45 deg)
+        // 输入偏振片 (0 deg)
+        const inPolX = -halfW + polWidth / 2;
         ctx.beginPath();
-        ctx.moveTo(this.internalBoundaries[2], -halfH);
-        ctx.lineTo(this.internalBoundaries[2], halfH);
+        ctx.moveTo(inPolX, -halfH * 0.8); ctx.lineTo(inPolX, halfH * 0.8);
+        ctx.moveTo(inPolX - 4, 0); ctx.lineTo(inPolX + 4, 0);
         ctx.stroke();
-        // 45-degree indicator
+        
+        // 输出偏振片 (45 deg)
+        const outPolX = halfW - polWidth / 2;
+        ctx.beginPath();
+        ctx.moveTo(outPolX, -halfH * 0.8); ctx.lineTo(outPolX, halfH * 0.8);
+        ctx.stroke();
         const pol_len = 4;
         ctx.beginPath();
-        ctx.moveTo(this.internalBoundaries[2] - pol_len * Math.cos(Math.PI/4), -pol_len * Math.sin(Math.PI/4));
-        ctx.lineTo(this.internalBoundaries[2] + pol_len * Math.cos(Math.PI/4), pol_len * Math.sin(Math.PI/4));
+        ctx.moveTo(outPolX - pol_len, -pol_len);
+        ctx.lineTo(outPolX + pol_len, pol_len);
         ctx.stroke();
-
-        // 3. Faraday Rotator (visual cue in the middle)
-        ctx.fillStyle = 'rgba(255, 105, 180, 0.2)';
-        ctx.fillRect(this.internalBoundaries[1], -halfH, this.rotatorWidth, this.height);
 
         ctx.restore();
 
-        // --- Draw main forward arrow ---
+        // 绘制正向箭头
         ctx.save();
-        const arrowLength = this.width * 0.8;
-        const arrowSize = 10;
+        const arrowLength = this.width * 0.6;
+        const arrowSize = 8;
         const startPoint = this.pos.subtract(this.forwardDirection.multiply(arrowLength / 2));
         const endPoint = this.pos.add(this.forwardDirection.multiply(arrowLength / 2));
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(startPoint.x, startPoint.y); ctx.lineTo(endPoint.x, endPoint.y); ctx.stroke();
 
         const normDir = this.forwardDirection;
         const angle = Math.PI / 6;
         const v1 = normDir.rotate(Math.PI + angle).multiply(arrowSize);
         const v2 = normDir.rotate(Math.PI - angle).multiply(arrowSize);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.beginPath();
-        ctx.moveTo(endPoint.x, endPoint.y);
-        ctx.lineTo(endPoint.x + v1.x, endPoint.y + v1.y);
-        ctx.lineTo(endPoint.x + v2.x, endPoint.y + v2.y);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(endPoint.x, endPoint.y); ctx.lineTo(endPoint.x + v1.x, endPoint.y + v1.y); ctx.lineTo(endPoint.x + v2.x, endPoint.y + v2.y); ctx.closePath(); ctx.fill();
         ctx.restore();
     }
 
     intersect(rayOrigin, rayDirection) {
-        // Find intersection with the bounding box, same as DielectricBlock
+        // 与 DielectricBlock/FaradayRotator 相同的交点检测逻辑
         let closestHit = null; let closestDist = Infinity;
         if (!this.worldVertices || this.worldVertices.length !== 4) return [];
-
         for (let i = 0; i < 4; i++) {
             const p1 = this.worldVertices[i]; const p2 = this.worldVertices[(i + 1) % 4];
             const v1 = rayOrigin.subtract(p1); const v2 = p2.subtract(p1);
             const v3 = new Vector(-rayDirection.y, rayDirection.x);
             const dot_v2_v3 = v2.dot(v3);
-
             if (Math.abs(dot_v2_v3) > 1e-9) {
                 const t1 = v2.cross(v1) / dot_v2_v3; const t2 = v1.dot(v3) / dot_v2_v3;
                 if (t1 > 1e-6 && t2 >= -1e-6 && t2 <= 1.0 + 1e-6) {
                     if (t1 < closestDist) {
                         closestDist = t1;
                         const intersectionPoint = rayOrigin.add(rayDirection.multiply(t1));
-                        closestHit = { distance: t1, point: intersectionPoint, surfaceId: i };
+                        let interactionNormal = this.worldNormals[i].clone();
+                        if (rayDirection.dot(interactionNormal) > 0) {
+                            interactionNormal.multiply(-1);
+                        }
+                        closestHit = { distance: t1, point: intersectionPoint, normal: interactionNormal, surfaceId: i };
                     }
                 }
             }
@@ -6333,66 +6282,78 @@ class FaradayIsolator extends OpticalComponent {
     }
 
     interact(ray, intersectionInfo, RayClass) {
-        // Determine if ray is entering from the front (input) or back (output)
-        const hitPoint_local = intersectionInfo.point.subtract(this.pos).rotate(-this.angleRad);
+        const outwardNormal = this.worldNormals[intersectionInfo.surfaceId];
+        const isEntering = ray.direction.dot(outwardNormal) < -1e-9;
+        
+        // 判断光线是正向还是反向传播
         const isForward = ray.direction.dot(this.forwardDirection) > 0;
 
-        let currentPolarization = ray.polarizationAngle;
+        ray.ensureJonesVector();
+        let currentJones = ray.jones;
         let currentIntensity = ray.intensity;
 
-        // --- Simulate the chain of internal components ---
+        // 定义琼斯矩阵
+        const pol0_axis = this.angleRad; // 输入偏振片，与元件同向
+        const rot_angle = Math.PI / 4;   // 45度旋转
+        const pol45_axis = this.angleRad + Math.PI / 4; // 输出偏振片
+
+        // 0度偏振片矩阵 (世界坐标系)
+        const c0 = Math.cos(pol0_axis), s0 = Math.sin(pol0_axis);
+        const P0 = [[{re:c0*c0, im:0}, {re:c0*s0, im:0}], [{re:c0*s0, im:0}, {re:s0*s0, im:0}]];
         
-        if (isForward) {
-            // 1. Input Polarizer (0 degrees)
-            if (typeof currentPolarization === 'number') {
-                currentIntensity *= Math.cos(currentPolarization) * Math.cos(currentPolarization);
-            } else { // Unpolarized or circular
-                currentIntensity /= 2.0;
-            }
-            currentPolarization = 0.0;
+        // 45度偏振片矩阵 (世界坐标系)
+        const c45 = Math.cos(pol45_axis), s45 = Math.sin(pol45_axis);
+        const P45 = [[{re:c45*c45, im:0}, {re:c45*s45, im:0}], [{re:c45*s45, im:0}, {re:s45*s45, im:0}]];
 
-            // 2. Faraday Rotator (+45 degrees)
-            currentPolarization += Math.PI / 4;
+        // 旋光器矩阵
+        const R45 = Ray._rot2(rot_angle);
 
-            // 3. Output Polarizer (45 degrees)
-            const angleDiff = currentPolarization - (Math.PI / 4);
-            currentIntensity *= Math.cos(angleDiff) * Math.cos(angleDiff);
-            currentPolarization = Math.PI / 4;
-
-        } else { // Backward propagation
-            // 1. Output Polarizer (45 degrees)
-            if (typeof currentPolarization === 'number') {
-                const angleDiff = currentPolarization - (Math.PI/4);
-                currentIntensity *= Math.cos(angleDiff) * Math.cos(angleDiff);
+        if (isEntering) {
+            if (isForward) {
+                // 正向进入: P0 -> R45
+                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = Ray.jonesLinear(pol0_axis); }
+                else { currentJones = Ray._apply2x2(P0, currentJones); }
+                currentJones = Ray._apply2x2(R45, currentJones);
             } else {
-                currentIntensity /= 2.0;
+                // 反向进入: P45
+                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = Ray.jonesLinear(pol45_axis); }
+                else { currentJones = Ray._apply2x2(P45, currentJones); }
             }
-            currentPolarization = Math.PI / 4;
-
-            // 2. Faraday Rotator (+45 degrees - NON-RECIPROCAL)
-            currentPolarization += Math.PI / 4; // Now at 90 degrees
-
-            // 3. Input Polarizer (0 degrees) - This will block the light
-            const angleDiff = currentPolarization - 0.0;
-            currentIntensity *= Math.cos(angleDiff) * Math.cos(angleDiff); // cos(90) = 0
+        } else { // isExiting
+            if (isForward) {
+                // 正向射出: P45
+                if (ray.hasJones()) { currentJones = Ray._apply2x2(P45, ray.jones); }
+            } else {
+                // 反向射出: R45 -> P0
+                if (ray.hasJones()) {
+                    currentJones = Ray._apply2x2(R45, ray.jones); // 非互易旋转
+                    currentJones = Ray._apply2x2(P0, currentJones);
+                }
+            }
         }
 
-        // Check if ray survives
-        if (currentIntensity < ray.minIntensityThreshold) {
+        // 计算新的强度
+        const inIntensityJones = ray.hasJones() ? ray.jonesIntensity() : 1.0;
+        const outIntensityJones = (currentJones) ? Ray._cAbs2(currentJones.Ex) + Ray._cAbs2(currentJones.Ey) : 0;
+        const scale = inIntensityJones > 1e-12 ? (outIntensityJones / inIntensityJones) : 0;
+        const finalIntensity = currentIntensity * scale;
+
+        if (finalIntensity < ray.minIntensityThreshold) {
             ray.terminate('blocked_isolator');
             return [];
         }
 
-        // Create the final transmitted ray
-        const newOrigin = intersectionInfo.point.add(ray.direction.multiply(this.width)); // Emerge on the other side
-        const transmittedRay = new RayClass(
-            newOrigin, ray.direction, ray.wavelengthNm, currentIntensity,
-            ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex,
-            ray.sourceId, currentPolarization, ray.ignoreDecay,
-            ray.history.concat([newOrigin.clone()])
+        const mediumIndex = isEntering ? 1.5 : N_AIR;
+        const newOrigin = intersectionInfo.point.add(ray.direction.multiply(1e-6));
+        const outRay = new RayClass(
+            newOrigin, ray.direction, ray.wavelengthNm, finalIntensity, ray.phase,
+            ray.bouncesSoFar + 1, mediumIndex, ray.sourceId,
+            ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([newOrigin.clone()])
         );
-        ray.terminate('pass_isolator');
-        return [transmittedRay];
+        if (currentJones) outRay.setJones(currentJones);
+
+        ray.terminate('pass_isolator_surface');
+        return [outRay];
     }
     
     _containsPointBody(point) {
@@ -6430,6 +6391,7 @@ class FaradayIsolator extends OpticalComponent {
 }
 
 // --- END OF REPLACEMENT COMPONENT: FaradayIsolator ---
+
 
 // --- START OF NEW COMPONENT: CustomComponent (Text Box) ---
 

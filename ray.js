@@ -201,6 +201,77 @@ class Ray {
         this.jones = Ray.jonesCircular(rightHanded);
     }
 
+
+     /**
+     * 确保光线有一个有效的琼斯矢量。
+     * 如果光线是非偏振的，它会将其转换为琼斯矢量形式的非偏振光（技术上是随机偏振的近似）。
+     * 如果光线是线性偏振但没有琼斯矢量，它会根据偏振角度创建它。
+     */
+    ensureJonesVector() {
+        if (this.hasJones()) {
+            return; // 已经有了，无需操作
+        }
+        // 如果没有琼斯矢量，根据偏振角度创建
+        if (typeof this.polarizationAngle === 'number') {
+            this.setLinearPolarization(this.polarizationAngle);
+        } else if (this.polarizationAngle === 'circular') {
+            this.setCircularPolarization(true); // 默认为右旋
+        } else {
+            // 对于非偏振光 (polarizationAngle = null)
+            // 严格来说，非偏振光需要用密度矩阵描述。
+            // 在琼斯矢量模拟中，一个常见的简化是将其视为两个分量相位随机的线性偏振光。
+            // 在与偏振片作用时，通常直接将强度减半。
+            // 这里我们保持 this.jones = null，让交互组件自己处理这种情况。
+        }
+    }
+
+    /**
+     * 为光线设置一个新的琼斯矢量，并更新其偏振角度属性以用于显示。
+     * @param {{Ex: {re, im}, Ey: {re, im}}} newJones - 新的琼斯矢量。
+     */
+    setJones(newJones) {
+        if (!newJones || !newJones.Ex || !newJones.Ey) {
+            console.warn("setJones called with invalid vector:", newJones);
+            this.jones = null;
+            this.polarizationAngle = null;
+            return;
+        }
+
+        this.jones = newJones;
+
+        // --- 根据新的琼斯矢量更新 polarizationAngle ---
+        const Ex_mag2 = Ray._cAbs2(this.jones.Ex);
+        const Ey_mag2 = Ray._cAbs2(this.jones.Ey);
+        const totalIntensity = Ex_mag2 + Ey_mag2;
+
+        if (totalIntensity < 1e-9) {
+            this.polarizationAngle = null; // 强度为零，无偏振
+            return;
+        }
+
+        // 检查是否为线性偏振
+        // 线性偏振：Ex 和 Ey 的相位相同或相差 pi
+        const phase_ex = Math.atan2(this.jones.Ex.im, this.jones.Ex.re);
+        const phase_ey = Math.atan2(this.jones.Ey.im, this.jones.Ey.re);
+        let phase_diff = phase_ey - phase_ex;
+        // 归一化到 [-PI, PI]
+        phase_diff = Math.atan2(Math.sin(phase_diff), Math.cos(phase_diff));
+
+        if (Math.abs(phase_diff) < 1e-4 || Math.abs(Math.abs(phase_diff) - Math.PI) < 1e-4) {
+            // 是线性偏振，计算其角度
+            this.polarizationAngle = Math.atan2(this.jones.Ey.re, this.jones.Ex.re);
+        }
+        // 检查是否为圆形偏振
+        // 圆形偏振：Ex 和 Ey 的振幅相等，相位差为 +/- pi/2
+        else if (Math.abs(Ex_mag2 - Ey_mag2) < 1e-4 * totalIntensity && Math.abs(Math.abs(phase_diff) - Math.PI / 2) < 1e-4) {
+            this.polarizationAngle = 'circular';
+        }
+        // 否则为椭圆偏振
+        else {
+            this.polarizationAngle = 'elliptical'; // 用一个字符串来标记椭圆偏振
+        }
+    }
+
     // --- REPLACEMENT for Ray.calculateColor (Revised Algorithm & Intensity Mapping) ---
     calculateColor() {
         const wl = this.wavelengthNm;
