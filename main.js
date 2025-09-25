@@ -345,11 +345,18 @@ function draw() {
     // Hide any mode hints before drawing starts
     hideModeHint();
 
-    // Clear canvas (using the darker canvas background color)
-    ctx.fillStyle = '#111111';
+    // Clear canvas area with theme-aware canvas background from CSS variable
+    const cssVarsSource = document.body || document.documentElement;
+    const computed = getComputedStyle(cssVarsSource);
+    const canvasBg = computed.getPropertyValue('--canvas-bg').trim() || '#111111';
+    const canvasGridColor = computed.getPropertyValue('--canvas-grid').trim() || 'rgba(255, 255, 255, 0.05)';
+    // Bypass theme guard for the background fill so white canvas remains pure white
+    ctx.__bypassThemeGuard = true;
+    ctx.fillStyle = canvasBg;
+    ctx.__bypassThemeGuard = false;
     ctx.fillRect(viewPortMinX, viewPortMinY, viewPortLogicalWidth, viewPortLogicalHeight);
-    // Draw grid background (optional)
-    drawGrid(ctx, 50, 'rgba(255, 255, 255, 0.05)');
+    // Draw grid background using theme-aware grid color
+    drawGrid(ctx, 50, canvasGridColor);
 
     // --- Draw based on Mode ---
     if (currentMode === 'lens_imaging') {
@@ -3786,7 +3793,24 @@ function setupEventListeners() {
     // --- End Sidebar Toggle Listener ---
 
 
+    // --- 关键修复：添加这段代码来监听新的主题下拉菜单 ---
+    const themeSwitcher = document.getElementById('combined-theme-switcher');
+    if (themeSwitcher) {
+        themeSwitcher.addEventListener('change', (e) => {
+            // 当下拉菜单变化时，调用 applyCombinedTheme 函数
+            applyCombinedTheme(e.target.value);
+            needsRetrace = true; 
+        });
+        console.log("成功为主题切换器添加了监听器。"); // 添加成功日志
+    } else {
+        // 如果没找到菜单，在控制台明确报错
+        console.error("错误：未能找到ID为 'combined-theme-switcher' 的主题下拉菜单！请检查 index.html 文件。");
+    }
+    // --- 修复代码结束 ---
+
+
     console.log("Event listeners setup complete.");
+
 }
 // --- END OF REPLACEMENT ---
 
@@ -3841,6 +3865,145 @@ function setupTabs() {
 
     // Activate the first tab ('properties-tab') initially by default
     // activateTab('properties-tab'); // Let's activate based on selection instead
+}
+
+// --- THEME HELPERS: Ensure visibility on light canvas by adjusting too-light draw colors ---
+function isLightCanvasTheme() {
+    const theme = (document.body && document.body.getAttribute('data-canvas-theme')) || 'dark';
+    // Default canvas is dark when no attribute; only explicit 'light' should be treated as light
+    return theme === 'light';
+}
+
+function parseColorToRgba(colorString) {
+    if (!colorString || typeof colorString !== 'string') return null;
+    const s = colorString.trim().toLowerCase();
+    const named = {
+        white: [255, 255, 255, 1],
+        silver: [192, 192, 192, 1],
+        gainsboro: [220, 220, 220, 1],
+        lightgray: [211, 211, 211, 1],
+        whitesmoke: [245, 245, 245, 1],
+        yellow: [255, 255, 0, 1]
+    };
+    if (s in named) return named[s];
+    if (s.startsWith('#')) {
+        const hex = s.slice(1);
+        if (hex.length === 3) {
+            const r = parseInt(hex[0] + hex[0], 16);
+            const g = parseInt(hex[1] + hex[1], 16);
+            const b = parseInt(hex[2] + hex[2], 16);
+            return [r, g, b, 1];
+        }
+        if (hex.length === 6) {
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            return [r, g, b, 1];
+        }
+    }
+    const rgbMatch = s.match(/^rgba?\(([^)]+)\)$/);
+    if (rgbMatch) {
+        const parts = rgbMatch[1].split(',').map(p => p.trim());
+        const r = parseFloat(parts[0]);
+        const g = parseFloat(parts[1]);
+        const b = parseFloat(parts[2]);
+        const a = parts.length > 3 ? parseFloat(parts[3]) : 1;
+        if ([r, g, b, a].every(v => !isNaN(v))) return [r, g, b, a];
+    }
+    return null;
+}
+
+function isVeryLightColor(colorString) {
+    const rgba = parseColorToRgba(colorString);
+    if (!rgba) return false;
+    const [r, g, b, a] = rgba;
+    // Perceived brightness (simple): normalize to 0..1
+    const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return brightness > 0.9 && a > 0.3; // Slightly stricter brightness threshold
+}
+
+function remapForLightCanvas(colorString, forFill = false) {
+    if (!isLightCanvasTheme()) return colorString;
+    if (!colorString || typeof colorString !== 'string') return colorString;
+    const key = colorString.trim().toLowerCase();
+    // Curated artistic palette mapping for common colors used by components on white canvas
+    const strokeMap = {
+        // neutrals
+        '#ffffff': '#2d3748',
+        'white': '#2d3748',
+        '#cccccc': '#718096',
+        '#aaaaaa': '#718096',
+        'silver': '#a0aec0',
+        'dimgray': '#4a5568',
+        '#888888': '#4a5568',
+        '#dddddd': '#718096',
+        // accents
+        '#ffff00': '#b7791f', // yellow highlight -> deeper amber
+        'yellow': '#b7791f',
+        'cyan': '#0f609b',    // deeper teal-blue
+        '#aaaaff': '#2c5282', // lens blue -> deep blue
+        '#87cefa': '#2b6cb0', // lightskyblue -> deep blue
+        '#b0e0e6': '#2c7a7b', // powderblue -> deep teal
+        '#ffc080': '#9c4221', // deeper orange-brown
+        '#ff69b4': '#97266d', // deep magenta
+        '#8a2be2': '#553c9a'  // deep violet
+    };
+    const fillMap = {
+        '#ffffff': 'rgba(45, 55, 72, 0.20)',
+        'white': 'rgba(45, 55, 72, 0.20)',
+        '#cccccc': 'rgba(113, 128, 150, 0.20)',
+        '#aaaaaa': 'rgba(113, 128, 150, 0.20)',
+        'silver': 'rgba(160, 174, 192, 0.22)',
+        'dimgray': 'rgba(74, 85, 104, 0.28)',
+        '#888888': 'rgba(74, 85, 104, 0.28)',
+        '#dddddd': 'rgba(113, 128, 150, 0.18)',
+        '#ffff00': 'rgba(183, 121, 31, 0.30)',
+        'yellow': 'rgba(183, 121, 31, 0.30)',
+        'cyan': 'rgba(15, 96, 155, 0.22)',
+        '#aaaaff': 'rgba(44, 82, 130, 0.18)',
+        '#87cefa': 'rgba(43, 108, 176, 0.18)',
+        '#b0e0e6': 'rgba(44, 122, 123, 0.18)',
+        '#ffc080': 'rgba(156, 66, 33, 0.22)',
+        '#ff69b4': 'rgba(151, 38, 109, 0.22)',
+        '#8a2be2': 'rgba(85, 60, 154, 0.20)'
+    };
+
+    // If the color is in curated map, use it; otherwise soften overly bright colors
+    if (forFill && key in fillMap) return fillMap[key];
+    if (!forFill && key in strokeMap) return strokeMap[key];
+    if (isVeryLightColor(key)) {
+        return forFill ? 'rgba(74, 85, 104, 0.28)' : '#4a5568';
+    }
+    return colorString;
+}
+
+function installContextThemeGuards(context2d) {
+    if (!context2d || context2d.__themeGuardsInstalled) return;
+    const strokeDesc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(context2d), 'strokeStyle');
+    const fillDesc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(context2d), 'fillStyle');
+    if (strokeDesc && typeof strokeDesc.set === 'function') {
+        Object.defineProperty(context2d, 'strokeStyle', {
+            configurable: true,
+            enumerable: true,
+            get() { return strokeDesc.get.call(this); },
+            set(v) {
+                if (this.__bypassThemeGuard) { strokeDesc.set.call(this, v); return; }
+                strokeDesc.set.call(this, remapForLightCanvas(v, false));
+            }
+        });
+    }
+    if (fillDesc && typeof fillDesc.set === 'function') {
+        Object.defineProperty(context2d, 'fillStyle', {
+            configurable: true,
+            enumerable: true,
+            get() { return fillDesc.get.call(this); },
+            set(v) {
+                if (this.__bypassThemeGuard) { fillDesc.set.call(this, v); return; }
+                fillDesc.set.call(this, remapForLightCanvas(v, true));
+            }
+        });
+    }
+    context2d.__themeGuardsInstalled = true;
 }
 
 // --- NEW FUNCTION: Activate a specific tab ---
@@ -4290,6 +4453,67 @@ function switchToLogin() {
     if (registerError) registerError.style.display = 'none'; // Hide errors on switch
 }
 
+// main.js - 全新且最终的主题管理函数
+
+/**
+ * 应用组合主题，并将其保存到 localStorage。
+ * @param {string} combinedThemeName - e.g., "light-ui-dark-canvas"
+ */
+function applyCombinedTheme(combinedThemeName) {
+    // 健壮性检查：如果名称无效，则使用默认值以避免页面错乱
+    if (typeof combinedThemeName !== 'string' || !combinedThemeName.includes('-ui-')) {
+        console.error("应用主题失败：无效的主题名称。", combinedThemeName);
+        combinedThemeName = 'light-ui-dark-canvas'; // 恢复为安全的默认值
+    }
+
+    // 解析组合名称以分别获取 UI 主题和画布主题
+    const parts = combinedThemeName.split('-ui-'); // 使用 "-ui-" 作为明确的分隔符
+    const uiTheme = parts[0];      // "light" or "dark"
+    const canvasTheme = parts[1].replace('-canvas', ''); // "light" or "dark"
+
+    // 检查解析结果是否有效
+    if (!uiTheme || !canvasTheme) {
+        console.error("解析主题名称失败。", combinedThemeName);
+        return; // 停止执行以避免设置错误的属性
+    }
+
+    // 应用规则：默认主题为 "light-ui-dark-canvas"，此时不设置任何 data 属性（使用 CSS 默认变量）
+    // 仅当需要非默认效果时，才设置相应的 data 属性。
+
+    // UI 主题：light -> 删除属性; dark -> 设置 data-ui-theme="dark"
+    if (uiTheme === 'dark') {
+        document.body.setAttribute('data-ui-theme', 'dark');
+    } else {
+        document.body.removeAttribute('data-ui-theme');
+    }
+
+    // 画布主题：dark -> 删除属性; light -> 设置 data-canvas-theme="light"
+    if (canvasTheme === 'light') {
+        document.body.setAttribute('data-canvas-theme', 'light');
+    } else {
+        document.body.removeAttribute('data-canvas-theme');
+    }
+
+    // 保存用户的选择到本地存储
+    localStorage.setItem('opticsLabCombinedTheme', combinedThemeName);
+    
+    // 更新下拉菜单的显示值以保持同步
+    const switcher = document.getElementById('combined-theme-switcher');
+    if (switcher) {
+        switcher.value = combinedThemeName;
+    }
+    console.log(`主题已应用: UI=${uiTheme}, 画布=${canvasTheme}`);
+}
+
+/**
+ * 在应用启动时，从 localStorage 加载主题，如果不存在则使用默认值。
+ */
+function loadInitialTheme() {
+    // 您的要求：默认是白天UI，深色画布
+    const savedTheme = localStorage.getItem('opticsLabCombinedTheme') || 'light-ui-dark-canvas';
+    applyCombinedTheme(savedTheme);
+}
+
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
     // --- Prevent multiple initializations ---
@@ -4300,6 +4524,9 @@ function initialize() {
     // Flag is set inside setupEventListeners now to avoid race conditions
     // initialized = true;
     // --- End prevention ---
+
+     // --- 加载主题和设置 ---
+    loadInitialTheme();
 
     console.log("开始初始化光学实验室...");
     loadSettings(); // Load saved settings first
@@ -4346,6 +4573,8 @@ function initialize() {
         alert("无法获取 Canvas 绘图上下文，浏览器可能不支持。");
         return;
     }
+    // Install theme guards so very light colors are darkened on light canvas
+    installContextThemeGuards(ctx);
 
     // --- Initial Setup ---
     resizeCanvas();          // Set initial canvas size and scaling

@@ -72,17 +72,22 @@
             <!-- View Menu Dropdown -->
             <div class="dropdown">
                 <button class="dropbtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
                     <span class="menu-text">视图</span>
                 </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-reset-view">重置视图</a>
                     <a href="#" id="menu-toggle-grid">切换网格</a>
-                </div>
+                    <hr>
+                    <div class="prop" style="padding: 5px 18px; display: flex; align-items: center;">
+                        <label for="combined-theme-switcher" style="color: var(--text-color-light); width: auto; margin-right: 10px; text-align: left;">外观主题:</label>
+                        <select id="combined-theme-switcher" style="flex-grow: 1;">
+                            <option value="light-ui-dark-canvas">白天 (深色画布)</option>
+                            <option value="light-ui-light-canvas">白天 (浅色画布)</option>
+                            <option value="dark-ui-dark-canvas">黑夜 (深色画布)</option>
+                            <option value="dark-ui-light-canvas">黑夜 (浅色画布)</option>
+                        </select>
+                    </div>
+                    </div>
             </div>
 
             <!-- Simulate Menu Dropdown -->

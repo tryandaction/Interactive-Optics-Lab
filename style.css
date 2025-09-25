@@ -1,43 +1,155 @@
-/* style.css - V3 Layout with Top Menu & Tabs */
+/* style.css - 最终专业主题系统 v3.0 */
 
-/* --- Global Styles & Fonts --- */
+/* 核心原则:
+ * 1. 默认主题为 "白天UI / 深色画布", 确保其在无任何 data 属性时完美显示。
+ * 2. 使用两套独立的 data 属性控制 UI 和画布，JS 负责组合。
+ * 3. 对所有UI元素，特别是输入框，进行细致的样式定义，确保在任何模式下都清晰可读。
+*/
+
+/* --- 1. 定义颜色变量 --- */
+
+/* 默认主题: 白天UI (Light UI) */
 :root {
-    /* Define color variables */
-    --primary-color: #007bff;
-    --secondary-color: #6c757d;
-    --light-gray: #f8f9fa;
-    --medium-gray: #dee2e6;
-    --dark-gray: #495057;
-    --border-color: #ced4da;
-    --text-color: #343a40;
-    --background-color: #f4f7f9;
-    --sidebar-bg: #ffffff;
-    --canvas-bg: #1f2b38;
-    --canvas-grid: rgba(255, 255, 255, 0.06);
-    --menu-bg: #e9ecef;
-    /* Slightly darker menu background */
-    --menu-border: #ced4da;
-    --menu-hover-bg: #dee2e6;
+    --primary-color: #0d6efd;
+    --text-color: #212529; /* 主要文本颜色，近黑 */
+    --text-color-secondary: #6c757d; /* 次要文本，用于标签和提示 */
+    --background-color: #f8f9fa; /* 非常浅的灰色背景，比纯白更柔和 */
+    --panel-bg: #ffffff; /* 所有面板（侧边栏、菜单栏）的背景 */
+    --border-color: #dee2e6; /* 边框颜色 */
+    --hover-bg: #e9ecef; /* 悬停背景色 */
+    
     --dropdown-bg: #ffffff;
-    --dropdown-border: #ced4da;
-    --dropdown-shadow: rgba(0, 0, 0, 0.1);
-    --dropdown-hover: #f1f3f5;
-    --error-color: #dc3545;
-    --success-color: #28a745;
-    --menubar-height: 40px;
+    --dropdown-shadow: rgba(0, 0, 0, 0.15);
+    --dropdown-hover-bg: #0d6efd;
+    --dropdown-hover-text: #ffffff;
+
+    --input-bg: #ffffff;
+    --input-text: #212529;
+    --input-border: #ced4da;
+    --input-focus-border: #86b7fe;
+    --input-focus-shadow: rgba(13, 110, 253, 0.25);
+
+    --button-selected-bg: #cfe2ff;
+    --button-selected-border: #b6d4fe;
+    --button-selected-text: #0a58ca;
+}
+
+/* 黑夜UI主题 (Dark UI) 的变量覆盖 */
+body[data-ui-theme="dark"] {
+    --text-color: #dee2e6;
+    --text-color-secondary: #adb5bd;
+    --background-color: #212529;
+    --panel-bg: #343a40;
+    --border-color: #495057;
+    --hover-bg: #495057;
+
+    --dropdown-bg: #343a40;
+    --dropdown-shadow: rgba(0, 0, 0, 0.3);
+    
+    --input-bg: #495057;
+    --input-text: #f8f9fa;
+    --input-border: #6c757d;
+    --input-focus-border: #0d6efd;
+    --input-focus-shadow: rgba(13, 110, 253, 0.35);
+
+    --button-selected-bg: #0a58ca;
+    --button-selected-border: #0d6efd;
+    --button-selected-text: #ffffff;
+}
+
+/* 默认画布主题: 深色画布 (Dark Canvas) */
+:root {
+    --canvas-bg: #1A2027; /* 深邃蓝黑色，比纯黑更专业 */
+    --canvas-grid: rgba(255, 255, 255, 0.08);
+}
+
+/* 浅色画布 (Light Canvas) 的变量覆盖 */
+body[data-canvas-theme="light"] {
+    --canvas-bg: #ffffff;
+    --canvas-grid: rgba(0, 0, 0, 0.1);
+}
+
+/* --- 2. 应用变量到全局元素 --- */
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.2s ease, color 0.2s ease;
+    /* 布局修复代码 */
+    padding-top: 40px; 
+    box-sizing: border-box;
+}
+
+#top-menubar, #toolbar, #inspector {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color) !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#opticsCanvas {
+    background-color: var(--canvas-bg);
+}
+
+.dropbtn:hover, .menubar-icon-button:hover {
+    background-color: var(--hover-bg);
+}
+
+.dropdown-content {
+    background-color: var(--dropdown-bg);
+    box-shadow: 0 5px 15px var(--dropdown-shadow);
+    border: 1px solid var(--border-color);
+}
+.dropdown-content a { color: var(--text-color); }
+.dropdown-content a:hover {
+    background-color: var(--dropdown-hover-bg);
+    color: var(--dropdown-hover-text);
+}
+
+/* --- 3. 彻底修复所有输入框、选择框、文本域的样式 --- */
+.prop input[type="text"], .prop input[type="number"],
+.prop select, .notes-prop textarea, #combined-theme-switcher,
+#theme-switcher /* 保留旧ID以防万一 */ {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border: 1px solid var(--input-border);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.prop input::placeholder, .notes-prop textarea::placeholder {
+    color: var(--text-color-secondary);
+    opacity: 0.8;
+}
+.prop input:focus, .prop select:focus, .notes-prop textarea:focus {
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+    outline: none;
+}
+#toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+}
+.prop label { color: var(--text-color-secondary); }
+h4 { color: var(--text-color-secondary); }
+
+/* 确保下拉菜单中的文字颜色正确 */
+#combined-theme-switcher option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
 }
 
 body {
     margin: 0;
     display: flex;
     flex-direction: column;
-    /* Stack menubar and main content vertically */
     height: 100vh;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
     font-size: 14px;
     overflow: hidden;
     background-color: var(--background-color);
     color: var(--text-color);
+
+    /* --- 关键修复代码 --- */
+    padding-top: 40px; /* 为顶部菜单栏留出 40px 的空间 */
+    box-sizing: border-box; /* 确保内边距不会增加 body 的总高度 */
 }
 
 /* --- Top Menubar Styles --- */
@@ -290,6 +402,20 @@ body {
     box-sizing: border-box; 
 }
 
+/* Dark UI overrides for left toolbar buttons */
+body[data-ui-theme="dark"] #toolbar button.icon-button {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-text);
+}
+body[data-ui-theme="dark"] #toolbar button.icon-button:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--input-border);
+}
+body[data-ui-theme="dark"] #toolbar button.icon-button svg {
+    color: var(--input-text);
+}
+
 #toolbar button.icon-button svg {
     width: 20px;
     /* Icon size */
@@ -329,6 +455,15 @@ body {
     border-color: #99caff;
     color: #004085;
     font-weight: 600;
+}
+/* Selected state in dark UI uses theme-provided variables */
+body[data-ui-theme="dark"] #toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+}
+body[data-ui-theme="dark"] #toolbar button.selected-tool svg {
+    color: var(--button-selected-text);
 }
 
 #toolbar button.selected-tool svg {
@@ -581,6 +716,43 @@ hr.thin-hr {
     /* Prevent inputs from becoming too small */
 }
 
+/* Dark UI overrides: ensure inspector inputs/selects are readable on dark theme */
+body[data-ui-theme="dark"] .tab-content .prop input[type="text"],
+body[data-ui-theme="dark"] .tab-content .prop input[type="number"],
+body[data-ui-theme="dark"] .tab-content .prop input[type="range"],
+body[data-ui-theme="dark"] .tab-content .prop select {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+body[data-ui-theme="dark"] .tab-content .prop input[type="text"]::placeholder,
+body[data-ui-theme="dark"] .tab-content .prop input[type="number"]::placeholder,
+body[data-ui-theme="dark"] .notes-prop textarea::placeholder {
+    color: var(--text-color-secondary);
+}
+body[data-ui-theme="dark"] .tab-content .prop select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+}
+
+/* Ensure all selects in inspector are dark-themed in night mode */
+body[data-ui-theme="dark"] #inspector select {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+body[data-ui-theme="dark"] #inspector select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+}
+
+/* Dark theme for inspector textareas */
+body[data-ui-theme="dark"] #inspector textarea {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+
 /* Focus style for inputs/selects */
 .tab-content .prop input[type="text"]:focus,
 .tab-content .prop input[type="number"]:focus,
@@ -590,6 +762,14 @@ hr.thin-hr {
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
     /* Subtle focus glow */
     outline: none;
+}
+/* Match focus styles for dark inputs using theme variables */
+body[data-ui-theme="dark"] .tab-content .prop input[type="text"]:focus,
+body[data-ui-theme="dark"] .tab-content .prop input[type="number"]:focus,
+body[data-ui-theme="dark"] .tab-content .prop input[type="range"]:focus,
+body[data-ui-theme="dark"] .tab-content .prop select:focus {
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
 /* Specific style for checkboxes */
