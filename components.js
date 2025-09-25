@@ -3381,12 +3381,12 @@ class Polarizer extends OpticalComponent {
 }
 
 
-// --- BeamSplitter (Enhanced with BS/PBS types & Adjustable PBS Ratio) ---
+
+// --- START OF REPLACEMENT: BeamSplitter Class (PBS Logic Overhaul) ---
 class BeamSplitter extends OpticalComponent {
     static functionDescription = "分光器将入射光分为两路，可为非偏振或偏振型。";
     constructor(pos, length = 80, angleDeg = 45, type = 'BS', splitRatio = 0.5, pbsUnpolarizedReflectivity = 0.5) {
-        // If creating a PBS, its visual side length will be smaller so its diagonal is about half of a default BS line.
-        const effectiveLength = (type === 'PBS') ? length / 2 : length;
+        const effectiveLength = (type === 'PBS') ? length / Math.sqrt(2) : length; // PBS side length vs BS line length
         const initialLabel = type === 'PBS' ? "偏振分束器" : "分束器";
         super(pos, angleDeg, initialLabel);
 
@@ -3395,10 +3395,7 @@ class BeamSplitter extends OpticalComponent {
         this.splitRatio = Math.max(0, Math.min(1, splitRatio));
         this.pbsUnpolarizedReflectivity = Math.max(0, Math.min(1, pbsUnpolarizedReflectivity));
 
-        // --- Geometry Cache ---
-        // For PBS (visual square)
         this.worldVertices = [];
-        // For PBS (optical diagonal) and BS (optical line)
         this.p1 = pos.clone();
         this.p2 = pos.clone();
         this.normal = Vector.fromAngle(angleDeg + Math.PI / 2);
@@ -3412,10 +3409,11 @@ class BeamSplitter extends OpticalComponent {
 
     toJSON() {
         const baseData = super.toJSON();
+        const lengthToSave = this.type === 'PBS' ? this.length * Math.sqrt(2) : this.length;
         return {
             ...baseData,
-            length: this.length,
-            splitterType: this.type,
+            length: lengthToSave,
+            splitterType: this.type, // Use a different key to avoid conflicts
             splitRatio: this.splitRatio,
             pbsUnpolarizedReflectivity: this.pbsUnpolarizedReflectivity
         };
@@ -3427,20 +3425,18 @@ class BeamSplitter extends OpticalComponent {
 
         if (this.type === 'PBS') {
             const halfSize = this.length / 2.0;
-            // --- Visual Geometry: The Square Box ---
             const localVertices = [
                 new Vector(-halfSize, -halfSize), new Vector(halfSize, -halfSize),
                 new Vector(halfSize, halfSize), new Vector(-halfSize, halfSize)
             ];
             this.worldVertices = localVertices.map(v => v.rotate(this.angleRad).add(this.pos));
 
-            // --- Optical Geometry: The Diagonal Line ---
-            // The main angle (this.angleRad) orients the square. The diagonal is fixed at 45deg inside it.
-            const diagAngle = this.angleRad + Math.PI / 4;
-            const diagLength = Math.sqrt(2) * halfSize; // Length from center to corner
-            const diagVec = Vector.fromAngle(diagAngle).multiply(diagLength);
-            this.p1 = this.pos.subtract(diagVec);
-            this.p2 = this.pos.add(diagVec);
+            // Optical diagonal is fixed at 45deg inside the rotated square
+            const p1_local = new Vector(-halfSize, halfSize);
+            const p2_local = new Vector(halfSize, -halfSize);
+            this.p1 = p1_local.rotate(this.angleRad).add(this.pos);
+            this.p2 = p2_local.rotate(this.angleRad).add(this.pos);
+            
             const edgeVec = this.p2.subtract(this.p1);
             this.normal = new Vector(-edgeVec.y, edgeVec.x).normalize();
 
@@ -3453,30 +3449,21 @@ class BeamSplitter extends OpticalComponent {
         }
     }
 
-    onAngleChanged() {
-        this._updateGeometry();
-    }
-    onPositionChanged() {
-        this._updateGeometry();
-    }
+    onAngleChanged() { this._updateGeometry(); }
+    onPositionChanged() { this._updateGeometry(); }
 
     draw(ctx) {
         if (this.type === 'PBS') {
             if (!this.worldVertices || this.worldVertices.length !== 4) return;
-            // Draw the visual square box
             ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
             ctx.fillStyle = this.selected ? 'rgba(100, 200, 255, 0.3)' : 'rgba(100, 200, 255, 0.15)';
             ctx.lineWidth = this.selected ? 2 : 1.5;
             ctx.beginPath();
             ctx.moveTo(this.worldVertices[0].x, this.worldVertices[0].y);
-            ctx.lineTo(this.worldVertices[1].x, this.worldVertices[1].y);
-            ctx.lineTo(this.worldVertices[2].x, this.worldVertices[2].y);
-            ctx.lineTo(this.worldVertices[3].x, this.worldVertices[3].y);
+            for (let i = 1; i < 4; i++) { ctx.lineTo(this.worldVertices[i].x, this.worldVertices[i].y); }
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-
-            // Draw the internal diagonal line (the optical surface)
             if (this.p1 && this.p2) {
                 ctx.setLineDash([2, 2]);
                 ctx.beginPath();
@@ -3485,7 +3472,7 @@ class BeamSplitter extends OpticalComponent {
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
-        } else { // Original BS drawing
+        } else {
             if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return;
             ctx.strokeStyle = this.selected ? 'rgba(255, 255, 0, 0.9)' : 'rgba(100, 200, 255, 0.7)';
             ctx.lineWidth = this.selected ? 3 : 2;
@@ -3499,13 +3486,10 @@ class BeamSplitter extends OpticalComponent {
     _containsPointBody(point) {
         if (!point) return false;
         if (this.type === 'PBS') {
-            // For selection, we check against the visual square body
-            if (!this.worldVertices || this.worldVertices.length !== 4) return false;
             const p_local = point.subtract(this.pos).rotate(-this.angleRad);
             const halfSize = this.length / 2.0;
             return Math.abs(p_local.x) <= halfSize && Math.abs(p_local.y) <= halfSize;
         } else {
-             // Original BS line check
             if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return false;
             const lenSq = this.p1.distanceSquaredTo(this.p2);
             if (lenSq < 1e-9) return point.distanceSquaredTo(this.pos) < 25;
@@ -3518,27 +3502,18 @@ class BeamSplitter extends OpticalComponent {
         }
     }
 
-
     intersect(rayOrigin, rayDirection) {
-        // For both PBS and BS, the optical surface is now the line from p1 to p2.
-        // The square of the PBS is purely visual.
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return [];
-
         const v1 = rayOrigin.subtract(this.p1);
         const v2 = this.p2.subtract(this.p1);
-        const v3 = new Vector(-rayDirection.y, rayDirection.x); // Perpendicular to ray direction
+        const v3 = new Vector(-rayDirection.y, rayDirection.x);
         const dot_v2_v3 = v2.dot(v3);
-
-        if (Math.abs(dot_v2_v3) < 1e-9) return []; // Parallel lines
-
-        const t1 = v2.cross(v1) / dot_v2_v3; // Distance along the ray
-        const t2 = v1.dot(v3) / dot_v2_v3;   // Parameter along the segment [0, 1]
-
-        // Check if intersection is valid (in front of ray and on the line segment)
+        if (Math.abs(dot_v2_v3) < 1e-9) return [];
+        const t1 = v2.cross(v1) / dot_v2_v3;
+        const t2 = v1.dot(v3) / dot_v2_v3;
         if (t1 > 1e-6 && t2 >= 0 && t2 <= 1) {
             const intersectionPoint = rayOrigin.add(rayDirection.multiply(t1));
             let surfaceNormal = this.normal.clone();
-            // Ensure normal points towards the incoming ray for correct calculations
             if (rayDirection.dot(surfaceNormal) > 0) {
                 surfaceNormal = surfaceNormal.multiply(-1);
             }
@@ -3565,58 +3540,90 @@ class BeamSplitter extends OpticalComponent {
         const hitPoint = intersectionInfo.point;
         const surfaceNormal = intersectionInfo.normal;
         const newRays = [];
-        // Reflected Ray
+        
         const reflectedIntensity = ray.intensity * this.splitRatio;
-        if (reflectedIntensity >= ray.minIntensityThreshold) {
+        if (reflectedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
             const reflectedDirection = ray.direction.subtract(surfaceNormal.multiply(2 * ray.direction.dot(surfaceNormal))).normalize();
             const reflectOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
-            newRays.push(new RayClass(reflectOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([reflectOrigin.clone()])));
+            const reflectedRay = new RayClass(reflectOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([reflectOrigin.clone()]));
+            if(ray.hasJones()) reflectedRay.setJones(ray.jones); // Preserve Jones vector for BS
+            newRays.push(reflectedRay);
         }
-        // Transmitted Ray
+        
         const transmittedIntensity = ray.intensity * (1.0 - this.splitRatio);
-        if (transmittedIntensity >= ray.minIntensityThreshold) {
+        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
             const transmitOrigin = hitPoint.add(ray.direction.multiply(1e-6));
-            newRays.push(new RayClass(transmitOrigin, ray.direction, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()])));
+            const transmittedRay = new RayClass(transmitOrigin, ray.direction, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()]));
+            if(ray.hasJones()) transmittedRay.setJones(ray.jones); // Preserve Jones vector for BS
+            newRays.push(transmittedRay);
         }
+        
         ray.terminate('split_bs');
         return newRays;
     }
 
     _interactPBS(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const surfaceNormal = intersectionInfo.normal; // Normal of the diagonal
+        const surfaceNormal = intersectionInfo.normal;
         const newRays = [];
+        
+        ray.ensureJonesVector();
+        
+        // 定义 PBS 的 P-偏振方向 (透射方向)，即沿着分束面
+        const p_axis_vec = this.p2.subtract(this.p1).normalize();
+        const p_axis_angle = p_axis_vec.angle();
 
-        // P-polarization is parallel to the splitting surface line (p1->p2)
-        const p_dir_world = this.p2.subtract(this.p1).normalize();
-        const polarizationAngle = ray.polarizationAngle;
-
+        let transmittedJones, reflectedJones;
         let transmittedIntensity, reflectedIntensity;
-        if (typeof polarizationAngle === 'number') {
-            const relativeAngle = polarizationAngle - p_dir_world.angle();
-            const cos2 = Math.cos(relativeAngle) * Math.cos(relativeAngle);
-            transmittedIntensity = ray.intensity * cos2; // P-pol transmits
-            reflectedIntensity = ray.intensity * (1 - cos2); // S-pol reflects
-        } else { // Unpolarized light
-            transmittedIntensity = ray.intensity * (1 - this.pbsUnpolarizedReflectivity);
-            reflectedIntensity = ray.intensity * this.pbsUnpolarizedReflectivity;
-        }
 
-        // --- Transmitted Ray (P-polarized component) ---
-        if (transmittedIntensity >= ray.minIntensityThreshold) {
-            const newDirection = ray.direction.clone();
-            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
-            const transmittedRay = new RayClass(newOrigin, newDirection, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
-            transmittedRay.setLinearPolarization(p_dir_world.angle());
+        if (!ray.hasJones()) { // 非偏振光入射
+            transmittedIntensity = ray.intensity * (1.0 - this.pbsUnpolarizedReflectivity);
+            reflectedIntensity = ray.intensity * this.pbsUnpolarizedReflectivity;
+            // 透射光为 P 偏振，反射光为 S 偏振
+            transmittedJones = Ray.jonesLinear(p_axis_angle);
+            reflectedJones = Ray.jonesLinear(p_axis_angle + Math.PI / 2);
+        } else { // 已偏振光入射
+            // 构造 P 偏振和 S 偏振的投影算子 (琼斯矩阵)
+            const c = Math.cos(p_axis_angle);
+            const s = Math.sin(p_axis_angle);
+            const P_transmit = [[{re:c*c, im:0}, {re:c*s, im:0}], [{re:c*s, im:0}, {re:s*s, im:0}]];
+            
+            // S 偏振轴
+            const s_axis_angle = p_axis_angle + Math.PI / 2;
+            const cs = Math.cos(s_axis_angle);
+            const ss = Math.sin(s_axis_angle);
+            const P_reflect = [[{re:cs*cs, im:0}, {re:cs*ss, im:0}], [{re:cs*ss, im:0}, {re:ss*ss, im:0}]];
+            
+            // 计算透射和反射的琼斯矢量
+            transmittedJones = Ray._apply2x2(P_transmit, ray.jones);
+            reflectedJones = Ray._apply2x2(P_reflect, ray.jones);
+
+            // 计算新的强度
+            const inIntensityJones = ray.jonesIntensity();
+            const outIntensityJones_T = Ray._cAbs2(transmittedJones.Ex) + Ray._cAbs2(transmittedJones.Ey);
+            const outIntensityJones_R = Ray._cAbs2(reflectedJones.Ex) + Ray._cAbs2(reflectedJones.Ey);
+            
+            const scale_T = inIntensityJones > 1e-12 ? (outIntensityJones_T / inIntensityJones) : 0;
+            const scale_R = inIntensityJones > 1e-12 ? (outIntensityJones_R / inIntensityJones) : 0;
+
+            transmittedIntensity = ray.intensity * scale_T;
+            reflectedIntensity = ray.intensity * scale_R;
+        }
+        
+        // 创建透射光线 (P-偏振)
+        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
+            const transmitOrigin = hitPoint.add(ray.direction.multiply(1e-6));
+            const transmittedRay = new RayClass(transmitOrigin, ray.direction, ray.wavelengthNm, transmittedIntensity, ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([transmitOrigin.clone()]));
+            transmittedRay.setJones(transmittedJones);
             newRays.push(transmittedRay);
         }
 
-        // --- Reflected Ray (S-polarized component) ---
-        if (reflectedIntensity >= ray.minIntensityThreshold) {
+        // 创建反射光线 (S-偏振)
+        if (reflectedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
             const reflectedDirection = ray.direction.subtract(surfaceNormal.multiply(2 * ray.direction.dot(surfaceNormal))).normalize();
-            const newOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
-            const reflectedRay = new RayClass(newOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([newOrigin.clone()]));
-            reflectedRay.setLinearPolarization(p_dir_world.angle() + Math.PI / 2); // S-pol is perpendicular to P-pol
+            const reflectOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
+            const reflectedRay = new RayClass(reflectOrigin, reflectedDirection, ray.wavelengthNm, reflectedIntensity, ray.phase + Math.PI, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex, ray.sourceId, null, ray.ignoreDecay, ray.history.concat([reflectOrigin.clone()]));
+            reflectedRay.setJones(reflectedJones);
             newRays.push(reflectedRay);
         }
 
@@ -3633,16 +3640,13 @@ class BeamSplitter extends OpticalComponent {
                 value: this.type,
                 label: '类型',
                 type: 'select',
-                options: [
-                    { value: 'BS', label: '标准分束器 (BS)' },
-                    { value: 'PBS', label: '偏振分束器 (PBS)' }
-                ]
+                options: [ { value: 'BS', label: '标准分束器 (BS)' }, { value: 'PBS', label: '偏振分束器 (PBS)' } ]
             }
         };
         if (this.type === 'BS') {
             props.splitRatio = { value: this.splitRatio.toString(), label: '反射比(BS %)', type: 'select', options: [ { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' }, { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' }, { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' }, { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' }, { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' }, { value: '0.0', label: '0/100 (Window)' } ] };
         } else if (this.type === 'PBS') {
-            props.pbsUnpolarizedReflectivity = { value: this.pbsUnpolarizedReflectivity.toString(), label: '反射比(PBS Unpol %)', type: 'select', options: [ { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' }, { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' }, { value: '0.5', label: '50/50' }, { value: '0.6', label: '60/40' }, { value: '0.7', label: '70/30' }, { value: '0.8', label: '80/20' }, { value: '0.9', label: '90/10' }, { value: '1.0', label: '100/0 (Mirror)' }, { value: '0.0', label: '0/100 (Window)' } ] };
+            props.pbsUnpolarizedReflectivity = { value: this.pbsUnpolarizedReflectivity.toString(), label: '非偏振光反射比', type: 'select', options: [ { value: '0.1', label: '10/90' }, { value: '0.2', label: '20/80' }, { value: '0.3', label: '30/70' }, { value: '0.4', label: '40/60' }, { value: '0.5', label: '50/50' } ] };
         }
         return props;
     }
@@ -3656,10 +3660,27 @@ class BeamSplitter extends OpticalComponent {
         switch (propName) {
             case 'length':
                 const l = parseFloat(value);
-                if (!isNaN(l) && l >= 10 && Math.abs(l - this.length) > 1e-6) { this.length = l; needsGeomUpdate = true; }
+                if (!isNaN(l) && l >= 10) { 
+                    const newLength = this.type === 'PBS' ? l / Math.sqrt(2) : l;
+                    if (Math.abs(newLength - this.length) > 1e-6) {
+                        this.length = newLength; 
+                        needsGeomUpdate = true;
+                    }
+                }
                 break;
             case 'type':
-                if ((value === 'BS' || value === 'PBS') && this.type !== value) { this.type = value; needsGeomUpdate = true; needsOpticUpdate = true; needsInspectorRefresh = true; }
+                if ((value === 'BS' || value === 'PBS') && this.type !== value) {
+                    // Adjust length when switching type to maintain visual size
+                    if (value === 'PBS') {
+                        this.length /= Math.sqrt(2); // From line to side
+                    } else {
+                        this.length *= Math.sqrt(2); // From side to line
+                    }
+                    this.type = value; 
+                    needsGeomUpdate = true; 
+                    needsOpticUpdate = true; 
+                    needsInspectorRefresh = true;
+                }
                 break;
             case 'splitRatio':
                 if (this.type === 'BS') { const r = parseFloat(value); if (!isNaN(r)) { const c = Math.max(0, Math.min(1, r)); if (Math.abs(c - this.splitRatio) > 1e-9) { this.splitRatio = c; needsOpticUpdate = true; } } }
@@ -3676,6 +3697,7 @@ class BeamSplitter extends OpticalComponent {
         return true;
     }
 }
+// --- END OF REPLACEMENT: BeamSplitter Class ---
 
 
 // --- DielectricBlock (Revision 2: Physics Accuracy Focus) ---
