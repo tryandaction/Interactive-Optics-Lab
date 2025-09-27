@@ -3927,45 +3927,70 @@ function remapForLightCanvas(colorString, forFill = false) {
     if (!colorString || typeof colorString !== 'string') return colorString;
     const key = colorString.trim().toLowerCase();
     // Curated artistic palette mapping for common colors used by components on white canvas
+    // Professional optical engineering color scheme for white canvas
     const strokeMap = {
-        // neutrals
-        '#ffffff': '#2d3748',
-        'white': '#2d3748',
-        '#cccccc': '#718096',
-        '#aaaaaa': '#718096',
-        'silver': '#a0aec0',
-        'dimgray': '#4a5568',
-        '#888888': '#4a5568',
-        '#dddddd': '#718096',
-        // accents
-        '#ffff00': '#b7791f', // yellow highlight -> deeper amber
-        'yellow': '#b7791f',
-        'cyan': '#0f609b',    // deeper teal-blue
-        '#aaaaff': '#2c5282', // lens blue -> deep blue
-        '#87cefa': '#2b6cb0', // lightskyblue -> deep blue
-        '#b0e0e6': '#2c7a7b', // powderblue -> deep teal
-        '#ffc080': '#9c4221', // deeper orange-brown
-        '#ff69b4': '#97266d', // deep magenta
-        '#8a2be2': '#553c9a'  // deep violet
+        // Base neutrals - sophisticated charcoal tones
+        '#ffffff': '#1a202c',  // Pure white -> deep charcoal
+        'white': '#1a202c',
+        '#cccccc': '#4a5568',  // Light gray -> slate
+        '#aaaaaa': '#4a5568',  // Medium gray -> slate
+        'silver': '#718096',   // Silver -> blue-gray
+        'dimgray': '#2d3748',  // Dim gray -> charcoal
+        '#888888': '#2d3748',  // Medium gray -> charcoal
+        '#dddddd': '#4a5568',  // Light gray -> slate
+        
+        // Optical component colors - professional engineering palette
+        '#ffff00': '#d69e2e',  // Yellow -> warm amber (selection highlight)
+        'yellow': '#d69e2e',
+        'cyan': '#2b6cb0',     // Cyan -> professional blue
+        '#aaaaff': '#2c5282',  // Lens blue -> deep professional blue
+        '#87cefa': '#2b6cb0',  // Light sky blue -> professional blue
+        '#b0e0e6': '#2c7a7b',  // Powder blue -> deep teal
+        '#ffc080': '#c05621',  // Orange -> warm brown
+        '#ff69b4': '#97266d',  // Hot pink -> deep magenta
+        '#8a2be2': '#553c9a',  // Blue violet -> deep violet
+        
+        // Additional professional mappings
+        '#90c0ff': '#2c5282',  // Light blue -> deep blue
+        '#ffb6c1': '#c53030',  // Light pink -> deep red
+        '#d3d3d3': '#4a5568',  // Light gray -> slate
+        '#f0f0f0': '#4a5568',  // Very light gray -> slate
+        'lightgray': '#4a5568',
+        'lightgrey': '#4a5568',
+        'gainsboro': '#4a5568',
+        'whitesmoke': '#4a5568'
     };
     const fillMap = {
-        '#ffffff': 'rgba(45, 55, 72, 0.20)',
-        'white': 'rgba(45, 55, 72, 0.20)',
-        '#cccccc': 'rgba(113, 128, 150, 0.20)',
-        '#aaaaaa': 'rgba(113, 128, 150, 0.20)',
-        'silver': 'rgba(160, 174, 192, 0.22)',
-        'dimgray': 'rgba(74, 85, 104, 0.28)',
-        '#888888': 'rgba(74, 85, 104, 0.28)',
-        '#dddddd': 'rgba(113, 128, 150, 0.18)',
-        '#ffff00': 'rgba(183, 121, 31, 0.30)',
-        'yellow': 'rgba(183, 121, 31, 0.30)',
-        'cyan': 'rgba(15, 96, 155, 0.22)',
-        '#aaaaff': 'rgba(44, 82, 130, 0.18)',
-        '#87cefa': 'rgba(43, 108, 176, 0.18)',
-        '#b0e0e6': 'rgba(44, 122, 123, 0.18)',
-        '#ffc080': 'rgba(156, 66, 33, 0.22)',
-        '#ff69b4': 'rgba(151, 38, 109, 0.22)',
-        '#8a2be2': 'rgba(85, 60, 154, 0.20)'
+        // Base neutrals - subtle transparency
+        '#ffffff': 'rgba(26, 32, 44, 0.15)',
+        'white': 'rgba(26, 32, 44, 0.15)',
+        '#cccccc': 'rgba(74, 85, 104, 0.12)',
+        '#aaaaaa': 'rgba(74, 85, 104, 0.12)',
+        'silver': 'rgba(113, 128, 150, 0.15)',
+        'dimgray': 'rgba(45, 55, 72, 0.18)',
+        '#888888': 'rgba(45, 55, 72, 0.18)',
+        '#dddddd': 'rgba(74, 85, 104, 0.10)',
+        
+        // Optical components - professional fills
+        '#ffff00': 'rgba(214, 158, 46, 0.25)',
+        'yellow': 'rgba(214, 158, 46, 0.25)',
+        'cyan': 'rgba(43, 108, 176, 0.15)',
+        '#aaaaff': 'rgba(44, 82, 130, 0.12)',
+        '#87cefa': 'rgba(43, 108, 176, 0.12)',
+        '#b0e0e6': 'rgba(44, 122, 123, 0.12)',
+        '#ffc080': 'rgba(192, 86, 33, 0.15)',
+        '#ff69b4': 'rgba(151, 38, 109, 0.15)',
+        '#8a2be2': 'rgba(85, 60, 154, 0.12)',
+        
+        // Additional professional fills
+        '#90c0ff': 'rgba(44, 82, 130, 0.10)',
+        '#ffb6c1': 'rgba(197, 48, 48, 0.12)',
+        '#d3d3d3': 'rgba(74, 85, 104, 0.08)',
+        '#f0f0f0': 'rgba(74, 85, 104, 0.08)',
+        'lightgray': 'rgba(74, 85, 104, 0.08)',
+        'lightgrey': 'rgba(74, 85, 104, 0.08)',
+        'gainsboro': 'rgba(74, 85, 104, 0.08)',
+        'whitesmoke': 'rgba(74, 85, 104, 0.08)'
     };
 
     // If the color is in curated map, use it; otherwise soften overly bright colors
