@@ -9,7 +9,7 @@ let canvas, ctx, toolbar, simulationArea, inspector, inspectorContent, deleteBtn
 window.globalMaxBounces = MAX_RAY_BOUNCES;
 window.globalMinIntensity = MIN_RAY_INTENSITY;
 
-let currentUser = null; // null if not logged in, or an object like { username: '...' } if logged in
+let currentUser = null; // DEPRECATED: Use window.userManager.currentUser instead
 let initialized = false; // Flag to prevent multiple initializations
 
 // --- Global State ---
@@ -72,6 +72,7 @@ let arrowAnimationStartTime = 0; // Time when arrows were last enabled
 let globalShowArrows = false; // Global toggle for showing any arrows
 let onlyShowSelectedSourceArrow = false; // Mode: show all vs. only selected source's arrow
 let arrowAnimationSpeed = 100; // Speed pixels/sec (or units/sec)
+let showArrowTrail = true; // 新增：控制箭头拖影显示
 const ARROW_SIZE_PIXELS = 12; // <<<--- ADD THIS LINE (Adjust 12 to your preferred size)
 let arrowAnimationStates = new Map(); // <<<--- ADD THIS LINE
 // --- Simulation State ---
@@ -227,8 +228,6 @@ function gameLoop(timestamp) {
 
 // --- START OF REPLACEMENT: updateArrowAnimations function ---
 function updateArrowAnimations(dt) { // dt is not directly used, uses global time
-    const newAnimationStates = new Map(); // Create a new map for this frame
-
     // If arrows are globally off, clear the states map and exit
     if (!globalShowArrows) {
         if (arrowAnimationStates.size > 0) arrowAnimationStates.clear(); // Clear existing states if hiding
@@ -280,7 +279,7 @@ function updateArrowAnimations(dt) { // dt is not directly used, uses global tim
                 if (currentDistance < 0) currentDistance += pathLength; // Handle potential negative modulo
 
                 // Store state needed for drawing this segment's arrow
-                newAnimationStates.set(index, { // Use original index in currentRayPaths as key
+                arrowAnimationStates.set(index, { // Use original index in currentRayPaths as key
                     distance: currentDistance,
                     pathLength: pathLength,
                     pathPoints: pathPoints, // Store points for drawing
@@ -290,8 +289,13 @@ function updateArrowAnimations(dt) { // dt is not directly used, uses global tim
         } // End if (ray instanceof Ray && ray.animateArrow)
     }); // End forEach currentRayPaths
 
-    // Replace the old states map with the newly calculated one for this frame
-    arrowAnimationStates = newAnimationStates;
+    // 清理无效的状态（防止内存泄漏）
+    const validIndices = new Set(currentRayPaths.map((_, index) => index));
+    for (const [index] of arrowAnimationStates) {
+        if (!validIndices.has(index)) {
+            arrowAnimationStates.delete(index);
+        }
+    }
 }
 // --- END OF REPLACEMENT: updateArrowAnimations function ---
 
@@ -379,16 +383,62 @@ function draw() {
     // (Drawn before components so components appear on top of preview)
     drawPlacementPreview(ctx);
 
-    // Draw all components
+    // Draw all components with user content filtering
     components.forEach(comp => {
         try {
+            // Apply user content filtering
+            let shouldDraw = true;
+            let shouldDim = false;
+
+            if (window.userContentFilter && window.userContentFilter.currentUserId) {
+                const filter = window.userContentFilter.filter;
+                const currentUserId = window.userContentFilter.currentUserId;
+                const compUserId = comp.userId;
+
+                if (filter === 'all') {
+                    // Show all content
+                    shouldDraw = true;
+                    shouldDim = false;
+                } else if (filter === 'mine') {
+                    // Only show current user's content
+                    shouldDraw = compUserId === currentUserId;
+                    shouldDim = false;
+                } else if (filter && filter !== 'all') {
+                    // Show only specific user's content
+                    shouldDraw = compUserId === filter;
+                    shouldDim = false;
+                }
+
+                // If dimming other content is enabled and we're not showing only one user's content
+                if (window.userContentFilter.dimOther && filter === 'all' && compUserId && compUserId !== currentUserId) {
+                    shouldDim = true;
+                }
+            }
+
+            if (!shouldDraw) {
+                return; // Skip drawing this component
+            }
+
+            // Apply dimming if needed
+            if (shouldDim) {
+                ctx.save();
+                ctx.globalAlpha = 0.3; // Dim other users' content
+            }
+
             comp.draw(ctx); // Draw the component itself
+
             // Draw selection highlight (which includes angle handle)
             // The base GameObject.drawSelection handles the angle handle part.
             // Subclasses might override drawSelection to add more highlights.
             if (comp === selectedComponent) {
                 comp.drawSelection(ctx);
             }
+
+            // Restore alpha if dimmed
+            if (shouldDim) {
+                ctx.restore();
+            }
+
         } catch (e) {
             console.error(`Error drawing component ${comp?.label}:`, e, comp);
         }
@@ -604,6 +654,22 @@ function drawArrowAnimations(ctx) {
 
                             // Ensure calculations are valid before drawing
                             if (arrowPos && arrowDir && !isNaN(arrowPos.x) && arrowDir.magnitudeSquared() > 0.5) {
+                                // 绘制箭头拖影（如果启用）
+                                if (showArrowTrail) {
+                                    // 绘制箭头轨迹线（半透明的线段）
+                                    ctx.save();
+                                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)'; // 半透明黄色
+                                    ctx.lineWidth = arrowSize / 2;
+                                    ctx.lineCap = 'round';
+
+                                    // 绘制从起点到当前位置的轨迹
+                                    ctx.beginPath();
+                                    ctx.moveTo(p1.x, p1.y);
+                                    ctx.lineTo(arrowPos.x, arrowPos.y);
+                                    ctx.stroke();
+                                    ctx.restore();
+                                }
+
                                 // Calculate points for the arrowhead shape
                                 const angle = Math.PI / 6; // Arrowhead angle
                                 // Vectors for the two back points of the arrowhead
@@ -1723,37 +1789,103 @@ function updateUserUI() {
         return;
     }
 
-    if (currentUser) { // User is logged in
-        userStatusEl.textContent = `欢迎, ${currentUser.username}`;
-        userActionBtn.textContent = '保存到云端'; // Placeholder for cloud save action
-        userActionBtn.style.display = 'inline-block'; // Show cloud save button (or hide if not implemented)
-        userScenesBtn.style.display = 'inline-block'; // Show "My Cloud Scenes" button
-        logoutBtn.style.display = 'inline-block';     // Show Logout button
+    const userManager = window.userManager;
+    if (userManager && userManager.isUserLoggedIn()) { // User is logged in
+        const currentUser = userManager.getCurrentUser();
+        userStatusEl.textContent = `欢迎, ${currentUser?.username || '用户'}`;
+        userActionBtn.textContent = '保存到云端';
+        userActionBtn.style.display = 'inline-block';
+        userScenesBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'inline-block';
     } else { // User is not logged in
         userStatusEl.textContent = '未登录';
-        userActionBtn.textContent = '登录 / 注册'; // Show Login/Register button
+        userActionBtn.textContent = '登录 / 注册';
         userActionBtn.style.display = 'inline-block';
-        userScenesBtn.style.display = 'none';     // Hide Cloud Scenes button
-        logoutBtn.style.display = 'none';         // Hide Logout button
+        userScenesBtn.style.display = 'none';
+        logoutBtn.style.display = 'none';
     }
 }
 
 
-// --- Placeholder Functions for Cloud/User Actions ---
-function showUserScenes() { // Placeholder for showing cloud scenes
-    alert("云端场景功能开发中...");
+// --- Cloud/User Actions Functions ---
+async function showUserScenes() { // Show cloud scenes for logged-in user
+    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
+        showTemporaryMessage("请先登录以查看云端场景", 'warning');
+        return;
+    }
+
+    try {
+        // 显示加载状态
+        const container = document.getElementById('cloud-scenes-list');
+        if (container) {
+            container.innerHTML = '<p class="placeholder-text">正在加载云端场景...</p>';
+        }
+
+        showCloudScenesModal(); // 先显示模态框
+
+        const response = await window.userManager.getScenes();
+        if (response.success) {
+            displayCloudScenes(response.scenes);
+        } else {
+            showTemporaryMessage("获取云端场景失败: " + (response.message || "未知错误"), 'error');
+            if (container) {
+                container.innerHTML = '<p class="placeholder-text" style="color: var(--danger-color);">加载失败，请刷新重试</p>';
+            }
+        }
+    } catch (error) {
+        console.error("获取云端场景错误:", error);
+        showTemporaryMessage("获取云端场景失败，请稍后重试", 'error');
+        const container = document.getElementById('cloud-scenes-list');
+        if (container) {
+            container.innerHTML = '<p class="placeholder-text" style="color: var(--danger-color);">网络错误，请检查连接</p>';
+        }
+    }
 }
 
-function saveSceneToCloud() { // Placeholder for saving to cloud
-    alert("保存到云端功能开发中...");
-    // On success, would likely set sceneModified = false;
+async function saveSceneToCloud() { // Save current scene to cloud
+    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
+        alert("请先登录以保存到云端");
+        return;
+    }
+
+    const sceneName = prompt("请输入场景名称:", `我的光学实验 ${new Date().toLocaleDateString()}`);
+    if (!sceneName || !sceneName.trim()) {
+        return;
+    }
+
+    try {
+        const sceneData = generateSceneDataObject();
+        if (!sceneData) {
+            alert("无法生成场景数据");
+            return;
+        }
+
+        sceneData.name = sceneName.trim();
+        sceneData.description = "通过光学实验室保存的场景";
+        sceneData.isPublic = false; // 默认私有
+
+        const response = await window.userManager.saveScene(sceneData);
+        if (response.success) {
+            showTemporaryMessage(`场景 "${sceneName}" 已成功保存到云端！`, 'success');
+            sceneModified = false;
+        } else {
+            showTemporaryMessage("保存失败: " + (response.message || "未知错误"), 'error');
+        }
+    } catch (error) {
+        console.error("保存到云端错误:", error);
+        alert("保存到云端失败，请稍后重试");
+    }
 }
 
 
 function logoutUser() { // Handles logout
     console.log("Logging out user...");
-    // TODO: Clear user session/token (both client-side and potentially call backend)
-    currentUser = null; // Clear user state
+    if (window.userManager) {
+        window.userManager.logout();
+    } else {
+        // Fallback if userManager is not available
+        currentUser = null;
+    }
 
     // Decide what to do with the current scene on logout
     if (sceneModified) {
@@ -1910,33 +2042,34 @@ function handleMouseDown(event) {
             // ... (Existing component creation switch logic - NO CHANGES NEEDED HERE) ...
             try {
                 const compPos = mousePos.clone();
+                const currentUserId = window.userManager?.currentUser?.id; // Get current user ID for collaboration
                 switch (componentToAdd) { // (Keep list complete)
-                    case 'LaserSource': newComp = new LaserSource(compPos); break;
-                    case 'FanSource': newComp = new FanSource(compPos); break;
-                    case 'LineSource': newComp = new LineSource(compPos); break;
-                    case 'Mirror': newComp = new Mirror(compPos); break;
-                    case 'SphericalMirror': newComp = new SphericalMirror(compPos); break;
-                    case 'ParabolicMirror': newComp = new ParabolicMirror(compPos); break;
-                    case 'Screen': newComp = new Screen(compPos); break;
-                    case 'ThinLens': newComp = new ThinLens(compPos); break;
-                    case 'Aperture': newComp = new Aperture(compPos); break;
-                    case 'Polarizer': newComp = new Polarizer(compPos); break;
-                    case 'BeamSplitter': newComp = new BeamSplitter(compPos); break;
-                    case 'DielectricBlock': newComp = new DielectricBlock(compPos); break;
-                    case 'Photodiode': newComp = new Photodiode(compPos); break;
-                    case 'OpticalFiber': newComp = new OpticalFiber(compPos); break;
-                    case 'Prism': newComp = new Prism(compPos); break;
-                    case 'WhiteLightSource': newComp = new WhiteLightSource(compPos); break;
-                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos); break;
-                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos); break;
-                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos); break;
-                    case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos); break;
-                    case 'FaradayRotator': newComp = new FaradayRotator(compPos); break; // <-- ADD THIS LINE
-                    case 'FaradayIsolator': newComp = new FaradayIsolator(compPos); break; // <-- ADD THIS LINE
-                    case 'CustomComponent': newComp = new CustomComponent(compPos); break; // <-- ADD THIS LINE
-                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 0); break;
-                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 0); break;
-                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0); break;
+                    case 'LaserSource': newComp = new LaserSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    case 'FanSource': newComp = new FanSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    case 'LineSource': newComp = new LineSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    case 'Mirror': newComp = new Mirror(compPos, undefined, 0, currentUserId); break;
+                    case 'SphericalMirror': newComp = new SphericalMirror(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'Screen': newComp = new Screen(compPos, undefined, 0, undefined, currentUserId); break;
+                    case 'ThinLens': newComp = new ThinLens(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'Aperture': newComp = new Aperture(compPos, undefined, undefined, undefined, 0, currentUserId); break;
+                    case 'Polarizer': newComp = new Polarizer(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'BeamSplitter': newComp = new BeamSplitter(compPos, undefined, 0, undefined, undefined, undefined, currentUserId); break;
+                    case 'DielectricBlock': newComp = new DielectricBlock(compPos, undefined, undefined, 0, undefined, undefined, undefined, currentUserId); break;
+                    case 'Photodiode': newComp = new Photodiode(compPos, 0, undefined, currentUserId); break;
+                    case 'OpticalFiber': newComp = new OpticalFiber(compPos, undefined, 0, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    case 'Prism': newComp = new Prism(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
+                    case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos, undefined, undefined, 0, undefined, currentUserId); break;
+                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos, undefined, undefined, 0, currentUserId); break;
+                    case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
+                    case 'FaradayRotator': newComp = new FaradayRotator(compPos, undefined, undefined, 0, undefined, currentUserId); break; // <-- ADD THIS LINE
+                    case 'FaradayIsolator': newComp = new FaradayIsolator(compPos, undefined, undefined, 0, currentUserId); break; // <-- ADD THIS LINE
+                    case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0, undefined, currentUserId); break; // <-- ADD THIS LINE
+                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 0, currentUserId); break;
+                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 0, currentUserId); break;
+                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0, currentUserId); break;
                     default: console.warn("Unknown component type:", componentToAdd);
                 }
             } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
@@ -2821,6 +2954,540 @@ function closeAuthModal() {
     }
 }
 
+function showCloudScenesModal(scenes = []) {
+    const modal = document.getElementById('cloud-scenes-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('visible'), 10);
+        displayCloudScenes(scenes);
+    }
+}
+
+function closeCloudScenesModal() {
+    const modal = document.getElementById('cloud-scenes-modal');
+    if (modal) {
+        modal.classList.remove('visible');
+        setTimeout(() => { modal.style.display = 'none'; }, 300);
+    }
+}
+
+function displayCloudScenes(scenes) {
+    const container = document.getElementById('cloud-scenes-list');
+    if (!container) return;
+
+    if (!scenes || scenes.length === 0) {
+        container.innerHTML = '<p class="placeholder-text">暂无云端场景</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    scenes.forEach(scene => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'cloud-scene-item';
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'scene-info';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'scene-name';
+        nameDiv.textContent = scene.name;
+        infoDiv.appendChild(nameDiv);
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'scene-meta';
+        metaDiv.textContent = `创建于 ${new Date(scene.createdAt).toLocaleDateString()} | 更新于 ${new Date(scene.updatedAt).toLocaleDateString()}`;
+        infoDiv.appendChild(metaDiv);
+
+        if (scene.description) {
+            const descDiv = document.createElement('div');
+            descDiv.className = 'scene-description';
+            descDiv.textContent = scene.description;
+            infoDiv.appendChild(descDiv);
+        }
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'scene-actions';
+
+        const loadBtn = document.createElement('button');
+        loadBtn.className = 'scene-action-btn load-btn';
+        loadBtn.textContent = '加载';
+        loadBtn.onclick = () => loadCloudScene(scene.id);
+        actionsDiv.appendChild(loadBtn);
+
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'scene-action-btn share-btn';
+        shareBtn.textContent = '分享';
+        shareBtn.onclick = () => shareCloudScene(scene);
+        actionsDiv.appendChild(shareBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'scene-action-btn delete-btn';
+        deleteBtn.textContent = '删除';
+        deleteBtn.onclick = () => deleteCloudScene(scene.id, scene.name);
+        actionsDiv.appendChild(deleteBtn);
+
+        itemDiv.appendChild(infoDiv);
+        itemDiv.appendChild(actionsDiv);
+        container.appendChild(itemDiv);
+    });
+}
+
+async function loadCloudScene(sceneId) {
+    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
+        alert("请先登录");
+        return;
+    }
+
+    if (sceneModified && !confirm("当前场景有未保存的更改，加载云端场景将覆盖更改。是否继续？")) {
+        return;
+    }
+
+    try {
+        const response = await window.userManager.getScene(sceneId);
+        if (response.success) {
+            if (loadSceneFromData(response.scene.data)) {
+                showTemporaryMessage("云端场景加载成功！", 'success');
+                closeCloudScenesModal();
+            } else {
+                showTemporaryMessage("加载场景数据失败", 'error');
+            }
+        } else {
+            showTemporaryMessage("获取场景失败: " + (response.message || "未知错误"), 'error');
+        }
+    } catch (error) {
+        console.error("加载云端场景错误:", error);
+        alert("加载云端场景失败，请稍后重试");
+    }
+}
+
+async function deleteCloudScene(sceneId, sceneName) {
+    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
+        alert("请先登录");
+        return;
+    }
+
+    if (!confirm(`确定要删除云端场景 "${sceneName}" 吗？此操作无法撤销。`)) {
+        return;
+    }
+
+    try {
+        const response = await window.userManager.deleteScene(sceneId);
+        if (response.success) {
+            showTemporaryMessage("场景删除成功！", 'success');
+            // 刷新场景列表
+            showUserScenes();
+        } else {
+            showTemporaryMessage("删除失败: " + (response.message || "未知错误"), 'error');
+        }
+    } catch (error) {
+        console.error("删除云端场景错误:", error);
+        alert("删除云端场景失败，请稍后重试");
+    }
+}
+
+function shareCloudScene(scene) {
+    // 生成分享链接
+    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${scene._id}`;
+    const isPublic = scene.isPublic;
+
+    const shareText = `光学实验室场景: ${scene.name}\n${scene.description || '一个精彩的光学实验场景'}\n创建时间: ${new Date(scene.createdAt).toLocaleDateString()}\n分享链接: ${shareUrl}`;
+
+    if (navigator.share) {
+        navigator.share({
+            title: `光学实验室 - ${scene.name}`,
+            text: shareText,
+            url: shareUrl
+        }).then(() => {
+            showTemporaryMessage("场景已成功分享！", 'success');
+        }).catch((error) => {
+            console.error('分享失败:', error);
+            copyShareLink(shareUrl);
+        });
+    } else {
+        copyShareLink(shareUrl);
+    }
+}
+
+function copyShareLink(shareUrl) {
+    // 复制到剪贴板
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showTemporaryMessage("分享链接已复制到剪贴板！", 'success');
+        }).catch((error) => {
+            console.error('复制失败:', error);
+            showShareDialog(shareUrl);
+        });
+    } else {
+        showShareDialog(shareUrl);
+    }
+}
+
+function showShareDialog(shareUrl) {
+    // 显示分享对话框
+    const shareDialog = document.createElement('div');
+    shareDialog.className = 'modal-overlay';
+    shareDialog.innerHTML = `
+        <div class="modal-content" style="max-width: 500px;">
+            <h3>分享场景</h3>
+            <p>复制下面的链接分享给其他人：</p>
+            <div style="margin: 15px 0;">
+                <input type="text" value="${shareUrl}" readonly style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color);" onclick="this.select();">
+            </div>
+            <div style="text-align: center;">
+                <button onclick="navigator.clipboard.writeText('${shareUrl}').then(() => alert('链接已复制！')).catch(() => alert('复制失败，请手动复制'));" style="margin-right: 10px;">复制链接</button>
+                <button onclick="this.closest('.modal-overlay').remove();" class="secondary">关闭</button>
+            </div>
+        </div>
+    `;
+
+    // 添加样式
+    shareDialog.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); display: flex; justify-content: center;
+        align-items: center; z-index: 3000;
+    `;
+
+    document.body.appendChild(shareDialog);
+
+    // 点击背景关闭
+    shareDialog.addEventListener('click', (e) => {
+        if (e.target === shareDialog) {
+            shareDialog.remove();
+        }
+    });
+}
+
+/**
+ * 处理URL中的分享参数，自动加载分享的场景
+ */
+async function handleSharedScene() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const shareId = urlParams.get('share');
+
+    if (shareId && window.userManager) {
+        // 如果用户已登录，直接加载分享场景
+        if (window.userManager.isUserLoggedIn()) {
+            try {
+                const response = await window.userManager.getScene(shareId);
+                if (response.success) {
+                    if (loadSceneFromData(response.scene.data)) {
+                        console.log('分享场景加载成功');
+                        // 可选：显示成功消息
+                        // showTemporaryMessage('分享场景已加载', 'success');
+                    } else {
+                        console.error('加载分享场景数据失败');
+                    }
+                } else {
+                    console.error('获取分享场景失败:', response.message);
+                }
+            } catch (error) {
+                console.error('加载分享场景错误:', error);
+            }
+        } else {
+            // 用户未登录，提示登录后查看分享场景
+            const shouldLogin = confirm('此链接包含分享的光学实验场景。请登录后查看。');
+            if (shouldLogin) {
+                window.userManager.showAuthModal();
+                // 保存分享ID，登录后自动加载
+                sessionStorage.setItem('pendingShareId', shareId);
+            }
+        }
+    }
+}
+
+/**
+ * 检查登录后是否需要加载分享场景
+ */
+function checkPendingSharedScene() {
+    const shareId = sessionStorage.getItem('pendingShareId');
+    if (shareId && window.userManager && window.userManager.isUserLoggedIn()) {
+        sessionStorage.removeItem('pendingShareId');
+        handleSharedScene(); // 重新处理分享场景加载
+    }
+}
+
+function filterCloudScenes(searchTerm) {
+    const items = document.querySelectorAll('.cloud-scene-item');
+    items.forEach(item => {
+        const name = item.querySelector('.scene-name')?.textContent || '';
+        const desc = item.querySelector('.scene-description')?.textContent || '';
+        const visible = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       desc.toLowerCase().includes(searchTerm.toLowerCase());
+        item.style.display = visible ? 'flex' : 'none';
+    });
+}
+
+/**
+ * 性能监控和优化
+ */
+class PerformanceMonitor {
+    constructor() {
+        this.frameCount = 0;
+        this.lastTime = performance.now();
+        this.fps = 0;
+        this.frameTime = 0;
+        this.isMonitoring = false;
+    }
+
+    startMonitoring() {
+        this.isMonitoring = true;
+        this.frameCount = 0;
+        this.lastTime = performance.now();
+    }
+
+    updateFrame() {
+        if (!this.isMonitoring) return;
+
+        this.frameCount++;
+        const currentTime = performance.now();
+
+        if (currentTime - this.lastTime >= 1000) { // 每秒更新一次
+            this.fps = this.frameCount;
+            this.frameCount = 0;
+            this.lastTime = currentTime;
+
+            // 如果FPS过低，自动降低渲染质量
+            if (this.fps < 30 && window.maxRaysPerSource > 200) {
+                window.maxRaysPerSource = Math.max(100, window.maxRaysPerSource - 100);
+                console.log(`检测到低FPS，自动降低光线数至: ${window.maxRaysPerSource}`);
+                showTemporaryMessage(`性能优化：光线数已调整为 ${window.maxRaysPerSource}`, 'info');
+            }
+        }
+    }
+
+    getStats() {
+        return {
+            fps: this.fps,
+            frameTime: this.frameTime,
+            rayCount: window.maxRaysPerSource,
+            componentCount: components.length
+        };
+    }
+}
+
+const performanceMonitor = new PerformanceMonitor();
+
+/**
+ * 优化的游戏循环，包含性能监控
+ */
+function gameLoop(timestamp) {
+    const startTime = performance.now();
+
+    // 原始游戏循环逻辑
+    const dt = (timestamp - lastTimestamp) / 1000; // Delta time in seconds
+    lastTimestamp = timestamp;
+
+    // Avoid large dt spikes if tab was inactive
+    const maxDt = 0.1; // Limit delta time to 100ms
+    const effectiveDt = Math.min(dt, maxDt);
+
+    // --- Update State ---
+    updateArrowAnimations(effectiveDt);
+
+    // --- Activate Rays Generated Last Frame ---
+    // (Currently only used for Fiber Output)
+    const initialActiveRays = []; // Start with an empty array for the main trace loop
+    if (nextFrameActiveRays.length > 0) {
+        console.log(`[GameLoop] Activating ${nextFrameActiveRays.length} rays from previous frame (fiber outputs).`);
+        initialActiveRays.push(...nextFrameActiveRays); // Add fiber outputs first? Or last? Let's add first.
+        nextFrameActiveRays = []; // Clear the queue for the next frame
+    }
+    // --- End Activation ---
+
+    // --- Ray Tracing ---
+    // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
+    console.time("RayTrace");
+    components.forEach(comp => comp.reset?.()); // Reset components
+
+    try {
+        // traceAllRays now potentially returns generated rays separately
+        const traceResult = traceAllRays(components,
+            canvas.width / (window.devicePixelRatio || 1),
+            canvas.height / (window.devicePixelRatio || 1),
+            initialActiveRays); // Pass initial rays (might include last frame's fiber outputs)
+
+        // traceResult should be an object: { completedPaths: [], generatedRays: [] }
+        if (traceResult && Array.isArray(traceResult.completedPaths)) {
+            currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
+            if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
+                // Store newly generated rays (fiber outputs) for the *next* frame
+                nextFrameActiveRays.push(...traceResult.generatedRays);
+                console.log(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
+            }
+        } else {
+            console.error("traceAllRays returned invalid result:", traceResult);
+            currentRayPaths = [];
+        }
+
+    } catch (e) {
+        console.error("!!! Error during traceAllRays:", e);
+        currentRayPaths = []; // Clear paths on error
+        nextFrameActiveRays = []; // Also clear pending rays on error
+    } finally { // Ensure timing ends even on error
+        console.timeEnd("RayTrace");
+    }
+    // --- End Ray Tracing Block ---
+
+    // --- Rendering ---
+    draw();
+
+    // 性能监控
+    performanceMonitor.updateFrame();
+
+    // 记录帧时间
+    const endTime = performance.now();
+    performanceMonitor.frameTime = endTime - startTime;
+
+    // Request next frame
+    requestAnimationFrame(gameLoop);
+}
+
+/**
+ * 显示性能统计信息
+ */
+function showPerformanceStats() {
+    const stats = performanceMonitor.getStats();
+    const content = `
+        <div style="font-family: monospace; line-height: 1.6;">
+            <div><strong>FPS:</strong> ${stats.fps}</div>
+            <div><strong>帧时间:</strong> ${stats.frameTime.toFixed(2)}ms</div>
+            <div><strong>元件数:</strong> ${stats.componentCount}</div>
+            <div><strong>最大光线数:</strong> ${stats.rayCount}</div>
+            <div><strong>内存使用:</strong> ${Math.round(performance.memory?.usedJSHeapSize / 1048576 || 0)}MB</div>
+        </div>
+    `;
+
+    showModal('性能统计', content, 'info-modal');
+}
+
+/**
+ * 显示临时消息提示
+ */
+function showTemporaryMessage(message, type = 'info', duration = 3000) {
+    // 移除现有的消息
+    const existingMessage = document.querySelector('.temporary-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+
+    // 创建新消息元素
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `temporary-message message-${type}`;
+    messageDiv.textContent = message;
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 60px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        color: white;
+        font-weight: 500;
+        font-size: 14px;
+        z-index: 2000;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+
+    // 根据类型设置背景色
+    const colors = {
+        success: '#28a745',
+        error: '#dc3545',
+        warning: '#ffc107',
+        info: '#17a2b8'
+    };
+    messageDiv.style.backgroundColor = colors[type] || colors.info;
+
+    document.body.appendChild(messageDiv);
+
+    // 显示动画
+    setTimeout(() => {
+        messageDiv.style.opacity = '1';
+        messageDiv.style.transform = 'translateY(0)';
+    }, 10);
+
+    // 自动隐藏
+    setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        messageDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 300);
+    }, duration);
+}
+
+/**
+ * 改进的键盘快捷键提示
+ */
+function showKeyboardShortcuts() {
+    const shortcuts = [
+        { key: 'Ctrl+N', desc: '新建场景' },
+        { key: 'Ctrl+S', desc: '保存场景' },
+        { key: 'Ctrl+E', desc: '导出场景' },
+        { key: 'Ctrl+Z', desc: '撤销' },
+        { key: 'Ctrl+Y', desc: '重做' },
+        { key: 'Delete', desc: '删除选中元件' },
+        { key: 'R', desc: '旋转元件' },
+        { key: 'Shift+R', desc: '微调旋转' },
+        { key: 'Space', desc: '切换光源启用状态' },
+        { key: 'Esc', desc: '取消选择/工具' }
+    ];
+
+    const content = shortcuts.map(s =>
+        `<div style="display: flex; justify-content: space-between; margin: 5px 0;">
+            <kbd style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: monospace;">${s.key}</kbd>
+            <span>${s.desc}</span>
+        </div>`
+    ).join('');
+
+    showModal('键盘快捷键', content, 'info-modal');
+}
+
+/**
+ * 改进的模态框显示函数
+ */
+function showModal(title, content, className = '') {
+    // 移除现有的模态框
+    const existingModal = document.querySelector('.temporary-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const modalDiv = document.createElement('div');
+    modalDiv.className = `temporary-modal ${className}`;
+    modalDiv.innerHTML = `
+        <div class="modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 3000;">
+            <div class="modal-content" style="background: var(--panel-bg); color: var(--text-color); padding: 20px; border-radius: 8px; max-width: 500px; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: var(--text-color);">${title}</h3>
+                    <button class="modal-close" style="background: none; border: none; font-size: 20px; color: var(--text-color); cursor: pointer; padding: 5px;">×</button>
+                </div>
+                <div>${content}</div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalDiv);
+
+    // 点击背景或关闭按钮关闭
+    const overlay = modalDiv.querySelector('.modal-overlay');
+    const closeBtn = modalDiv.querySelector('.modal-close');
+
+    const closeModal = () => {
+        modalDiv.remove();
+    };
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+}
+
 // Close modal function remains the same
 function closeSettingsModal() {
     const modal = document.getElementById('settings-modal');
@@ -2856,7 +3523,11 @@ function saveSettings() {
         maxRaysPerSource: window.maxRaysPerSource,     // <<<--- 确认这里是 window.maxRaysPerSource
         globalMaxBounces: window.globalMaxBounces,
         globalMinIntensity: window.globalMinIntensity,
-        fastWhiteLightMode: fastWhiteLightMode
+        fastWhiteLightMode: fastWhiteLightMode,
+        globalShowArrows: globalShowArrows,
+        onlyShowSelectedSourceArrow: onlyShowSelectedSourceArrow,
+        arrowAnimationSpeed: arrowAnimationSpeed,
+        showArrowTrail: showArrowTrail
         // Add other settings here later
     };
     try {
@@ -2876,7 +3547,10 @@ function loadSettings() {
     window.maxRaysPerSource = 1001;
     window.globalMaxBounces = MAX_RAY_BOUNCES;
     window.globalMinIntensity = MIN_RAY_INTENSITY;
-    // fastWhiteLightMode = false; // <<<--- Set default here
+    globalShowArrows = false;
+    onlyShowSelectedSourceArrow = false;
+    arrowAnimationSpeed = 100;
+    showArrowTrail = true;
 
     if (savedSettingsJson) {
         try {
@@ -2887,14 +3561,17 @@ function loadSettings() {
                     ? savedSettings.maxRaysPerSource : window.maxRaysPerSource;
                 window.globalMaxBounces = typeof savedSettings.globalMaxBounces === 'number' ? savedSettings.globalMaxBounces : window.globalMaxBounces;
                 window.globalMinIntensity = typeof savedSettings.globalMinIntensity === 'number' ? savedSettings.globalMinIntensity : window.globalMinIntensity;
-                // fastWhiteLightMode = savedSettings.fastWhiteLightMode === true; // <<<--- Load saved value (default false if missing)
+                globalShowArrows = savedSettings.globalShowArrows !== undefined ? savedSettings.globalShowArrows : globalShowArrows;
+                onlyShowSelectedSourceArrow = savedSettings.onlyShowSelectedSourceArrow !== undefined ? savedSettings.onlyShowSelectedSourceArrow : onlyShowSelectedSourceArrow;
+                arrowAnimationSpeed = typeof savedSettings.arrowAnimationSpeed === 'number' ? savedSettings.arrowAnimationSpeed : arrowAnimationSpeed;
+                showArrowTrail = savedSettings.showArrowTrail !== undefined ? savedSettings.showArrowTrail : showArrowTrail;
 
-                console.log("Settings loaded:", { showGrid, maxRaysPerSource: window.maxRaysPerSource, globalMaxBounces: window.globalMaxBounces, globalMinIntensity: window.globalMinIntensity, fastWhiteLightMode });
+                console.log("Settings loaded:", { showGrid, maxRaysPerSource: window.maxRaysPerSource, globalMaxBounces: window.globalMaxBounces, globalMinIntensity: window.globalMinIntensity, globalShowArrows, onlyShowSelectedSourceArrow, arrowAnimationSpeed, showArrowTrail });
             }
         } catch (e) { console.error("Error parsing settings from localStorage:", e); }
     } else { console.log("No saved settings found, using defaults."); }
 
-    console.log(`Applying settings: Max Bounces=${window.globalMaxBounces}, Min Intensity=${window.globalMinIntensity.toExponential(2)}, Fast WLS=${fastWhiteLightMode}`);
+    console.log(`Applying settings: Max Bounces=${window.globalMaxBounces}, Min Intensity=${window.globalMinIntensity.toExponential(2)}, Arrows=${globalShowArrows}, Trail=${showArrowTrail}`);
     needsRetrace = true;
 }
 // --- END OF REPLACEMENT ---
@@ -3533,12 +4210,20 @@ function setupEventListeners() {
     // Help Menu
     document.getElementById('menu-user-guide')?.addEventListener('click', (e) => { e.preventDefault(); const modal = document.getElementById('guide-modal'); if (modal) { modal.style.display = 'flex'; setTimeout(() => modal.classList.add('visible'), 10); } });
     document.getElementById('menu-about')?.addEventListener('click', (e) => { e.preventDefault(); const modal = document.getElementById('about-modal'); if (modal) { modal.style.display = 'flex'; setTimeout(() => modal.classList.add('visible'), 10); } });
+    document.getElementById('menu-keyboard-shortcuts')?.addEventListener('click', (e) => { e.preventDefault(); showKeyboardShortcuts(); });
+    document.getElementById('menu-performance-stats')?.addEventListener('click', (e) => { e.preventDefault(); showPerformanceStats(); });
+
+    // Cloud Menu Items
+    document.getElementById('menu-cloud-save')?.addEventListener('click', (e) => { e.preventDefault(); saveSceneToCloud(); });
+    document.getElementById('menu-cloud-load')?.addEventListener('click', (e) => { e.preventDefault(); showUserScenes(); });
 
     // --- Top Right User Buttons ---
     const userActionBtnTop = document.getElementById('user-action-btn-top');
     const logoutBtnTop = document.getElementById('logout-btn-top');
-    if (userActionBtnTop) userActionBtnTop.addEventListener('click', () => { if (currentUser) saveSceneToCloud(); else showLoginRegisterModal(); }); // Placeholder functions
+    const userScenesBtnTop = document.getElementById('user-scenes-btn-top');
+    if (userActionBtnTop) userActionBtnTop.addEventListener('click', () => { if (window.userManager && window.userManager.isUserLoggedIn()) saveSceneToCloud(); else showLoginRegisterModal(); });
     if (logoutBtnTop) logoutBtnTop.addEventListener('click', logoutUser);
+    if (userScenesBtnTop) userScenesBtnTop.addEventListener('click', showUserScenes);
 
     // --- Toolbar (Tool selection only) ---
     if (toolbar) {
@@ -3574,6 +4259,8 @@ function setupEventListeners() {
     if (showArrowsCheckbox) showArrowsCheckbox.addEventListener('change', () => { globalShowArrows = showArrowsCheckbox.checked; if (globalShowArrows) arrowAnimationStartTime = performance.now() / 1000.0; else arrowAnimationStates.clear(); saveSettings(); });
     const selectedArrowCheckbox = document.getElementById('setting-selected-arrow');
     if (selectedArrowCheckbox) selectedArrowCheckbox.addEventListener('change', () => { onlyShowSelectedSourceArrow = selectedArrowCheckbox.checked; saveSettings(); });
+    const arrowTrailCheckbox = document.getElementById('setting-arrow-trail');
+    if (arrowTrailCheckbox) arrowTrailCheckbox.addEventListener('change', () => { showArrowTrail = arrowTrailCheckbox.checked; saveSettings(); });
     // --- ADD Listener for Grid Snap ---
     const gridSnapCheckbox = document.getElementById('setting-enable-snap');
     if (gridSnapCheckbox) {
@@ -3607,12 +4294,24 @@ function setupEventListeners() {
     if (sceneImportBtn) sceneImportBtn.addEventListener('click', triggerFileInputForImport);
     // Scene list item listeners are added dynamically in updateSavedScenesList
 
+    // Cloud Scenes Modal Controls
+    const saveToCloudBtn = document.getElementById('save-current-to-cloud-btn');
+    if (saveToCloudBtn) saveToCloudBtn.addEventListener('click', saveSceneToCloud);
+    const createNewCloudBtn = document.getElementById('create-new-cloud-scene-btn');
+    if (createNewCloudBtn) createNewCloudBtn.addEventListener('click', () => { alert("新建云端场景功能开发中..."); });
+    const refreshCloudBtn = document.getElementById('refresh-cloud-scenes');
+    if (refreshCloudBtn) refreshCloudBtn.addEventListener('click', showUserScenes);
+    const cloudSceneSearch = document.getElementById('cloud-scene-search');
+    if (cloudSceneSearch) cloudSceneSearch.addEventListener('input', (e) => { filterCloudScenes(e.target.value); });
+
     // --- Modal Close Buttons & Overlay Clicks ---
     document.getElementById('auth-modal-close-btn')?.addEventListener('click', closeAuthModal);
+    document.getElementById('cloud-scenes-modal-close-btn')?.addEventListener('click', closeCloudScenesModal);
     document.getElementById('guide-modal-close-btn')?.addEventListener('click', () => { const m = document.getElementById('guide-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } });
     document.getElementById('about-modal-close-btn')?.addEventListener('click', () => { const m = document.getElementById('about-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } });
     // Add closing by clicking overlay for modals
     document.getElementById('auth-modal')?.addEventListener('click', (e) => { if (e.target.id === 'auth-modal') closeAuthModal(); });
+    document.getElementById('cloud-scenes-modal')?.addEventListener('click', (e) => { if (e.target.id === 'cloud-scenes-modal') closeCloudScenesModal(); });
     document.getElementById('guide-modal')?.addEventListener('click', (e) => { if (e.target.id === 'guide-modal') { const m = document.getElementById('guide-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } } });
     document.getElementById('about-modal')?.addEventListener('click', (e) => { if (e.target.id === 'about-modal') { const m = document.getElementById('about-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } } });
 
@@ -4080,6 +4779,7 @@ function loadSettingsIntoControls() {
     const fastWlsCheckbox = document.getElementById('setting-fast-wls');
     const showArrowsCheckbox = document.getElementById('setting-show-arrows'); // Get new checkboxes/inputs
     const selectedArrowCheckbox = document.getElementById('setting-selected-arrow');
+    const arrowTrailCheckbox = document.getElementById('setting-arrow-trail');
     const speedSlider = document.getElementById('arrow-speed'); // Get speed slider
 
     const updateSpan = (span, value, formatFn) => { if (span) span.textContent = `(${formatFn(value)})`; };
@@ -4092,6 +4792,7 @@ function loadSettingsIntoControls() {
     if (fastWlsCheckbox) fastWlsCheckbox.checked = window.fastWhiteLightMode; // Assuming fastWhiteLightMode is global
     if (showArrowsCheckbox) showArrowsCheckbox.checked = globalShowArrows;
     if (selectedArrowCheckbox) selectedArrowCheckbox.checked = onlyShowSelectedSourceArrow;
+    if (arrowTrailCheckbox) arrowTrailCheckbox.checked = showArrowTrail;
     if (speedSlider) speedSlider.value = arrowAnimationSpeed; // Load speed value
 
     updateSpan(maxRaysValueSpan, window.maxRaysPerSource, v => v);
@@ -4481,7 +5182,7 @@ function switchToLogin() {
 // main.js - 全新且最终的主题管理函数
 
 /**
- * 应用组合主题，并将其保存到 localStorage。
+ * 应用组合主题，并将其保存到 localStorage 和云端。
  * @param {string} combinedThemeName - e.g., "light-ui-dark-canvas"
  */
 function applyCombinedTheme(combinedThemeName) {
@@ -4521,12 +5222,18 @@ function applyCombinedTheme(combinedThemeName) {
 
     // 保存用户的选择到本地存储
     localStorage.setItem('opticsLabCombinedTheme', combinedThemeName);
-    
+
     // 更新下拉菜单的显示值以保持同步
     const switcher = document.getElementById('combined-theme-switcher');
     if (switcher) {
         switcher.value = combinedThemeName;
     }
+
+    // 如果用户已登录，同步主题到云端
+    if (window.userManager && window.userManager.isUserLoggedIn()) {
+        window.userManager.syncThemeToCloud(combinedThemeName);
+    }
+
     console.log(`主题已应用: UI=${uiTheme}, 画布=${canvasTheme}`);
 }
 
@@ -4623,6 +5330,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof Vector !== 'undefined' && typeof GameObject !== 'undefined' && typeof Ray !== 'undefined' && typeof OpticalComponent !== 'undefined') {
         console.log("核心类已定义，准备调用 initialize...");
         initialize();
+
+        // 处理URL中的分享参数
+        setTimeout(handleSharedScene, 100); // 稍后执行，确保UserManager已初始化
     } else {
         console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent) 未定义！脚本加载顺序可能错误。");
         alert("无法加载核心脚本，请检查控制台获取详细信息！");

@@ -17,7 +17,7 @@ if (typeof Vector.lerp === 'undefined') {
 
 // --- GameObject: 所有模拟中对象的基础类 ---
 class GameObject {
-    constructor(pos, angleDeg = 0, label = "Object") {
+    constructor(pos, angleDeg = 0, label = "Object", userId = null) {
         if (!(pos instanceof Vector)) {
             console.error("GameObject position must be a Vector! Defaulting position.", label);
             pos = new Vector(100, 100); // Provide a default to avoid crash
@@ -26,6 +26,7 @@ class GameObject {
         this.angleRad = angleDeg * (Math.PI / 180); // Angle in radians
         this.label = label; // Label for identification
         this.notes = ""; // User editable notes
+        this.userId = userId; // User who created this component
 
         this.selected = false; // Is the object currently selected?
         this.dragging = false; // Is the object currently being dragged (position)?
@@ -287,7 +288,8 @@ class GameObject {
             posX: this.pos.x,
             posY: this.pos.y,
             angleDeg: this.angleRad * (180 / Math.PI),
-            notes: this.notes
+            notes: this.notes,
+            userId: this.userId
             // Note: We don't save 'selected', 'dragging' etc. as they are transient states
         };
     }
@@ -333,8 +335,8 @@ class OpticalComponent extends GameObject {
 // --- START OF REPLACEMENT: LaserSource Class (Polarization Overhaul) ---
 class LaserSource extends GameObject {
     static functionDescription = "发射一束或多束具有特定波长和强度的相干光。";
-    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, numRays = 1, spreadDeg = 0, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0) {
-        super(pos, angleDeg, "激光");
+    constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, numRays = 1, spreadDeg = 0, enabled = true, polarizationType = 'unpolarized', polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 10.0, initialBeamWaist = 5.0, userId = null) {
+        super(pos, angleDeg, "激光", userId);
         this.wavelength = wavelength;
         this.intensity = Math.max(0, intensity);
         this.numRays = Math.max(1, numRays);
@@ -1317,8 +1319,8 @@ class WhiteLightSource extends GameObject {
 // --- Mirror (Plane Mirror) ---
 class Mirror extends OpticalComponent {
     static functionDescription = "依据反射定律反射入射光线，改变光路方向。";
-    constructor(pos, length = 100, angleDeg = 0) {
-        super(pos, angleDeg, "反射镜");
+    constructor(pos, length = 100, angleDeg = 0, userId = null) {
+        super(pos, angleDeg, "反射镜", userId);
         this.length = Math.max(1, length);
         // Geometry cache
         this.p1 = pos.clone();
@@ -2250,8 +2252,8 @@ class ParabolicMirror extends OpticalComponent {
 // --- Screen ---
 class Screen extends OpticalComponent {
     static functionDescription = "接收并显示光线命中位置与强度分布。";
-    constructor(pos, length = 150, angleDeg = 0, numBins = 200) {
-        super(pos, angleDeg, "屏幕");
+    constructor(pos, length = 150, angleDeg = 0, numBins = 200, userId = null) {
+        super(pos, angleDeg, "屏幕", userId);
         this.length = Math.max(10, length);
         this.numBins = Math.max(1, numBins);
         this.showPattern = true; // Toggle visibility of the pattern
@@ -2536,13 +2538,55 @@ class Screen extends OpticalComponent {
     }
 }
 
-// --- START REPLACEMENT for the ENTIRE ThinLens class (Version 3 - Enhanced Physics) ---
+// --- Lens Type Constants ---
+const LENS_TYPES = {
+    THIN_LENS: 'thin_lens',
+    THICK_PLANO_CONVEX: 'plano_convex',
+    THICK_PLANO_CONCAVE: 'plano_concave',
+    THICK_BICONVEX: 'biconvex',
+    THICK_BICONCAVE: 'biconcave',
+    THICK_CUSTOM: 'custom'
+};
+
+// --- Thick Lens Preset Configurations ---
+const THICK_LENS_PRESETS = {
+    [LENS_TYPES.THICK_PLANO_CONVEX]: {
+        frontRadius: 50,
+        backRadius: Infinity,
+        thickness: 20
+    },
+    [LENS_TYPES.THICK_PLANO_CONCAVE]: {
+        frontRadius: -50,
+        backRadius: Infinity,
+        thickness: 20
+    },
+    [LENS_TYPES.THICK_BICONVEX]: {
+        frontRadius: 50,
+        backRadius: -50,
+        thickness: 20
+    },
+    [LENS_TYPES.THICK_BICONCAVE]: {
+        frontRadius: -50,
+        backRadius: 50,
+        thickness: 20
+    }
+};
+
+// --- START REPLACEMENT for the ENTIRE ThinLens class (Version 4 - Thick Lens Support) ---
 class ThinLens extends OpticalComponent {
-    static functionDescription = "基于薄透镜公式使光线汇聚或发散，可模拟色散。";
-    constructor(pos, diameter = 80, focalLength = 150, angleDeg = 90) {
-        super(pos, angleDeg, "薄透镜"); // Label updated in _updateGeometry
+    static functionDescription = "基于薄透镜/厚透镜公式使光线汇聚或发散，可模拟色散，支持多种透镜类型。";
+    constructor(pos, diameter = 80, focalLength = 150, angleDeg = 90, userId = null) {
+        super(pos, angleDeg, "薄透镜", userId); // Label updated in _updateGeometry
         this.diameter = Math.max(10, diameter);
-        this.focalLength = focalLength === 0 ? Infinity : focalLength; // User-set focal length at reference wavelength
+
+        // --- Lens Type and Configuration ---
+        this.lensType = LENS_TYPES.THIN_LENS; // Default to thin lens
+        this.focalLength = focalLength === 0 ? Infinity : focalLength; // User-set focal length at reference wavelength (for thin lens)
+
+        // --- Thick Lens Parameters ---
+        this.thickness = 20;              // Center thickness for thick lenses
+        this.frontRadius = 50;            // Front surface radius of curvature (R1)
+        this.backRadius = -50;            // Back surface radius of curvature (R2)
 
         // --- Physics Properties ---
         this.baseRefractiveIndex = 1.5;    // n at reference wavelength (e.g., 550nm)
@@ -2551,14 +2595,17 @@ class ThinLens extends OpticalComponent {
         this.sphericalAberration = 0.01; // Coefficient for spherical aberration effect
         this.quality = 0.98;               // Transmission factor
         this.coated = false;               // Reduces reflection loss (simplified)
-        this.isThickLens = false;          // Primarily visual flag
-        this.thickLensThickness = 10;      // Visual thickness
 
         // --- Geometry Cache ---
         this.p1 = pos.clone();
         this.p2 = pos.clone();
         this.lensDir = Vector.fromAngle(this.angleRad);
         this.axisDirection = Vector.fromAngle(this.angleRad + Math.PI / 2);
+
+        // --- Thick Lens Geometry Cache ---
+        this.frontCenter = null;  // Center of front surface sphere
+        this.backCenter = null;   // Center of back surface sphere
+        this.effectiveFocalLength = this.focalLength; // Calculated effective focal length
 
         // --- Pre-calculate Cauchy A for efficiency ---
         this._cauchyA = this.baseRefractiveIndex - this.dispersionCoeffB / (550 * 550); // Assuming 550nm is reference
@@ -2589,13 +2636,17 @@ class ThinLens extends OpticalComponent {
 
     // Update geometry AND label based on current properties
     _updateGeometry() {
-        // ... (Geometry calculation remains the same as Version 2) ...
         if (!(this.pos instanceof Vector)) { console.error("Lens position invalid."); return; }
         this.lensDir = Vector.fromAngle(this.angleRad);
         const halfLenVec = this.lensDir.multiply(this.diameter / 2);
         this.p1 = this.pos.subtract(halfLenVec);
         this.p2 = this.pos.add(halfLenVec);
         this.axisDirection = new Vector(-this.lensDir.y, this.lensDir.x);
+
+        // Calculate thick lens geometry if needed
+        if (this.isThickLens) {
+            this._updateThickLensGeometry();
+        }
 
         // Update label
         let lensType = "薄透镜";
@@ -2606,60 +2657,257 @@ class ThinLens extends OpticalComponent {
         this.label = lensType;
     }
 
+    // Calculate thick lens geometry
+    _updateThickLensGeometry() {
+        // Calculate centers of curvature for front and back surfaces
+        const axisDir = this.axisDirection;
+
+        // Front surface center: R1 > 0 means center is in front of lens, surface is convex
+        // R1 < 0 means center is behind lens, surface is concave
+        if (Math.abs(this.frontRadius) === Infinity) {
+            this.frontCenter = null; // Plane surface
+        } else {
+            const frontOffset = axisDir.multiply(this.frontRadius);
+            this.frontCenter = this.pos.add(frontOffset);
+        }
+
+        // Back surface center: R2 > 0 means center is in front of lens, surface is concave from back
+        // R2 < 0 means center is behind lens, surface is convex from back
+        if (Math.abs(this.backRadius) === Infinity) {
+            this.backCenter = null; // Plane surface
+        } else {
+            const backOffset = axisDir.multiply(this.backRadius);
+            this.backCenter = this.pos.add(backOffset);
+        }
+
+        // Calculate effective focal length using lensmaker's formula
+        this._calculateEffectiveFocalLength();
+    }
+
+    // Calculate effective focal length for thick lens
+    _calculateEffectiveFocalLength(wavelengthNm = DEFAULT_WAVELENGTH_NM) {
+        if (!this.isThickLens) {
+            return this.focalLength;
+        }
+
+        const n = this.getRefractiveIndex(wavelengthNm);
+        const R1 = this.frontRadius;
+        const R2 = this.backRadius;
+        const d = this.thickness;
+
+        // Lensmaker's formula: 1/f = (n-1) * (1/R1 - 1/R2 + (n-1)*d/(n*R1*R2))
+        // Simplified for paraxial approximation
+        let power = 0;
+
+        if (Math.abs(R1) === Infinity && Math.abs(R2) === Infinity) {
+            // Both surfaces plane - no power
+            power = 0;
+        } else if (Math.abs(R1) === Infinity) {
+            // Front surface plane
+            power = (n - 1) * (-1 / R2);
+        } else if (Math.abs(R2) === Infinity) {
+            // Back surface plane
+            power = (n - 1) * (1 / R1);
+        } else {
+            // Both surfaces curved
+            power = (n - 1) * (1 / R1 - 1 / R2) + (n - 1) * (n - 1) * d / (n * R1 * R2);
+        }
+
+        return Math.abs(power) < 1e-9 ? Infinity : 1 / power;
+    }
+
+    // Check if this is a thick lens
+    get isThickLens() {
+        return this.lensType !== LENS_TYPES.THIN_LENS;
+    }
+
     // Callbacks for property changes affecting geometry
     onAngleChanged() { try { this._updateGeometry(); } catch (e) { console.error("Lens AngleChange Err:", e); } }
     onPositionChanged() { try { this._updateGeometry(); } catch (e) { console.error("Lens PosChange Err:", e); } }
 
-    // Draw the lens (Shape logic remains the same as Version 2)
+    // Draw the lens (Updated for thick lens support)
     draw(ctx) {
-        // ... (Drawing logic including shape switching, arrows, foci remains the same as Version 2) ...
-        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector) || !this.pos || typeof this.focalLength !== 'number') return;
-        const center = this.pos; const p1 = this.p1; const p2 = this.p2; const diameter = this.diameter; const F = this.focalLength;
-        const isFlat = Math.abs(F) === Infinity; const isConvex = F > 0; const selected = this.selected;
-        const convexColor = '#90c0ff'; const concaveColor = '#FFB6C1'; const flatColor = '#D3D3D3'; const selectedColor = '#FFFF00';
+        if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector) || !this.pos) return;
+
+        const center = this.pos;
+        const p1 = this.p1;
+        const p2 = this.p2;
+        const diameter = this.diameter;
+        const F = this.effectiveFocalLength; // Use effective focal length for display
+        const isFlat = Math.abs(F) === Infinity;
+        const isConvex = F > 0;
+        const selected = this.selected;
+
+        const convexColor = '#90c0ff';
+        const concaveColor = '#FFB6C1';
+        const flatColor = '#D3D3D3';
+        const selectedColor = '#FFFF00';
+
         let baseStrokeColor = isFlat ? flatColor : (isConvex ? convexColor : concaveColor);
         ctx.strokeStyle = selected ? selectedColor : baseStrokeColor;
         ctx.lineWidth = selected ? 2.5 : 1.8;
-        const baseFillAlpha = this.isThickLens ? 0.20 : 0.10; const selectedFillAlpha = this.isThickLens ? 0.30 : 0.20;
+
+        const baseFillAlpha = this.isThickLens ? 0.20 : 0.10;
+        const selectedFillAlpha = this.isThickLens ? 0.30 : 0.20;
         let fillStyle = "rgba(0,0,0,0)";
-        if (!isFlat) { let rgb = isConvex ? '144, 192, 255' : '255, 160, 160'; fillStyle = selected ? `rgba(${rgb}, ${selectedFillAlpha})` : `rgba(${rgb}, ${baseFillAlpha})`; }
-        else { let rgb = '211, 211, 211'; fillStyle = selected ? `rgba(${rgb}, ${selectedFillAlpha})` : `rgba(${rgb}, ${baseFillAlpha})`; }
-        ctx.fillStyle = fillStyle;
-        const perpDir = this.axisDirection.clone();
-        ctx.beginPath();
-        if (isFlat) {
-            const thickness = this.isThickLens ? Math.min(this.thickLensThickness, diameter * 0.3) : 4;
-            const perpOffset = perpDir.multiply(thickness / 2);
-            const p1_corner1 = p1.add(perpOffset); const p1_corner2 = p1.subtract(perpOffset);
-            const p2_corner1 = p2.add(perpOffset); const p2_corner2 = p2.subtract(perpOffset);
-            ctx.moveTo(p1_corner1.x, p1_corner1.y); ctx.lineTo(p2_corner1.x, p2_corner1.y); ctx.lineTo(p2_corner2.x, p2_corner2.y); ctx.lineTo(p1_corner2.x, p1_corner2.y); ctx.closePath();
-        } else {
-            const baseCurvature = diameter * 0.12; const focalLengthFactor = Math.min(4, Math.max(0.2, 150 / Math.abs(F)));
-            let curveMagnitude = Math.max(2.0, baseCurvature * focalLengthFactor);
-            let cp1, cp2;
-            if (isConvex) { cp1 = center.add(perpDir.multiply(curveMagnitude)); cp2 = center.add(perpDir.multiply(-curveMagnitude)); }
-            else { cp1 = center.add(perpDir.multiply(-curveMagnitude)); cp2 = center.add(perpDir.multiply(curveMagnitude)); }
-            ctx.moveTo(p1.x, p1.y); ctx.quadraticCurveTo(cp1.x, cp1.y, p2.x, p2.y); ctx.quadraticCurveTo(cp2.x, cp2.y, p1.x, p1.y); ctx.closePath();
-        }
-        ctx.fill(); ctx.stroke();
         if (!isFlat) {
-            const arrowSize = Math.min(10, diameter * 0.12); const edgeOffsetRatio = 0.9;
-            const p1ArrowPos = Vector.lerp(center, p1, edgeOffsetRatio); const p2ArrowPos = Vector.lerp(center, p2, edgeOffsetRatio);
-            const arrowDir = perpDir.clone(); ctx.fillStyle = ctx.strokeStyle;
-            if (isConvex) { this._drawArrowhead(ctx, p1ArrowPos, arrowDir.multiply(-1), arrowSize); this._drawArrowhead(ctx, p2ArrowPos, arrowDir, arrowSize); }
-            else { this._drawArrowhead(ctx, p1ArrowPos, arrowDir, arrowSize); this._drawArrowhead(ctx, p2ArrowPos, arrowDir.multiply(-1), arrowSize); }
+            let rgb = isConvex ? '144, 192, 255' : '255, 160, 160';
+            fillStyle = selected ? `rgba(${rgb}, ${selectedFillAlpha})` : `rgba(${rgb}, ${baseFillAlpha})`;
+        } else {
+            let rgb = '211, 211, 211';
+            fillStyle = selected ? `rgba(${rgb}, ${selectedFillAlpha})` : `rgba(${rgb}, ${baseFillAlpha})`;
         }
+        ctx.fillStyle = fillStyle;
+
+        const perpDir = this.axisDirection.clone();
+
+        ctx.beginPath();
+        if (this.isThickLens) {
+            // Draw thick lens with actual surface curvatures
+            this._drawThickLensShape(ctx);
+        } else {
+            // Draw thin lens (original logic)
+            if (isFlat) {
+                const thickness = 4;
+                const perpOffset = perpDir.multiply(thickness / 2);
+                const p1_corner1 = p1.add(perpOffset);
+                const p1_corner2 = p1.subtract(perpOffset);
+                const p2_corner1 = p2.add(perpOffset);
+                const p2_corner2 = p2.subtract(perpOffset);
+                ctx.moveTo(p1_corner1.x, p1_corner1.y);
+                ctx.lineTo(p2_corner1.x, p2_corner1.y);
+                ctx.lineTo(p2_corner2.x, p2_corner2.y);
+                ctx.lineTo(p1_corner2.x, p1_corner2.y);
+                ctx.closePath();
+            } else {
+                const baseCurvature = diameter * 0.12;
+                const focalLengthFactor = Math.min(4, Math.max(0.2, 150 / Math.abs(F)));
+                let curveMagnitude = Math.max(2.0, baseCurvature * focalLengthFactor);
+                let cp1, cp2;
+                if (isConvex) {
+                    cp1 = center.add(perpDir.multiply(curveMagnitude));
+                    cp2 = center.add(perpDir.multiply(-curveMagnitude));
+                } else {
+                    cp1 = center.add(perpDir.multiply(-curveMagnitude));
+                    cp2 = center.add(perpDir.multiply(curveMagnitude));
+                }
+                ctx.moveTo(p1.x, p1.y);
+                ctx.quadraticCurveTo(cp1.x, cp1.y, p2.x, p2.y);
+                ctx.quadraticCurveTo(cp2.x, cp2.y, p1.x, p1.y);
+                ctx.closePath();
+            }
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw arrows for thin lens or simplified thick lens indication
+        if (!isFlat && !this.isThickLens) {
+            const arrowSize = Math.min(10, diameter * 0.12);
+            const edgeOffsetRatio = 0.9;
+            const p1ArrowPos = Vector.lerp(center, p1, edgeOffsetRatio);
+            const p2ArrowPos = Vector.lerp(center, p2, edgeOffsetRatio);
+            const arrowDir = perpDir.clone();
+            ctx.fillStyle = ctx.strokeStyle;
+            if (isConvex) {
+                this._drawArrowhead(ctx, p1ArrowPos, arrowDir.multiply(-1), arrowSize);
+                this._drawArrowhead(ctx, p2ArrowPos, arrowDir, arrowSize);
+            } else {
+                this._drawArrowhead(ctx, p1ArrowPos, arrowDir, arrowSize);
+                this._drawArrowhead(ctx, p2ArrowPos, arrowDir.multiply(-1), arrowSize);
+            }
+        }
+
+        // Draw focal points for selected lenses
         if (selected && !isFlat) {
             try {
-                const focalPoint1 = center.add(this.axisDirection.multiply(F)); const focalPoint2 = center.add(this.axisDirection.multiply(-F));
-                ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(focalPoint1.x, focalPoint1.y, 3, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(focalPoint2.x, focalPoint2.y, 3, 0, Math.PI * 2); ctx.fill();
-                ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 0.8;
-                ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(focalPoint1.x, focalPoint1.y); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(focalPoint2.x, focalPoint2.y); ctx.stroke();
+                const focalPoint1 = center.add(this.axisDirection.multiply(F));
+                const focalPoint2 = center.add(this.axisDirection.multiply(-F));
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(focalPoint1.x, focalPoint1.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(focalPoint2.x, focalPoint2.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.setLineDash([2, 3]);
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(center.x, center.y);
+                ctx.lineTo(focalPoint1.x, focalPoint1.y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(center.x, center.y);
+                ctx.lineTo(focalPoint2.x, focalPoint2.y);
+                ctx.stroke();
                 ctx.setLineDash([]);
-            } catch (e) { console.error("Error drawing focal points:", e); }
+            } catch (e) {
+                console.error("Error drawing focal points:", e);
+            }
         }
+    }
+
+    // Draw thick lens shape based on surface curvatures
+    _drawThickLensShape(ctx) {
+        const center = this.pos;
+        const perpDir = this.axisDirection;
+        const halfWidth = this.diameter / 2;
+        const thickness = this.thickness;
+
+        // Calculate front and back surface points
+        const frontLeft = center.add(this.lensDir.multiply(-halfWidth));
+        const frontRight = center.add(this.lensDir.multiply(halfWidth));
+        const backLeft = frontLeft.add(perpDir.multiply(thickness));
+        const backRight = frontRight.add(perpDir.multiply(thickness));
+
+        // Draw front surface
+        if (Math.abs(this.frontRadius) === Infinity) {
+            // Plane surface
+            ctx.moveTo(frontLeft.x, frontLeft.y);
+            ctx.lineTo(frontRight.x, frontRight.y);
+        } else {
+            // Curved surface - determine if it's convex or concave relative to lens center
+            const isFrontConvex = this.frontRadius > 0; // R > 0 means center is in front, surface curves outward
+            const radius = Math.abs(this.frontRadius);
+            this._drawCircularArc(ctx, frontLeft, frontRight, this.frontCenter, radius, isFrontConvex);
+        }
+
+        // Draw back surface
+        if (Math.abs(this.backRadius) === Infinity) {
+            // Plane surface
+            ctx.lineTo(backRight.x, backRight.y);
+            ctx.lineTo(backLeft.x, backLeft.y);
+        } else {
+            // Curved surface - determine if it's convex or concave relative to lens center
+            const isBackConvex = this.backRadius < 0; // R < 0 means center is behind, surface curves outward
+            const radius = Math.abs(this.backRadius);
+            this._drawCircularArc(ctx, backRight, backLeft, this.backCenter, radius, isBackConvex);
+        }
+
+        ctx.closePath();
+    }
+
+    // Helper to draw circular arc between two points
+    _drawCircularArc(ctx, startPoint, endPoint, center, radius, isConvex) {
+        if (!center || radius <= 0) return;
+
+        const startVec = startPoint.subtract(center);
+        const endVec = endPoint.subtract(center);
+        const startAngle = startVec.angle();
+        let endAngle = endVec.angle();
+
+        // Handle angle wrapping for proper arc direction
+        if (isConvex) {
+            // For convex surfaces, we want the arc that bulges outward
+            if (endAngle < startAngle) endAngle += 2 * Math.PI;
+        } else {
+            // For concave surfaces, we want the arc that curves inward
+            if (endAngle > startAngle) endAngle -= 2 * Math.PI;
+        }
+
+        // For convex lens surfaces, draw clockwise; for concave, counterclockwise
+        const counterclockwise = !isConvex;
+        ctx.arc(center.x, center.y, radius, startAngle, endAngle, counterclockwise);
     }
 
     // Helper to draw arrowheads (No change)
@@ -2683,6 +2931,51 @@ class ThinLens extends OpticalComponent {
         return point.distanceSquaredTo(closestPointOnSegment) < 25;
     }
 
+    // --- _interactThickLens: Handle ray interaction for thick lenses ---
+
+    _interactThickLens(ray, intersectionInfo, RayClass) {
+        const hitPoint = intersectionInfo.point;
+
+        // For thick lenses, we approximate using the effective focal length
+        // Calculate height from optical axis
+        const lensCenter = this.pos;
+        const axisDir = this.axisDirection;
+        const lensPlaneDir = this.lensDir;
+        const vecCenterToHit = hitPoint.subtract(lensCenter);
+        const h = vecCenterToHit.dot(lensPlaneDir);
+
+        // Deviation using effective focal length
+        const f_eff = this.effectiveFocalLength;
+        const deviation = (Math.abs(f_eff) < 1e-9) ? 0 : -h / f_eff;
+
+        // Calculate output direction
+        const incidentDirection = ray.direction;
+        const incidentAngleRelAxis = Math.atan2(
+            incidentDirection.dot(axisDir.rotate(Math.PI / 2)),
+            incidentDirection.dot(axisDir)
+        );
+        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
+        const outputWorldAngle = axisDir.angle() + outputAngleRelAxis;
+        const newDirection = Vector.fromAngle(outputWorldAngle);
+
+        // Create transmitted ray
+        const transmittedIntensity = ray.intensity * this.quality;
+        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
+            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
+            const transmittedRay = new RayClass(
+                newOrigin, newDirection, ray.wavelengthNm, transmittedIntensity,
+                ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex,
+                ray.sourceId, ray.polarizationAngle, ray.ignoreDecay,
+                ray.history.concat([newOrigin.clone()]), ray.beamDiameter
+            );
+            ray.terminate('refracted_thick_lens');
+            return [transmittedRay];
+        } else {
+            ray.terminate('too_dim_thick_lens');
+            return [];
+        }
+    }
+
     // Intersect: Find where the ray hits the lens plane (No change needed)
     intersect(rayOrigin, rayDirection) {
         // ... (keep the existing implementation) ...
@@ -2703,6 +2996,12 @@ class ThinLens extends OpticalComponent {
 
     // --- REVISED interact METHOD for ThinLens (V4 - Wavelength-dependent focal length / Chromatic Aberration) ---
     interact(ray, intersectionInfo, RayClass) {
+        // Check if this is a thick lens - if so, delegate to thick lens interaction
+        if (this.isThickLens) {
+            return this._interactThickLens(ray, intersectionInfo, RayClass);
+        }
+
+        // Original thin lens logic continues below...
         const hitPoint = intersectionInfo.point;
         const f_user = this.focalLength; // User-set focal length (at base wavelength)
         const n_base = this.baseRefractiveIndex; // Refractive index at base wavelength
@@ -2858,17 +3157,70 @@ class ThinLens extends OpticalComponent {
             diameter: { value: this.diameter.toFixed(1), label: '直径 (D)', type: 'number', min: 10, step: 1, title: '透镜的物理直径' },
         };
 
-        // Core Optical Property
-        const coreOpticalProps = {
-            focalLength: {
+        // Lens Type Selection
+        const lensTypeProps = {
+            lensType: {
+                value: this.lensType,
+                label: '透镜类型',
+                type: 'select',
+                options: [
+                    { value: LENS_TYPES.THIN_LENS, label: '薄透镜' },
+                    { value: LENS_TYPES.THICK_PLANO_CONVEX, label: '平凸透镜' },
+                    { value: LENS_TYPES.THICK_PLANO_CONCAVE, label: '平凹透镜' },
+                    { value: LENS_TYPES.THICK_BICONVEX, label: '双凸透镜' },
+                    { value: LENS_TYPES.THICK_BICONCAVE, label: '双凹透镜' },
+                    { value: LENS_TYPES.THICK_CUSTOM, label: '自定义厚透镜' }
+                ],
+                title: '选择透镜类型：薄透镜或各种厚透镜形式'
+            }
+        };
+
+        // Core Optical Property (for thin lens)
+        const coreOpticalProps = {};
+        if (this.lensType === LENS_TYPES.THIN_LENS) {
+            coreOpticalProps.focalLength = {
                 value: Math.abs(this.focalLength) === Infinity ? 'Infinity' : this.focalLength.toFixed(1),
                 label: '焦距 (f)', // Standard label
                 type: 'number', // Keep as number for input ease
                 step: 10, // Sensible step
                 title: '透镜焦距 (f > 0: 凸透镜, f < 0: 凹透镜, Infinity: 平板)',
                 placeholder: 'f>0凸, f<0凹, Infinity' // Guide user
-            },
-        };
+            };
+        }
+
+        // Thick Lens Parameters
+        const thickLensProps = {};
+        if (this.isThickLens) {
+            thickLensProps.thickness = {
+                value: this.thickness.toFixed(1),
+                label: '厚度 (d)',
+                type: 'number',
+                min: 1,
+                step: 1,
+                title: '透镜中心厚度'
+            };
+            thickLensProps.frontRadius = {
+                value: Math.abs(this.frontRadius) === Infinity ? 'Infinity' : this.frontRadius.toFixed(1),
+                label: '前表面曲率半径 (R₁)',
+                type: 'number',
+                step: 10,
+                title: '前表面曲率半径 (R₁ > 0: 凸面, R₁ < 0: 凹面, Infinity: 平面)'
+            };
+            thickLensProps.backRadius = {
+                value: Math.abs(this.backRadius) === Infinity ? 'Infinity' : this.backRadius.toFixed(1),
+                label: '后表面曲率半径 (R₂)',
+                type: 'number',
+                step: 10,
+                title: '后表面曲率半径 (R₂ > 0: 凸面, R₂ < 0: 凹面, Infinity: 平面)'
+            };
+            thickLensProps.effectiveFocalLength = {
+                value: Math.abs(this.effectiveFocalLength) === Infinity ? '∞' : this.effectiveFocalLength.toFixed(1),
+                label: '有效焦距 (f_eff)',
+                type: 'text',
+                readonly: true,
+                title: '根据透镜制造者公式计算的有效焦距'
+            };
+        }
 
         // Advanced Physical Properties
         const advancedOpticalProps = {
@@ -2889,7 +3241,9 @@ class ThinLens extends OpticalComponent {
         return {
             ...baseProps, // posX, posY, angleDeg
             ...geomProps,
+            ...lensTypeProps,
             ...coreOpticalProps,
+            ...thickLensProps,
             ...advancedOpticalProps,
             ...visualProps
         };
@@ -2903,9 +3257,24 @@ class ThinLens extends OpticalComponent {
         let needsGeomUpdate = false;
         let needsOpticalRecalc = false; // Flag if optical properties affecting calculations change
         let needsRetraceUpdate = false; // General flag for needing retrace
+        let needsInspectorRefresh = false; // Flag if inspector needs refresh due to UI changes
 
         switch (propName) {
             case 'diameter': const d = parseFloat(value); if (!isNaN(d) && d >= 10 && Math.abs(d - this.diameter) > 1e-6) { this.diameter = d; needsGeomUpdate = true; } break;
+            case 'lensType':
+                if (Object.values(LENS_TYPES).includes(value) && this.lensType !== value) {
+                    this.lensType = value;
+                    // Apply preset values for thick lens types
+                    if (value !== LENS_TYPES.THIN_LENS && THICK_LENS_PRESETS[value]) {
+                        const preset = THICK_LENS_PRESETS[value];
+                        this.frontRadius = preset.frontRadius;
+                        this.backRadius = preset.backRadius;
+                        this.thickness = preset.thickness;
+                    }
+                    needsGeomUpdate = true; // Update geometry and effective focal length
+                    needsInspectorRefresh = true; // UI changes (show/hide properties)
+                }
+                break;
             case 'focalLength':
                 let f_val;
                 if (typeof value === 'string' && value.trim().toLowerCase() === 'infinity') { f_val = Infinity; }
@@ -2914,6 +3283,37 @@ class ThinLens extends OpticalComponent {
                     const newF = (f_val === 0) ? Infinity : f_val;
                     if (newF !== this.focalLength) { this.focalLength = newF; needsGeomUpdate = true; /* Label changes */ needsRetraceUpdate = true; /* Optical change */ }
                 } else { console.warn("Invalid focal length:", value); }
+                break;
+            case 'thickness':
+                const t = parseFloat(value);
+                if (!isNaN(t) && t >= 1 && Math.abs(t - this.thickness) > 1e-6) {
+                    this.thickness = t;
+                    if (this.isThickLens) { needsGeomUpdate = true; needsRetraceUpdate = true; }
+                }
+                break;
+            case 'frontRadius':
+                let fr;
+                if (typeof value === 'string' && value.trim().toLowerCase() === 'infinity') { fr = Infinity; }
+                else { fr = parseFloat(value); }
+                if (!isNaN(fr)) {
+                    const newFR = (fr === 0) ? Infinity : fr;
+                    if (newFR !== this.frontRadius) {
+                        this.frontRadius = newFR;
+                        if (this.isThickLens) { needsGeomUpdate = true; needsRetraceUpdate = true; }
+                    }
+                } else { console.warn("Invalid front radius:", value); }
+                break;
+            case 'backRadius':
+                let br;
+                if (typeof value === 'string' && value.trim().toLowerCase() === 'infinity') { br = Infinity; }
+                else { br = parseFloat(value); }
+                if (!isNaN(br)) {
+                    const newBR = (br === 0) ? Infinity : br;
+                    if (newBR !== this.backRadius) {
+                        this.backRadius = newBR;
+                        if (this.isThickLens) { needsGeomUpdate = true; needsRetraceUpdate = true; }
+                    }
+                } else { console.warn("Invalid back radius:", value); }
                 break;
             case 'baseRefractiveIndex': const n = parseFloat(value); if (!isNaN(n) && n >= 1.0 && Math.abs(n - this.baseRefractiveIndex) > 1e-9) { this.baseRefractiveIndex = n; needsOpticalRecalc = true; } break;
             case 'dispersionCoeffB': const b = parseFloat(value); if (!isNaN(b) && b >= 0 && Math.abs(b - this.dispersionCoeffB) > 1e-9) { this.dispersionCoeffB = b; needsOpticalRecalc = true; } break;
@@ -2935,9 +3335,13 @@ class ThinLens extends OpticalComponent {
         if (needsGeomUpdate) {
             try { this._updateGeometry(); } catch (e) { console.error(`Lens (${this.id}) geom update error:`, e); }
             needsRetrace = true; // Geometry change always requires retrace
-            if (selectedComponent === this) updateInspector(); // Refresh inspector if label changed
+            needsInspectorRefresh = true; // Label or geometry changes may affect UI
         } else if (needsRetraceUpdate) {
             needsRetrace = true;
+        }
+
+        if (needsInspectorRefresh && selectedComponent === this) {
+            updateInspector(); // Refresh inspector to show updated properties
         }
 
         return true;

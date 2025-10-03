@@ -13,6 +13,9 @@
     --primary-color: #0d6efd;
     --text-color: #212529; /* 主要文本颜色，近黑 */
     --text-color-secondary: #6c757d; /* 次要文本，用于标签和提示 */
+    --text-color-light: #6c757d; /* 浅色文本，用于用户指南等 */
+    --dark-gray: #495057; /* 深灰色，用于标签和次要文本 */
+    --secondary-color: #6c757d; /* 次要颜色，用于按钮等 */
     --background-color: #f8f9fa; /* 非常浅的灰色背景，比纯白更柔和 */
     --panel-bg: #ffffff; /* 所有面板（侧边栏、菜单栏）的背景 */
     --border-color: #dee2e6; /* 边框颜色 */
@@ -38,6 +41,9 @@
 body[data-ui-theme="dark"] {
     --text-color: #dee2e6;
     --text-color-secondary: #adb5bd;
+    --text-color-light: #adb5bd; /* 浅色文本，在黑夜主题下使用较亮的颜色 */
+    --dark-gray: #adb5bd; /* 深灰色，在黑夜主题下使用较亮的颜色 */
+    --secondary-color: #adb5bd; /* 次要颜色，在黑夜主题下使用较亮的颜色 */
     --background-color: #212529;
     --panel-bg: #343a40;
     --border-color: #495057;
@@ -783,10 +789,9 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
 }
 
 /* Align checkbox label differently if needed */
-.tab-content .prop input[type="checkbox"]+label {
-    /* Potential style override if label needs different alignment for checkbox */
-    /* text-align: left; */
-}
+/* .tab-content .prop input[type="checkbox"]+label {
+    text-align: left;
+} */
 
 /* Specific style for range sliders */
 .tab-content .prop input[type="range"] {
@@ -927,7 +932,8 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
 
 .modal-content {
     /* General modal content box */
-    background-color: var(--sidebar-bg);
+    background-color: var(--panel-bg);
+    color: var(--text-color);
     padding: 25px 30px;
     border-radius: 6px;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
@@ -937,7 +943,7 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     overflow-y: auto;
     position: relative;
     transform: translateY(-20px);
-    transition: transform 0.2s ease-out;
+    transition: transform 0.2s ease-out, background-color 0.2s ease, color 0.2s ease;
 }
 
 .modal-overlay.visible .modal-content {
@@ -983,19 +989,40 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
 #guide-content {
     font-size: 14px;
     line-height: 1.7;
-    color: var(--dark-gray);
+    color: var(--text-color);
+}
+
+#guide-content h4 {
+    color: var(--text-color);
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+#guide-content h4:first-child {
+    margin-top: 0;
+}
+
+#guide-content p {
+    color: var(--text-color);
+    margin-bottom: 12px;
 }
 
 #guide-content ul {
     padding-left: 25px;
+    color: var(--text-color);
 }
 
 #guide-content li {
     margin-bottom: 8px;
+    color: var(--text-color);
 }
 
 #guide-content strong {
     color: var(--text-color);
+    font-weight: 600;
 }
 
 /* Scrollbar Styling (Keep existing) */
@@ -1095,35 +1122,54 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     /* Center vertically */
 }
 
-.menu-text {
-    /* Optional: Adjust font size or margin if needed */
-    /* margin-left: 6px; /* Already handled by gap in .dropbtn */
-}
+/* .menu-text {
+    margin-left: 6px;
+} */
 
+/* 场景管理样式 */
 #scenes-tab .scene-toolbar {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     margin-bottom: 15px;
+    flex-wrap: wrap;
 }
 
 #scenes-tab .scene-search {
     flex-grow: 1;
-    padding: 8px;
-    border: 1px solid #444;
+    min-width: 150px;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
     border-radius: 4px;
-    background: #222;
-    color: #fff;
+    background: var(--input-bg);
+    color: var(--input-text);
     font-size: 13px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+#scenes-tab .scene-search:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#scenes-tab .scene-category-filter,
 #scenes-tab .scene-sort {
-    width: 120px;
-    padding: 8px;
-    border: 1px solid #444;
+    min-width: 120px;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
     border-radius: 4px;
-    background: #222;
-    color: #fff;
+    background: var(--input-bg);
+    color: var(--input-text);
     font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+#scenes-tab .scene-category-filter:focus,
+#scenes-tab .scene-sort:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
 #saved-scenes-list {
@@ -1140,78 +1186,140 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    margin: 4px;
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 4px;
-    transition: background-color 0.2s, border-color 0.2s;
+    margin: 4px 0;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .saved-scene-item:hover {
-    background: #333;
-    border-color: #555;
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .saved-scene-item.selected {
-    background: #2c4f7c;
-    border-color: #4a77aa;
+    background: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
 }
 
 .scene-item-content {
     flex-grow: 1;
     cursor: pointer;
+    min-width: 0; /* 允许内容收缩 */
 }
 
 .scene-name {
     display: block;
-    font-weight: 500;
-    margin-bottom: 4px;
-    color: #fff;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-color);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .scene-info {
-    display: block;
-    font-size: 0.9em;
-    color: #888;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-color-secondary);
+}
+
+.scene-category {
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.scene-date {
+    opacity: 0.8;
+}
+
+.scene-tags {
+    opacity: 0.7;
+    font-style: italic;
 }
 
 .scene-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .scene-action-btn {
-    padding: 5px 10px;
-    border: 1px solid #444;
-    border-radius: 3px;
-    background: #333;
-    color: #fff;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
     cursor: pointer;
-    font-size: 12px;
-    transition: background-color 0.2s;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
 .scene-action-btn:hover {
-    background: #444;
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.scene-action-btn.favorite-btn {
+    padding: 6px;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scene-action-btn.favorite-btn.active {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #000;
 }
 
 .scene-action-btn.load-btn {
-    background: #2c4f7c;
-    border-color: #4a77aa;
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
 }
 
 .scene-action-btn.load-btn:hover {
-    background: #3a5f8c;
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.scene-action-btn.edit-btn {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+.scene-action-btn.edit-btn:hover {
+    background: #138496;
+    border-color: #138496;
 }
 
 .scene-action-btn.delete-btn {
-    background: #722f2f;
-    border-color: #933;
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
 }
 
 .scene-action-btn.delete-btn:hover {
-    background: #823f3f;
+    background: #c82333;
+    border-color: #c82333;
 }
 
 .scene-details {
@@ -1335,12 +1443,84 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     background: #3a5f8c;
 }
 
-/* Style for disabled buttons inside auth modal */
+/* Auth Modal Form Styles */
+#auth-form-container {
+    width: 100%;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#auth-form-container button[type="submit"] {
+    width: 100%;
+    padding: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#auth-form-container button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
 #auth-form-container button[type="submit"]:disabled {
     background-color: #cccccc;
     border-color: #cccccc;
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+.switch-form-link {
+    text-align: center;
+    margin-top: 15px;
+    color: var(--text-color-secondary);
+}
+
+.switch-form-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.switch-form-link a:hover {
+    text-decoration: underline;
+}
+
+.error-text {
+    color: #dc3545;
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: center;
 }
 
 /* --- Styles for Scene Tab Info Box --- */
@@ -1486,4 +1666,449 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     border-color: #cccccc;
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+/* --- Cloud Scenes Modal Styles --- */
+#cloud-scenes-content {
+    min-width: 600px;
+}
+
+.cloud-scenes-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.cloud-scenes-toolbar input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
+}
+
+.cloud-scenes-toolbar button {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--button-bg);
+    color: var(--button-text);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cloud-scenes-toolbar button:hover {
+    background: var(--button-hover-bg);
+}
+
+#cloud-scenes-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.cloud-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: var(--panel-bg);
+}
+
+.scene-info {
+    flex: 1;
+}
+
+.scene-name {
+    font-weight: bold;
+    font-size: 16px;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.scene-meta {
+    font-size: 12px;
+    color: var(--text-color-light);
+    margin-bottom: 4px;
+}
+
+.scene-description {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.scene-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.scene-action-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.scene-action-btn.load-btn {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.scene-action-btn.load-btn:hover {
+    background: var(--primary-hover-color);
+}
+
+.scene-action-btn.share-btn {
+    background: var(--success-color, #28a745);
+    color: white;
+    border-color: var(--success-color, #28a745);
+}
+
+.scene-action-btn.share-btn:hover {
+    background: var(--success-hover-color, #218838);
+}
+
+.scene-action-btn.delete-btn {
+    background: var(--danger-color, #dc3545);
+    color: white;
+    border-color: var(--danger-color, #dc3545);
+}
+
+.scene-action-btn.delete-btn:hover {
+    background: var(--danger-hover-color, #c82333);
+}
+
+.cloud-scene-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* --- 项目管理样式 --- */
+.project-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: var(--panel-bg);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.project-item[data-level] {
+    margin-left: calc(var(--level) * 20px);
+    border-left: 3px solid var(--primary-color);
+    padding-left: 12px;
+}
+
+.project-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.project-info {
+    flex: 1;
+    cursor: pointer;
+}
+
+.project-name {
+    font-weight: bold;
+    font-size: 16px;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.project-meta {
+    font-size: 12px;
+    color: var(--text-color-light);
+    margin-bottom: 4px;
+}
+
+.project-description {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+
+.project-stats {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+}
+
+.project-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.project-action-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--input-bg);
+    color: var(--text-color);
+}
+
+.project-action-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.project-action-btn.load-btn {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.project-action-btn.load-btn:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.project-action-btn.create-scene-btn {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.project-action-btn.create-scene-btn:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+.project-action-btn.edit-btn {
+    background: #17a2b8;
+    color: white;
+    border-color: #17a2b8;
+}
+
+.project-action-btn.edit-btn:hover {
+    background: #138496;
+    border-color: #138496;
+}
+
+.project-action-btn.delete-btn {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.project-action-btn.delete-btn:hover {
+    background: #c82333;
+    border-color: #c82333;
+}
+
+/* --- 协作面板样式 --- */
+.online-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.online-user-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.online-user-info {
+    flex: 1;
+}
+
+.online-user-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.online-user-status {
+    font-size: 11px;
+    color: var(--text-color-secondary);
+}
+
+.online-user-cursor {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #28a745;
+}
+
+/* --- 用户内容区分样式 --- */
+.user-content-highlight {
+    filter: brightness(1.2) saturate(1.3);
+    box-shadow: 0 0 8px rgba(13, 110, 253, 0.3);
+}
+
+.user-content-dimmed {
+    opacity: 0.4;
+    filter: grayscale(30%);
+}
+
+.user-content-hidden {
+    display: none !important;
+}
+
+/* --- 协作光标样式 --- */
+.collaboration-cursor {
+    position: absolute;
+    pointer-events: none;
+    z-index: 1000;
+    transition: all 0.1s ease;
+}
+
+.collaboration-cursor::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid;
+    border-radius: 50%;
+    animation: cursor-pulse 2s infinite;
+}
+
+.collaboration-cursor::after {
+    content: attr(data-username);
+    position: absolute;
+    top: -25px;
+    left: 25px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+@keyframes cursor-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+}
+
+/* --- 通知系统样式 --- */
+.notification {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 400px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification.success {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+    color: #155724;
+}
+
+.notification.error {
+    background: #f8d7da;
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
+
+.notification.info {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+    color: #0c5460;
+}
+
+.notification-icon {
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.notification-message {
+    flex: 1;
+}
+
+/* --- 加载指示器样式 --- */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
 }
