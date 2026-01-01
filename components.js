@@ -28,6 +28,11 @@ class GameObject {
         this.notes = ""; // User editable notes
         this.userId = userId; // User who created this component
 
+        // Collaboration metadata
+        this.lastEditedBy = userId; // Last user who edited this component
+        this.lastEditedAt = new Date().toISOString(); // Last edit timestamp
+        this.version = 1; // Version number for conflict resolution
+
         this.selected = false; // Is the object currently selected?
         this.dragging = false; // Is the object currently being dragged (position)?
         this.dragOffset = new Vector(0, 0); // Offset from mouse to object center during drag
@@ -199,10 +204,15 @@ class GameObject {
                 if (typeof value === 'string' && this.notes !== value) {
                     this.notes = value;
                     sceneModified = true; // Mark scene as modified
+                    handled = true;
                 }
-                handled = true;
                 break;
             // Base class doesn't handle other properties by default
+        }
+
+        // Update collaboration metadata if property was changed
+        if (handled && window.collaborationManager && window.collaborationManager.currentUserId) {
+            this.updateLastEdited(window.collaborationManager.currentUserId);
         }
 
         // If geometry potentially changed, update it
@@ -289,9 +299,20 @@ class GameObject {
             posY: this.pos.y,
             angleDeg: this.angleRad * (180 / Math.PI),
             notes: this.notes,
-            userId: this.userId
+            userId: this.userId,
+            // Collaboration metadata
+            lastEditedBy: this.lastEditedBy,
+            lastEditedAt: this.lastEditedAt,
+            version: this.version
             // Note: We don't save 'selected', 'dragging' etc. as they are transient states
         };
+    }
+
+    // --- Collaboration methods ---
+    updateLastEdited(userId) {
+        this.lastEditedBy = userId;
+        this.lastEditedAt = new Date().toISOString();
+        this.version += 1;
     }
 
     // --- Reset ---

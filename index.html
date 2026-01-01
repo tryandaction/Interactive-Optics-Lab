@@ -9,6 +9,9 @@
 
     <!-- Link to the external CSS file -->
     <link rel="stylesheet" href="style.css">
+    <!-- Collaboration styles -->
+    <link rel="stylesheet" href="collaboration.css">
+    <link rel="stylesheet" href="collaboration.css">
 </head>
 
 <body> <!-- Visible content of the webpage -->
@@ -47,9 +50,6 @@
                     <hr>
                     <a href="#" id="menu-import-scene">导入文件...</a>
                     <a href="#" id="menu-export-scene">导出文件...</a>
-                    <hr>
-                    <a href="#" id="menu-cloud-save">保存到云端</a>
-                    <a href="#" id="menu-cloud-load">加载云端场景</a>
                 </div>
             </div>
 
@@ -182,20 +182,10 @@
 
         <div class="menubar-divider"></div>
 
-        <!-- User Status Area -->
+        <!-- User Status Area (Local Mode) -->
         <div class="menu-right">
-            <div id="user-status-top">未登录</div>
-            <button class="menubar-button" id="user-action-btn-top">登录/注册</button>
-            <button class="menubar-button menubar-icon-button" id="user-scenes-btn-top" title="我的云端场景"
-                style="display: none;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 17.5l-2.5 2.5-2.5-2.5" />
-                    <path
-                        d="M17.5 20V8.6a6 6 0 00-12 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3V8.5a4 4 0 018 0v5.8a3 3 0 00-3 3v1.1a1.5 1.5 0 001.5 1.5h17a1.5 1.5 0 001.5-1.5v-1a3 3 0 00-3-3z" />
-                </svg>
-            </button>
-            <button class="menubar-button secondary" id="logout-btn-top" style="display: none;">登出</button>
+            <div id="user-status-top">本地用户</div>
+            <button class="menubar-button" id="user-action-btn-top">修改用户名</button>
         </div> <!-- End menu-right -->
 
     </div>
@@ -491,6 +481,15 @@
                     <input type="checkbox" id="setting-arrow-trail" checked>
                 </div>
                 <div class="prop">
+                    <label for="setting-mouse-drag-shadow" title="拖动元件时显示鼠标拖影效果">鼠标拖影:</label>
+                    <input type="checkbox" id="setting-mouse-drag-shadow">
+                </div>
+                <div class="prop">
+                    <label for="setting-drag-shadow-duration" title="拖影消失的时间（毫秒）">拖影持续时间:</label>
+                    <input type="range" id="setting-drag-shadow-duration" min="100" max="2000" value="500" step="100">
+                    <span id="setting-drag-shadow-duration-value">500ms</span>
+                </div>
+                <div class="prop">
                     <label for="arrow-speed" title="调整光路箭头的移动速度">箭头速度:</label>
                     <input type="range" id="arrow-speed" min="10" max="500" value="100" step="10">
                 </div>
@@ -657,8 +656,11 @@
 
             <div id="info-tab" class="tab-content">
                 <h4>信息</h4>
-                <p>交互式光学实验室 v1.1</p>
-                <p>作者: [你的名字或组织]</p>
+                <p>交互式光学实验室 v2.0</p>
+                <p>纯前端版本 - 无需后端服务器</p>
+                <p>所有数据保存在浏览器本地存储中</p>
+                <hr class="thin-hr">
+                <p><a href="https://github.com/tryandaction/Interactive-Optics-Lab" target="_blank">GitHub 项目主页</a></p>
                 <p>更多信息和帮助请查阅用户指南。</p>
                 <!-- Add version details, links etc. -->
             </div>
@@ -667,111 +669,6 @@
     </div> <!-- End Main Content Area -->
 
     <!-- Modals (Now potentially smaller/more focused, or removed if integrated) -->
-    <!-- Login/Register Modal (can be triggered from top menubar) -->
-    <div id="auth-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <span class="modal-close-btn" id="auth-modal-close-btn">×</span>
-            <div id="auth-form-container">
-                <h2 id="auth-title">登录</h2>
-                <!-- Added Info Paragraph -->
-                <p style="text-align: center; color: var(--secondary-color); font-size: 13px; margin-bottom: 15px;">
-                    <i>(云功能开发中，本地功能已可用)</i>
-                </p>
-                <form id="login-form">
-                    <div class="form-group">
-                        <label for="login-username">用户名:</label>
-                        <input type="text" id="login-username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="login-password">密码:</label>
-                        <input type="password" id="login-password" required>
-                    </div>
-                    <button type="submit">登录</button>
-                    <p id="login-error" class="error-text" style="display: none;"></p>
-                    <p class="switch-form-link">
-                        <a href="#" onclick="showForgotPassword()">忘记密码？</a> |
-                        还没有账户？ <a href="#" onclick="switchToRegister()">立即注册</a>
-                    </p>
-                </form>
-                <form id="register-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="register-username">用户名:</label>
-                        <input type="text" id="register-username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-email">邮箱:</label>
-                        <input type="email" id="register-email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-password">密码:</label>
-                        <input type="password" id="register-password" required>
-                    </div>
-                    <button type="submit">注册</button>
-                    <p id="register-error" class="error-text" style="display: none;"></p>
-                    <p class="switch-form-link">已有账户？ <a href="#" onclick="switchToLogin()">返回登录</a></p>
-                </form>
-
-                <form id="forgot-password-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="forgot-email">邮箱地址:</label>
-                        <input type="email" id="forgot-email" required placeholder="请输入您的注册邮箱">
-                    </div>
-                    <button type="submit">发送重置邮件</button>
-                    <p id="forgot-error" class="error-text" style="display: none;"></p>
-                    <p class="switch-form-link">
-                        <a href="#" onclick="switchToLogin()">返回登录</a> |
-                        还没有账户？ <a href="#" onclick="switchToRegister()">立即注册</a>
-                    </p>
-                </form>
-
-                <form id="reset-password-form" style="display: none;">
-                    <div class="form-group">
-                        <label for="reset-password">新密码:</label>
-                        <input type="password" id="reset-password" required placeholder="请输入新密码（至少6位）">
-                    </div>
-                    <div class="form-group">
-                        <label for="reset-password-confirm">确认密码:</label>
-                        <input type="password" id="reset-password-confirm" required placeholder="请再次输入新密码">
-                    </div>
-                    <button type="submit">重置密码</button>
-                    <p id="reset-error" class="error-text" style="display: none;"></p>
-                    <p class="switch-form-link">
-                        <a href="#" onclick="switchToLogin()">返回登录</a>
-                    </p>
-                </form>
-            </div>
-        </div>
-    </div>
-    </div>
-
-    <!-- Cloud Scenes Modal -->
-    <div id="cloud-scenes-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="max-width: 800px; max-height: 85vh;">
-            <span class="modal-close-btn" id="cloud-scenes-modal-close-btn">×</span>
-
-            <h2>我的云端场景</h2>
-            <p style="text-align: center; color: var(--secondary-color); font-size: 13px; margin-bottom: 15px;">
-                <i>在此管理您保存在云端的场景，支持多设备同步</i>
-            </p>
-
-            <div id="cloud-scenes-content">
-                <div class="cloud-scenes-toolbar">
-                    <input type="text" id="cloud-scene-search" placeholder="搜索场景..." class="scene-search">
-                    <button id="refresh-cloud-scenes" class="secondary-btn">刷新</button>
-                </div>
-
-                <div id="cloud-scenes-list">
-                    <p class="placeholder-text">加载中...</p>
-                </div>
-
-                <div class="cloud-scene-actions">
-                    <button id="save-current-to-cloud-btn" class="primary-btn">保存当前场景到云端</button>
-                    <button id="create-new-cloud-scene-btn" class="secondary-btn">新建云端场景</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Projects Modal -->
     <div id="projects-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
@@ -779,7 +676,7 @@
 
             <h2>项目管理</h2>
             <p style="text-align: center; color: var(--secondary-color); font-size: 13px; margin-bottom: 15px;">
-                <i>创建和管理协作项目，支持多用户同时编辑</i>
+                <i>创建和管理本地项目，所有数据保存在浏览器中</i>
             </p>
 
             <div id="projects-modal-content">
@@ -1029,10 +926,9 @@
     <script src="sceneManager.js"></script> <!-- 场景管理模块 -->
     <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
     <script src="projectManager.js"></script> <!-- 项目管理模块 -->
+    <script src="collaborationManager.js"></script> <!-- 协作管理器 -->
+    <script src="collaborationUI.js"></script> <!-- 协作UI界面 -->
     <script src="main.js"></script>
 
 </body>
-
-</body>
-
 </html>
