@@ -16,17 +16,17 @@ export class LaserSource extends GameObject {
                 initialBeamWaist = 5.0, userId = null) {
         super(pos, angleDeg, "激光", userId);
         
-        this.wavelength = wavelength;
-        this.intensity = Math.max(0, intensity);
-        this.numRays = Math.max(1, numRays);
-        this.spreadRad = spreadDeg * (Math.PI / 180);
-        this.enabled = enabled;
-        this.polarizationType = polarizationType;
-        this.polarizationAngleRad = polarizationAngleDeg * (Math.PI / 180);
-        this.ignoreDecay = ignoreDecay;
+        this.wavelength = wavelength ?? DEFAULT_WAVELENGTH_NM;
+        this.intensity = Math.max(0, intensity ?? 1.0);
+        this.numRays = Math.max(1, numRays ?? 1);
+        this.spreadRad = (spreadDeg ?? 0) * (Math.PI / 180);
+        this.enabled = enabled ?? true;
+        this.polarizationType = polarizationType ?? 'unpolarized';
+        this.polarizationAngleRad = (polarizationAngleDeg ?? 0) * (Math.PI / 180);
+        this.ignoreDecay = ignoreDecay ?? false;
         this.gaussianEnabled = true;
-        this.beamDiameter = beamDiameter;
-        this.initialBeamWaist = initialBeamWaist;
+        this.beamDiameter = beamDiameter ?? 10.0;
+        this.initialBeamWaist = initialBeamWaist ?? 5.0;
         
         this._rayColor = this.calculateRayColor();
     }
