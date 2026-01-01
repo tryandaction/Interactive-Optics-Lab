@@ -19,11 +19,21 @@ class SimpleVector {
     sub(v) {
         return new SimpleVector(this.x - v.x, this.y - v.y);
     }
+    
+    clone() {
+        return new SimpleVector(this.x, this.y);
+    }
 }
 
-// 获取 Vector 类（优先使用全局的）
+// 获取 Vector 类（优先使用全局的，每次调用时检查）
 function getVectorClass() {
-    return window.Vector || SimpleVector;
+    return typeof Vector !== 'undefined' ? Vector : (window.Vector || SimpleVector);
+}
+
+// 创建向量的辅助函数
+function createVector(x, y) {
+    const VectorClass = getVectorClass();
+    return new VectorClass(x, y);
 }
 
 /**
@@ -215,12 +225,10 @@ class InteractionEnhancer {
     getMousePosition(e) {
         const canvas = document.getElementById('opticsCanvas');
         if (!canvas) {
-            const VectorClass = getVectorClass();
-            return new VectorClass(0, 0);
+            return createVector(0, 0);
         }
         const rect = canvas.getBoundingClientRect();
-        const VectorClass = getVectorClass();
-        return new VectorClass(
+        return createVector(
             e.clientX - rect.left,
             e.clientY - rect.top
         );
@@ -574,11 +582,10 @@ class InteractionEnhancer {
 
     duplicateSelected() {
         if (window.components) {
-            const VectorClass = getVectorClass();
             const selectedComponents = window.components.filter(comp => comp.selected);
             selectedComponents.forEach(comp => {
                 const newComp = Object.assign(Object.create(Object.getPrototypeOf(comp)), comp);
-                newComp.pos = newComp.pos.add(new VectorClass(20, 20));
+                newComp.pos = newComp.pos.add(createVector(20, 20));
                 newComp.selected = false;
                 window.components.push(newComp);
             });

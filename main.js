@@ -3123,7 +3123,7 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
 
             // --- Component Creation Switch Statement (Keep synced with importScene!) ---
             switch (compType) {
-                case 'LaserSource': newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); break;
+                case 'LaserSource': newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationType, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); break;
                 case 'FanSource': newComp = new FanSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.fanAngleDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter); break;
                 case 'LineSource': newComp = new LineSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.length, compData.enabled, compData.ignoreDecay, compData.beamDiameter); break;
                 case 'Mirror': newComp = new Mirror(pos, compData.length, angleDeg); break;
@@ -4143,7 +4143,7 @@ function loadSceneFromData(sceneData) {
             try {
                 switch (compType) {
                     case 'LaserSource':
-                        newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist);
+                        newComp = new LaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled, compData.polarizationType, compData.polarizationAngleDeg, compData.ignoreDecay, compData.beamDiameter, compData.initialBeamWaist);
                         // Set properties not in constructor (or needing setProperty logic)
                         if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled);
                         break;

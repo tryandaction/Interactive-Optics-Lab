@@ -171,13 +171,16 @@ export class LaserSource extends GameObject {
     }
 
     getProperties() {
+        const intensity = typeof this.intensity === 'number' ? this.intensity : 1.0;
+        const spreadDeg = typeof this.spreadRad === 'number' ? (this.spreadRad * 180 / Math.PI) : 0;
+        
         const props = {
             ...super.getProperties(),
             enabled: { value: !!this.enabled, label: '开启', type: 'checkbox' },
             wavelength: { value: this.wavelength, label: '波长 (nm)', type: 'number', min: 380, max: 750, step: 1 },
-            intensity: { value: this.intensity.toFixed(2), label: '强度', type: 'number', min: 0, max: 30, step: 0.1 },
+            intensity: { value: intensity.toFixed(2), label: '强度', type: 'number', min: 0, max: 30, step: 0.1 },
             numRays: { value: this.numRays, label: '#射线', type: 'number', min: 1, max: 501, step: 1 },
-            spreadDeg: { value: (this.spreadRad * 180 / Math.PI).toFixed(1), label: '发散角 (°)', type: 'number', min: 0, max: 90, step: 1 },
+            spreadDeg: { value: spreadDeg.toFixed(1), label: '发散角 (°)', type: 'number', min: 0, max: 90, step: 1 },
             polarizationType: {
                 value: this.polarizationType || 'unpolarized',
                 label: '偏振类型',
@@ -194,8 +197,9 @@ export class LaserSource extends GameObject {
         };
 
         if (this.polarizationType === 'linear') {
+            const polAngle = typeof this.polarizationAngleRad === 'number' ? (this.polarizationAngleRad * 180 / Math.PI) : 0;
             props.polarizationAngleDeg = {
-                value: (this.polarizationAngleRad * 180 / Math.PI).toFixed(1),
+                value: polAngle.toFixed(1),
                 label: '↳ 偏振角度 (°)',
                 type: 'number',
                 step: 1
@@ -203,16 +207,18 @@ export class LaserSource extends GameObject {
         }
 
         if (this.gaussianEnabled) {
+            const beamWaist = typeof this.initialBeamWaist === 'number' ? this.initialBeamWaist : 5.0;
             props.initialBeamWaist = {
-                value: this.initialBeamWaist.toFixed(2),
+                value: beamWaist.toFixed(2),
                 label: '↳ 腰半径 w₀ (px)',
                 type: 'number',
                 min: 0.1,
                 step: 0.1
             };
         } else {
+            const diameter = typeof this.beamDiameter === 'number' ? this.beamDiameter : 10.0;
             props.beamDiameter = {
-                value: this.beamDiameter.toFixed(1),
+                value: diameter.toFixed(1),
                 label: '光束直径 (px)',
                 type: 'number',
                 min: 0,
