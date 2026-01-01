@@ -835,9 +835,9 @@ function drawPlacementPreview(ctx) {
             case 'AcoustoOpticModulator':
                 previewComp = new AcoustoOpticModulator(previewPos);
                 break;
-            case 'FaradayRotator': newComp = new FaradayRotator(compPos); break; // <-- ADD THIS LINE
-            case 'FaradayIsolator': newComp = new FaradayIsolator(compPos); break; // <-- ADD THIS LINE
-            case 'CustomComponent': newComp = new CustomComponent(compPos); break; // <-- ADD THIS LINE
+            case 'FaradayRotator': previewComp = new FaradayRotator(previewPos); break;
+            case 'FaradayIsolator': previewComp = new FaradayIsolator(previewPos); break;
+            case 'CustomComponent': previewComp = new CustomComponent(previewPos); break;
             case 'ConcaveMirror':
                 previewComp = new SphericalMirror(previewPos, 200, 90, 0); // Match default creation
                 break;
@@ -2695,13 +2695,15 @@ function handleMouseUp(event) {
 
 // --- REPLACEMENT for handleMouseLeave function ---
 function handleMouseLeave(event) {
-    // If mouse leaves canvas WHILE dragging a component
-    if (isDragging && draggingComponent) {
+    // If mouse leaves canvas WHILE dragging components
+    if (isDragging && draggingComponents.length > 0) {
         canvas.style.cursor = 'default';
-        console.log("Mouse left canvas during component drag, calling endDrag for:", draggingComponent.label);
-        try {
-            draggingComponent.endDrag();
-        } catch (e) { console.error("Error in endDrag on mouse leave (component drag):", e); }
+        console.log("Mouse left canvas during component drag, calling endDrag for:", draggingComponents.map(c => c.label).join(', '));
+        draggingComponents.forEach(comp => {
+            try {
+                comp.endDrag();
+            } catch (e) { console.error("Error in endDrag on mouse leave (component drag):", e); }
+        });
     }
     // If mouse leaves canvas WHILE panning
     if (isPanning) {
@@ -2712,7 +2714,10 @@ function handleMouseLeave(event) {
     }
     // Reset general flags
     isDragging = false;
+    draggingComponents = []; // Clear dragging components array
+    dragStartOffsets.clear(); // Clear offsets
     mouseIsDown = false; // Reset mouse down state when leaving
+    ongoingActionState = null; // Clear ongoing action state
     // componentToAdd = null; // Optionally reset tool selection
     // clearToolbarSelection();
     if (!isDragging && !isPanning) {
@@ -3041,7 +3046,8 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
         // 1. Clear existing components
         components = [];
         selectedComponent = null;
-        draggingComponent = null;
+        selectedComponents = [];
+        draggingComponents = [];
         updateInspector();
 
         // 2. Recreate components from data
@@ -4039,7 +4045,8 @@ function loadSceneFromData(sceneData) {
     try {
         components = [];
         selectedComponent = null;
-        draggingComponent = null;
+        selectedComponents = [];
+        draggingComponents = [];
         historyManager.clear(); // Clear history when loading a new scene
         updateUndoRedoUI(); // Update UI after clearing history
 
@@ -5213,7 +5220,7 @@ function handleTouchStart(event) {
     } else if (event.touches.length === 2) {
         // --- Multi Touch Start ---
         // If a single drag was ongoing, end it cleanly before starting multi-touch
-        if (isDragging && draggingComponent) {
+        if (isDragging && draggingComponents.length > 0) {
             console.log("Switching from single drag to multi-touch, ending drag.");
             handleMouseUp({ button: 0 }); // Simulate mouse up to finalize single drag command
         }
@@ -5221,7 +5228,8 @@ function handleTouchStart(event) {
         touchState.isDown = true; // Still consider touch active
         touchState.isMultiTouch = true;
         isDragging = false; // Ensure component dragging stops
-        draggingComponent = null; // Clear component drag
+        draggingComponents = []; // Clear component drag array
+        dragStartOffsets.clear(); // Clear offsets
         ongoingActionState = null; // Clear action state
         activeGuides = []; // Clear guides
 
@@ -5308,7 +5316,7 @@ function handleTouchMove(event) {
                     // **Call handleMouseDown here to select/start dragging**
                     handleMouseDown(simulatedMouseDownEvent);
                     // Ensure the component drag actually started
-                    if (!isDragging || !draggingComponent) {
+                    if (!isDragging || draggingComponents.length === 0) {
                         // If handleMouseDown didn't initiate a drag (e.g., clicked empty space), stop tracking
                         touchState.isDraggingConfirmed = false;
                         console.log("Drag not initiated by handleMouseDown, resetting."); // Debug
@@ -5532,7 +5540,7 @@ function initialize() {
     console.log("Initializing with an empty scene.");
     components = []; // Always start with no components loaded
     selectedComponent = null;
-    draggingComponent = null;
+    draggingComponents = [];
     ongoingActionState = null; // Initialize action state tracker
     historyManager.clear();   // Clear history on new initialization
     sceneModified = false; // Initial state is unmodified

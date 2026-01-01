@@ -11,7 +11,6 @@
     <link rel="stylesheet" href="style.css">
     <!-- Collaboration styles -->
     <link rel="stylesheet" href="collaboration.css">
-    <link rel="stylesheet" href="collaboration.css">
 </head>
 
 <body> <!-- Visible content of the webpage -->
@@ -918,12 +917,11 @@
     <!-- ... -->
 
     <!-- JavaScript Files -->
-    <script src="vector.js"></script>
-    <script src="history.js"></script> <!-- <<<--- 添加这一行 -->
-    <script src="ray.js"></script>
-    <script src="components.js"></script>
+    <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
+    <script type="module" src="src/compat/legacy-globals.js"></script>
+    
+    <!-- 应用代码 -->
     <script src="user.js"></script> <!-- 用户管理模块 -->
-    <script src="sceneManager.js"></script> <!-- 场景管理模块 -->
     <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
     <script src="projectManager.js"></script> <!-- 项目管理模块 -->
     <script src="collaborationManager.js"></script> <!-- 协作管理器 -->

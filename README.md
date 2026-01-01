@@ -106,12 +106,7 @@ Interactive-Optics-Lab/
 ├── index.html              # 主页面
 ├── style.css               # 主样式
 ├── collaboration.css       # 协作样式
-├── main.js                 # 主逻辑
-├── components.js           # 光学元件类库
-├── ray.js                  # 光线追踪引擎
-├── vector.js               # 向量运算
-├── history.js              # 操作历史管理
-├── sceneManager.js         # 场景管理
+├── main.js                 # 主逻辑入口
 ├── user.js                 # 本地用户管理
 ├── projectManager.js       # 项目管理
 ├── interactionEnhancer.js  # 交互增强
@@ -119,12 +114,57 @@ Interactive-Optics-Lab/
 ├── collaborationUI.js      # 协作UI
 ├── presets/                # 预设场景
 │   └── preset_double_slit.json
+├── src/                    # 模块化源代码
+│   ├── index.js            # 模块主入口
+│   ├── core/               # 核心类
+│   │   ├── Vector.js       # 2D向量
+│   │   ├── Ray.js          # 光线类
+│   │   ├── GameObject.js   # 游戏对象基类
+│   │   ├── OpticalComponent.js # 光学元件基类
+│   │   └── constants.js    # 物理常量
+│   ├── components/         # 光学元件
+│   │   ├── sources/        # 光源
+│   │   ├── mirrors/        # 反射镜
+│   │   ├── lenses/         # 透镜
+│   │   ├── polarizers/     # 偏振器件
+│   │   ├── detectors/      # 探测器
+│   │   ├── special/        # 特殊元件
+│   │   └── misc/           # 辅助元件
+│   ├── simulation/         # 模拟引擎
+│   │   ├── RayTracer.js    # 光线追踪器
+│   │   ├── GameLoop.js     # 游戏循环
+│   │   └── LensImaging.js  # 透镜成像
+│   ├── rendering/          # 渲染模块
+│   │   ├── RayRenderer.js  # 光线渲染
+│   │   ├── GridRenderer.js # 网格渲染
+│   │   ├── ArrowRenderer.js # 箭头动画
+│   │   ├── PreviewRenderer.js # 放置预览
+│   │   └── GuideRenderer.js # 对齐辅助线
+│   ├── ui/                 # UI模块
+│   │   ├── EventHandler.js # 事件处理
+│   │   ├── Inspector.js    # 属性检查器
+│   │   └── Toolbar.js      # 工具栏
+│   ├── state/              # 状态管理
+│   │   ├── GlobalState.js  # 全局状态
+│   │   ├── CameraState.js  # 相机状态
+│   │   └── SelectionState.js # 选择状态
+│   ├── managers/           # 管理器
+│   │   ├── HistoryManager.js # 撤销/重做
+│   │   └── SceneManager.js # 场景管理
+│   ├── utils/              # 工具函数
+│   │   ├── ColorUtils.js   # 颜色处理
+│   │   ├── MathUtils.js    # 数学工具
+│   │   └── Serialization.js # 序列化
+│   ├── app/                # 应用层
+│   │   └── SimulationApp.js # 模拟应用主类
+│   └── compat/             # 兼容层
+│       └── legacy-globals.js # 全局变量导出
 └── README.md
 ```
 
 ### 核心技术
 - **HTML5 Canvas** - 图形渲染
-- **JavaScript ES6+** - 核心逻辑
+- **JavaScript ES6+ Modules** - 模块化架构
 - **LocalStorage** - 数据持久化
 - **纯前端架构** - 无需后端服务器
 
@@ -166,6 +206,9 @@ Interactive-Optics-Lab/
 3. 提交更改 (`git commit -m 'Add new feature'`)
 4. 推送到分支 (`git push origin feature/NewFeature`)
 5. 开启 Pull Request
+
+### 开发说明
+项目采用 ES6 模块化架构，详细的模块说明请参考 [src/README.md](src/README.md)。
 
 ## 📄 许可证
 

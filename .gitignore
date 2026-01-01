@@ -35,3 +35,6 @@ Thumbs.db
 # 缓存
 .cache/
 .npm/
+
+# Kiro IDE 配置文件
+.kiro/
