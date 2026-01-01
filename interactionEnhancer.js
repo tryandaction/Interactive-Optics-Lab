@@ -3,6 +3,30 @@
 console.log("interactionEnhancer.js: Loading Interaction Enhancement...");
 
 /**
+ * 简单的 2D 向量类（用于在 Vector 类加载前使用）
+ * 如果全局 Vector 已存在则使用全局的
+ */
+class SimpleVector {
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    add(v) {
+        return new SimpleVector(this.x + v.x, this.y + v.y);
+    }
+    
+    sub(v) {
+        return new SimpleVector(this.x - v.x, this.y - v.y);
+    }
+}
+
+// 获取 Vector 类（优先使用全局的）
+function getVectorClass() {
+    return window.Vector || SimpleVector;
+}
+
+/**
  * 交互功能增强类
  * 提供对齐辅助线、智能吸附、快捷键等功能
  */
@@ -190,8 +214,13 @@ class InteractionEnhancer {
      */
     getMousePosition(e) {
         const canvas = document.getElementById('opticsCanvas');
+        if (!canvas) {
+            const VectorClass = getVectorClass();
+            return new VectorClass(0, 0);
+        }
         const rect = canvas.getBoundingClientRect();
-        return new Vector(
+        const VectorClass = getVectorClass();
+        return new VectorClass(
             e.clientX - rect.left,
             e.clientY - rect.top
         );
@@ -545,10 +574,11 @@ class InteractionEnhancer {
 
     duplicateSelected() {
         if (window.components) {
+            const VectorClass = getVectorClass();
             const selectedComponents = window.components.filter(comp => comp.selected);
             selectedComponents.forEach(comp => {
                 const newComp = Object.assign(Object.create(Object.getPrototypeOf(comp)), comp);
-                newComp.pos = newComp.pos.add(new Vector(20, 20));
+                newComp.pos = newComp.pos.add(new VectorClass(20, 20));
                 newComp.selected = false;
                 window.components.push(newComp);
             });

@@ -2,6 +2,33 @@
 
 console.log("光学实验室 main.js 正在加载...");
 
+// --- 默认常量（在模块加载前使用） ---
+// 这些值会在 legacy-globals.js 加载后被覆盖
+const DEFAULT_MAX_RAY_BOUNCES = 500;
+const DEFAULT_MIN_RAY_INTENSITY = 0.0001;
+const DEFAULT_MIN_RAY_WIDTH = 1.0;
+const DEFAULT_MAX_RAY_WIDTH = 3.0;
+
+// 使用函数获取值，确保在运行时获取最新值
+function getMaxRayBounces() {
+    return window.MAX_RAY_BOUNCES || DEFAULT_MAX_RAY_BOUNCES;
+}
+function getMinRayIntensity() {
+    return window.MIN_RAY_INTENSITY || DEFAULT_MIN_RAY_INTENSITY;
+}
+function getMinRayWidth() {
+    return window.MIN_RAY_WIDTH || DEFAULT_MIN_RAY_WIDTH;
+}
+function getMaxRayWidth() {
+    return window.MAX_RAY_WIDTH || DEFAULT_MAX_RAY_WIDTH;
+}
+
+// 保持向后兼容的常量（使用默认值）
+const MAX_RAY_BOUNCES = DEFAULT_MAX_RAY_BOUNCES;
+const MIN_RAY_INTENSITY = DEFAULT_MIN_RAY_INTENSITY;
+const MIN_RAY_WIDTH = DEFAULT_MIN_RAY_WIDTH;
+const MAX_RAY_WIDTH = DEFAULT_MAX_RAY_WIDTH;
+
 // --- Global DOM Elements ---
 let canvas, ctx, toolbar, simulationArea, inspector, inspectorContent, deleteBtn,
     toggleArrowsBtn, toggleSelectedArrowBtn, arrowSpeedSlider;
@@ -25,7 +52,7 @@ let isDragging = false; // General dragging flag (position or angle)
 let needsRetrace = true; // Flag to recalculate ray paths
 let componentToAdd = null; // Type string of component selected from toolbar
 let currentRayPaths = []; // Stores the results of the last ray trace (Ray objects)
-let mousePos = new Vector(0, 0); // Current mouse position in canvas logical coordinates
+let mousePos = null; // Current mouse position in canvas logical coordinates (initialized later)
 let mouseIsDown = false; // Is the primary mouse button currently pressed?
 let eventListenersSetup = false; // Ensure listeners are only added once
 let lastTimestamp = 0; // For calculating delta time in game loop
@@ -33,16 +60,34 @@ let nextFrameActiveRays = []; // Store rays generated this frame to activate nex
 // window.ignoreMaxBounces = false; // Make it global via window object
 
 let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)
-let cameraOffset = new Vector(0, 0); // Current pan offset (canvas origin relative to view origin)
+let cameraOffset = null; // Current pan offset (canvas origin relative to view origin, initialized later)
 let isPanning = false;       // Flag: Is the user currently panning?
 let lastPanMousePos = null;  // Mouse position at the start of panning
 
+// 初始化 Vector 相关变量（在 Vector 类可用后调用）
+function initVectorVariables() {
+    if (typeof Vector !== 'undefined') {
+        if (!mousePos) mousePos = new Vector(0, 0);
+        if (!cameraOffset) cameraOffset = new Vector(0, 0);
+        return true;
+    }
+    return false;
+}
 
-let historyManager = new HistoryManager(); // <<<--- 添加这一行
+let historyManager = null; // 延迟初始化，等待模块加载
 let lastRecordedMoveState = null; // <<<--- 添加: 用于合并拖动操作
 let lastRecordedRotateState = null; // <<<--- 添加: 用于合并旋转操作
 let lastRecordedPropertyState = null; // <<<--- 添加: 用于合并属性修改
 let ongoingActionState = null; // { type: 'multi-move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
+
+// 获取或初始化 HistoryManager
+function getHistoryManager() {
+    if (!historyManager && typeof HistoryManager !== 'undefined') {
+        historyManager = new HistoryManager();
+        window.historyManager = historyManager;
+    }
+    return historyManager;
+}
 // --- Alignment Guides State ---
 let activeGuides = []; // Array to store currently active guide lines to draw
 const SNAP_THRESHOLD = 5.0; // Pixel distance threshold for snapping/showing guides (in logical coords)
@@ -341,6 +386,10 @@ function updateArrowAnimations(dt) { // dt is not directly used, uses global tim
 // --- Rendering Functions ---
 function draw() {
     if (!ctx) return;
+    // 确保 cameraOffset 已初始化
+    if (!cameraOffset) {
+        if (!initVectorVariables()) return;
+    }
     // --- Apply Camera Transform ---
     ctx.save(); // Save the default state
     ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear with physical dimensions is okay here
@@ -860,6 +909,10 @@ ctx.restore();
 
 // --- Collaboration Integration: Component Creation with Ownership ---
 function handleMouseDown(event) {
+// 确保 Vector 变量已初始化
+if (!mousePos || !cameraOffset) {
+    if (!initVectorVariables()) return;
+}
 // Convert screen coordinates to canvas logical coordinates
 const rect = canvas.getBoundingClientRect();
 const dpr = window.devicePixelRatio || 1;
@@ -2107,6 +2160,12 @@ function logoutUser() { // Handles logout
 
 // --- REPLACEMENT for getMousePos function ---
 function getMousePos(canvasElement, event) {
+    // 确保 cameraOffset 已初始化
+    if (!cameraOffset) {
+        if (!initVectorVariables()) {
+            return new Vector(0, 0);
+        }
+    }
     const rect = canvasElement.getBoundingClientRect();
     // 1. Mouse position relative to canvas top-left (CSS pixels)
     const cssX = event.clientX - rect.left;
@@ -2125,6 +2184,11 @@ function getMousePos(canvasElement, event) {
 // --- REPLACEMENT for handleMouseDown (V5 - Multi-Select Logic) ---
 function handleMouseDown(event) {
     if (window.innerWidth <= 768) { closeSidebars(); } // Close sidebars on mobile tap
+
+    // 确保 Vector 变量已初始化
+    if (!cameraOffset) {
+        if (!initVectorVariables()) return;
+    }
 
     if (event.button === 1) { // Middle-click panning
         event.preventDefault(); isPanning = true; lastPanMousePos = new Vector(event.clientX, event.clientY); canvas.style.cursor = 'grabbing'; ongoingActionState = null; return;
@@ -3979,6 +4043,15 @@ function updateUndoRedoUI() {
     const undoMenuItem = document.getElementById('menu-undo');
     const redoMenuItem = document.getElementById('menu-redo');
 
+    // 确保 historyManager 已初始化
+    if (!historyManager) {
+        if (undoBtn) { undoBtn.classList.add('disabled'); undoBtn.title = "无法撤销"; }
+        if (undoMenuItem) { undoMenuItem.classList.add('disabled-link'); }
+        if (redoBtn) { redoBtn.classList.add('disabled'); redoBtn.title = "无法重做"; }
+        if (redoMenuItem) { redoMenuItem.classList.add('disabled-link'); }
+        return;
+    }
+
     // Update Undo Button and Menu Item
     if (historyManager.canUndo()) {
         if (undoBtn) { undoBtn.classList.remove('disabled'); undoBtn.title = "撤销 (Ctrl+Z)"; }
@@ -5173,6 +5246,12 @@ let touchState = {
 
 // Helper to get logical coordinates from a Touch object
 function getTouchPos(canvasElement, touch) {
+    // 确保 cameraOffset 已初始化
+    if (!cameraOffset) {
+        if (!initVectorVariables()) {
+            return new Vector(0, 0);
+        }
+    }
     const rect = canvasElement.getBoundingClientRect();
     const cssX = touch.clientX - rect.left;
     const cssY = touch.clientY - rect.top;
@@ -5530,6 +5609,12 @@ function initialize() {
     // initialized = true;
     // --- End prevention ---
 
+    // --- 初始化 HistoryManager ---
+    if (!historyManager && typeof HistoryManager !== 'undefined') {
+        historyManager = new HistoryManager();
+        window.historyManager = historyManager;
+    }
+
      // --- 加载主题和设置 ---
     loadInitialTheme();
 
@@ -5542,7 +5627,7 @@ function initialize() {
     selectedComponent = null;
     draggingComponents = [];
     ongoingActionState = null; // Initialize action state tracker
-    historyManager.clear();   // Clear history on new initialization
+    if (historyManager) historyManager.clear();   // Clear history on new initialization
     sceneModified = false; // Initial state is unmodified
     loadedFromStorage = false; // Explicitly set flag
     // --- End Start Empty ---
@@ -5603,17 +5688,62 @@ function initialize() {
 // --- END OF REPLACEMENT for initialize ---
 // --- DOMContentLoaded ---
 // Ensures the DOM is fully loaded before running initialization code.
-document.addEventListener('DOMContentLoaded', () => {
+
+/**
+ * 等待模块加载完成
+ * @param {number} maxWait - 最大等待时间（毫秒）
+ * @param {number} interval - 检查间隔（毫秒）
+ * @returns {Promise<boolean>} - 是否成功加载
+ */
+function waitForModules(maxWait = 5000, interval = 50) {
+    return new Promise((resolve) => {
+        const startTime = Date.now();
+        
+        function check() {
+            // 检查核心类是否已加载
+            if (typeof Vector !== 'undefined' && 
+                typeof GameObject !== 'undefined' && 
+                typeof Ray !== 'undefined' && 
+                typeof OpticalComponent !== 'undefined' &&
+                typeof HistoryManager !== 'undefined') {
+                console.log("所有核心模块已加载完成。");
+                resolve(true);
+                return;
+            }
+            
+            // 检查是否超时
+            if (Date.now() - startTime > maxWait) {
+                console.error("等待模块加载超时！");
+                resolve(false);
+                return;
+            }
+            
+            // 继续等待
+            setTimeout(check, interval);
+        }
+        
+        check();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     console.log("DOMContentLoaded 事件触发。");
-    // Basic check for essential classes
-    if (typeof Vector !== 'undefined' && typeof GameObject !== 'undefined' && typeof Ray !== 'undefined' && typeof OpticalComponent !== 'undefined') {
+    
+    // 等待 ES6 模块加载完成
+    const modulesLoaded = await waitForModules();
+    
+    if (modulesLoaded) {
         console.log("核心类已定义，准备调用 initialize...");
+        
+        // 初始化 Vector 相关变量
+        initVectorVariables();
+        
         initialize();
 
         // 处理URL中的分享参数
         setTimeout(handleSharedScene, 100); // 稍后执行，确保UserManager已初始化
     } else {
-        console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent) 未定义！脚本加载顺序可能错误。");
+        console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent, HistoryManager) 未定义！脚本加载顺序可能错误。");
         alert("无法加载核心脚本，请检查控制台获取详细信息！");
     }
 });

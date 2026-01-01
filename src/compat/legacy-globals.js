@@ -56,7 +56,9 @@ import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging } from '../simulation/in
 import { EventHandler, Inspector, PROPERTY_GROUPS, Toolbar, DEFAULT_TOOL_GROUPS } from '../ui/index.js';
 
 // 状态管理
-import { GlobalState, CameraState, SelectionState } from '../state/index.js';
+import * as GlobalStateModule from '../state/GlobalState.js';
+import * as CameraStateModule from '../state/CameraState.js';
+import * as SelectionStateModule from '../state/SelectionState.js';
 
 // 工具函数
 import { ColorUtils, MathUtils, Serialization } from '../utils/index.js';
@@ -143,9 +145,9 @@ if (typeof window !== 'undefined') {
     window.DEFAULT_TOOL_GROUPS = DEFAULT_TOOL_GROUPS;
 
     // 状态管理
-    window.GlobalState = GlobalState;
-    window.CameraState = CameraState;
-    window.SelectionState = SelectionState;
+    window.GlobalState = GlobalStateModule;
+    window.CameraState = CameraStateModule;
+    window.SelectionState = SelectionStateModule;
 
     // 工具函数
     window.ColorUtils = ColorUtils;
