@@ -5492,9 +5492,11 @@ function applyCombinedTheme(combinedThemeName) {
         switcher.value = combinedThemeName;
     }
 
-    // 如果用户已登录，同步主题到云端
-    if (window.userManager && window.userManager.isUserLoggedIn()) {
-        window.userManager.syncThemeToCloud(combinedThemeName);
+    // 保存到用户偏好（本地模式，不会触发递归）
+    if (window.userManager && window.userManager.currentUser) {
+        window.userManager.currentUser.preferences = window.userManager.currentUser.preferences || {};
+        window.userManager.currentUser.preferences.theme = combinedThemeName;
+        window.userManager.saveUserToStorage();
     }
 
     console.log(`主题已应用: UI=${uiTheme}, 画布=${canvasTheme}`);

@@ -194,21 +194,6 @@ class UserManager {
         }
         return { success: true };
     }
-
-    /**
-     * 同步主题设置（本地存储）
-     * 注意：不要在这里调用 applyCombinedTheme，避免无限递归
-     */
-    syncThemeToCloud(theme) {
-        if (this.currentUser) {
-            this.currentUser.preferences = {
-                ...this.currentUser.preferences,
-                theme: theme
-            };
-            this.saveUserToStorage();
-        }
-        console.log('主题设置已保存到本地');
-    }
 }
 
 // 初始化用户管理器
