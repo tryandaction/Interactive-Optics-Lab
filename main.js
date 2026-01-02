@@ -112,6 +112,111 @@ const LOCALSTORAGE_SCENE_KEY = 'opticsLabSceneData'; // Key for saving/loading s
 // let showGrid = true;         // Default: Show grid initially
 // const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings'; // Key for saving settings
 
+// --- 场景修改状态管理 ---
+/**
+ * 标记场景已修改
+ * 触发 sceneModified 事件，更新 UI 显示
+ */
+function markSceneAsModified() {
+    if (!sceneModified) {
+        sceneModified = true;
+        // 触发自定义事件，通知 UI 更新
+        document.dispatchEvent(new CustomEvent('sceneModified'));
+        console.log('[Scene] Marked as modified');
+        
+        // 同时通知 ProjectManager（如果存在）
+        if (window.unifiedProjectPanel) {
+            const pm = window.unifiedProjectPanel.getProjectManager();
+            if (pm && pm.markSceneAsModified) {
+                pm.markSceneAsModified();
+            }
+        }
+    }
+}
+
+/**
+ * 标记场景已保存
+ * 触发 sceneSaved 事件，更新 UI 显示
+ */
+function markSceneAsSaved() {
+    if (sceneModified) {
+        sceneModified = false;
+        // 触发自定义事件，通知 UI 更新
+        document.dispatchEvent(new CustomEvent('sceneSaved'));
+        console.log('[Scene] Marked as saved');
+    }
+}
+
+/**
+ * 检查是否有未保存的更改
+ * @returns {boolean}
+ */
+function hasUnsavedChanges() {
+    return sceneModified;
+}
+
+/**
+ * 保存当前场景到项目
+ * 通过 Ctrl+S 触发
+ */
+async function saveCurrentSceneToProject() {
+    console.log('[Save] Ctrl+S triggered - saving current scene...');
+    
+    // 检查是否有打开的项目和场景
+    if (!window.unifiedProjectPanel) {
+        console.log('[Save] No project panel available, falling back to localStorage save');
+        saveSceneToLocalStorage();
+        showTemporaryMessage('场景已暂存到浏览器（未打开项目）', 'info');
+        return;
+    }
+    
+    const projectManager = window.unifiedProjectPanel.getProjectManager();
+    const currentProject = projectManager.getCurrentProject();
+    const currentScene = projectManager.getCurrentScene();
+    
+    if (!currentProject || !currentScene) {
+        console.log('[Save] No project/scene open, falling back to localStorage save');
+        saveSceneToLocalStorage();
+        showTemporaryMessage('场景已暂存到浏览器（请先打开项目场景）', 'info');
+        return;
+    }
+    
+    // 如果没有修改，不需要保存
+    if (!sceneModified) {
+        console.log('[Save] No changes to save');
+        showTemporaryMessage('没有需要保存的更改', 'info');
+        return;
+    }
+    
+    try {
+        // 获取当前画布数据
+        const settings = {
+            mode: currentMode || 'ray_trace',
+            showGrid: showGrid !== false,
+            maxRays: window.maxRaysPerSource || 100,
+            maxBounces: window.globalMaxBounces || 50,
+            minIntensity: window.globalMinIntensity || 0.001,
+            showArrows: globalShowArrows || false,
+            arrowSpeed: arrowAnimationSpeed || 100,
+            fastWhiteLightMode: window.fastWhiteLightMode || false
+        };
+        
+        console.log('[Save] Saving scene with', components.length, 'components');
+        
+        // 保存场景
+        await projectManager.saveScene(components, settings);
+        
+        // 标记为已保存
+        markSceneAsSaved();
+        
+        showTemporaryMessage(`场景 "${currentScene.name}" 已保存`, 'success');
+        console.log('[Save] Scene saved successfully:', currentScene.name);
+    } catch (err) {
+        console.error('[Save] Failed to save scene:', err);
+        showTemporaryMessage(`保存失败: ${err.message}`, 'error');
+    }
+}
+
 // Helper function to convert hex color to rgba
 function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -883,6 +988,7 @@ if (componentToAdd) {
             selectedComponent = newComp;
             updateInspector();
             sceneModified = true;
+            markSceneAsModified();
             needsRetrace = true;
         }
     } catch (e) {
@@ -1855,6 +1961,7 @@ function handlePropertyChange(propName, rawValue, isFinalChange = false) {
                 historyManager.addCommand(new SetPropertyCommand(selectedComponent, propName, startValueForOngoingAction, finalValue));
                 updateUndoRedoUI(); // Update buttons/menu
                 sceneModified = true; // Modification confirmed
+                markSceneAsModified();
             } else {
                 console.log(`    -> Property ${propName} did not change significantly from start value ${JSON.stringify(startValueForOngoingAction)}. No command added.`);
             }
@@ -2260,6 +2367,7 @@ function handleMouseDown(event) {
                 updateInspector();
                 needsRetrace = true;
                 sceneModified = true;
+                markSceneAsModified();
             }
             componentToAdd = null; // Reset tool AFTER successful placement and command adding
             clearToolbarSelection();
@@ -2292,6 +2400,7 @@ function handleMouseDown(event) {
         updateUndoRedoUI(); // Update buttons now that a command is added
         console.log("Selection changed, SelectCommand added.");
         sceneModified = true; // Changing selection counts as modification
+        markSceneAsModified();
     } else {
         // console.log("Selection state did not change."); // Optional log
     }
@@ -2749,6 +2858,13 @@ function handleKeyDown(event) {
         return; // Don't process shortcuts
     }
 
+    // --- Ctrl+S: Save current scene ---
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        saveCurrentSceneToProject();
+        return;
+    }
+
     // --- Undo/Redo Shortcuts ---
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const undoPressed = (isMac && event.metaKey && !event.shiftKey && event.key === 'z') || (!isMac && event.ctrlKey && event.key === 'z');
@@ -2758,12 +2874,14 @@ function handleKeyDown(event) {
         event.preventDefault();
         if (historyManager.canUndo()) {
             historyManager.undo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Undo (快捷键)");
+            markSceneAsModified(); // 标记场景已修改
         } return;
     }
     if (redoPressed) {
         event.preventDefault();
         if (historyManager.canRedo()) {
             historyManager.redo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Redo (快捷键)");
+            markSceneAsModified(); // 标记场景已修改
         } return;
     }
     // --- End Undo/Redo Shortcuts ---
@@ -2791,6 +2909,7 @@ function handleKeyDown(event) {
             else if (typeof selectedComponent._updateGeometry === 'function') selectedComponent._updateGeometry();
             needsRetrace = true;
             sceneModified = true;
+            markSceneAsModified(); // 标记场景已修改
 
             // Add Command (discrete action)
             if (Math.abs(newAngleRad - currentAngleRad) > 1e-4) {
@@ -2901,6 +3020,7 @@ function deleteSelectedComponents() {
             historyManager.addCommand(compositeCommand); // Add the single composite command to history
             updateUndoRedoUI();
             sceneModified = true;
+            markSceneAsModified(); // 标记场景已修改
             console.log(`${deleteCommands.length} component(s) deleted via CompositeCommand.`);
         } catch (e) {
             console.error("Error executing composite delete command:", e);
@@ -4358,9 +4478,11 @@ function loadSceneFromData(sceneData) {
         }); // End forEach component
 
         // --- Restore Mode ---
-        if (sceneData.currentMode === 'lens_imaging' || sceneData.currentMode === 'ray_trace') {
-            switchMode(sceneData.currentMode);
-            console.log(`  Restored simulation mode to: ${sceneData.currentMode}`);
+        // 支持两种格式：currentMode（旧格式）和 settings.mode（新格式）
+        const mode = sceneData.currentMode || sceneData.settings?.mode;
+        if (mode === 'lens_imaging' || mode === 'ray_trace') {
+            switchMode(mode);
+            console.log(`  Restored simulation mode to: ${mode}`);
         } else {
             switchMode('ray_trace');
             console.warn("  Saved scene data missing or has invalid mode, defaulting to ray_trace.");
@@ -4383,18 +4505,34 @@ function loadSceneFromData(sceneData) {
             try {
                 const s = sceneData.settings;
                 if (typeof s.showGrid === 'boolean') showGrid = s.showGrid;
-                if (typeof s.maxRaysPerSource === 'number') window.maxRaysPerSource = s.maxRaysPerSource;
-                if (typeof s.globalMaxBounces === 'number') window.globalMaxBounces = s.globalMaxBounces;
-                if (typeof s.globalMinIntensity === 'number') window.globalMinIntensity = s.globalMinIntensity;
+                // 支持新旧两种字段名
+                if (typeof s.maxRays === 'number') window.maxRaysPerSource = s.maxRays;
+                else if (typeof s.maxRaysPerSource === 'number') window.maxRaysPerSource = s.maxRaysPerSource;
+                
+                if (typeof s.maxBounces === 'number') window.globalMaxBounces = s.maxBounces;
+                else if (typeof s.globalMaxBounces === 'number') window.globalMaxBounces = s.globalMaxBounces;
+                
+                if (typeof s.minIntensity === 'number') window.globalMinIntensity = s.minIntensity;
+                else if (typeof s.globalMinIntensity === 'number') window.globalMinIntensity = s.globalMinIntensity;
+                
                 if (typeof s.fastWhiteLightMode === 'boolean') window.fastWhiteLightMode = s.fastWhiteLightMode;
-                if (typeof s.globalShowArrows === 'boolean') globalShowArrows = s.globalShowArrows;
+                
+                if (typeof s.showArrows === 'boolean') globalShowArrows = s.showArrows;
+                else if (typeof s.globalShowArrows === 'boolean') globalShowArrows = s.globalShowArrows;
+                
                 if (typeof s.onlyShowSelectedSourceArrow === 'boolean') onlyShowSelectedSourceArrow = s.onlyShowSelectedSourceArrow;
-                if (typeof s.arrowAnimationSpeed === 'number') arrowAnimationSpeed = s.arrowAnimationSpeed;
+                
+                if (typeof s.arrowSpeed === 'number') arrowAnimationSpeed = s.arrowSpeed;
+                else if (typeof s.arrowAnimationSpeed === 'number') arrowAnimationSpeed = s.arrowAnimationSpeed;
             } catch (e) { console.warn('Failed to restore settings:', e); }
         }
 
         needsRetrace = true;
         sceneModified = false; // Mark as unmodified after successful load
+        
+        // 触发场景已保存事件（因为刚加载的场景是未修改状态）
+        document.dispatchEvent(new CustomEvent('sceneSaved'));
+        
         updateInspector(); // Clear inspector as nothing is selected initially
         activateTab('properties-tab'); // Ensure properties tab is active
         console.log(`--- Scene loaded successfully. Components: ${components.length}, Mode: ${currentMode} ---`);
@@ -4643,6 +4781,7 @@ function setupEventListeners() {
                 historyManager.addCommand(command); // Add it to the history
                 updateUndoRedoUI(); // Update buttons
                 sceneModified = true; // Clearing modifies the scene
+                markSceneAsModified(); // 标记场景已修改
 
                 // Optional: Should clearing also clear the auto-save? Maybe not.
                 // localStorage.removeItem(LOCALSTORAGE_SCENE_KEY); 

@@ -355,7 +355,7 @@ export class ProjectManager {
                 } else {
                     // 没有配置文件，创建新项目配置
                     this.currentProject = {
-                        id: this.generateId('proj'),
+                        id: generateId('proj'),
                         name: dirHandle.name,
                         storageMode: 'local',
                         syncCommandTemplate: this.getDefaultSyncTemplate(),
@@ -392,12 +392,22 @@ export class ProjectManager {
 
         const scenes = [];
         const entries = await FileSystemAdapter.listDirectory(this.directoryHandle);
+        
+        // 保留现有场景的 ID 映射
+        const existingSceneMap = new Map();
+        if (this.currentProject.scenes) {
+            for (const scene of this.currentProject.scenes) {
+                existingSceneMap.set(scene.fileName, scene.id);
+            }
+        }
 
         for (const entry of entries) {
             if (entry.kind === 'file' && entry.name.endsWith(ProjectManager.SCENE_EXTENSION)) {
                 const sceneName = entry.name.replace(ProjectManager.SCENE_EXTENSION, '');
+                // 如果场景已存在，保留原有 ID
+                const existingId = existingSceneMap.get(entry.name);
                 scenes.push({
-                    id: this.generateId('scene'),
+                    id: existingId || generateId('scene'),
                     name: sceneName,
                     fileName: entry.name
                 });
@@ -502,7 +512,7 @@ export class ProjectManager {
         const sceneData = Serializer.createEmptyScene(sceneName);
 
         const scene = {
-            id: this.generateId('scene'),
+            id: generateId('scene'),
             name: sceneName,
             fileName: fileName,
             createdAt: new Date().toISOString(),
@@ -512,7 +522,7 @@ export class ProjectManager {
         if (this.currentProject.storageMode === 'localStorage') {
             LocalStorageAdapter.saveScene(this.currentProject.id, scene.id, sceneData);
         } else if (this.directoryHandle) {
-            const json = Serializer.serialize([], sceneData.settings, { name: sceneName });
+            const json = JSON.stringify(sceneData, null, 2);
             await FileSystemAdapter.createFile(this.directoryHandle, fileName, json);
         }
 
@@ -549,7 +559,24 @@ export class ProjectManager {
         let sceneData;
 
         if (this.currentProject.storageMode === 'localStorage') {
-            sceneData = LocalStorageAdapter.getScene(this.currentProject.id, sceneId);
+            const rawData = LocalStorageAdapter.getScene(this.currentProject.id, sceneId);
+            if (rawData) {
+                // localStorage 中的数据已经是 JSON 对象，不需要 parse
+                // 但需要确保格式一致
+                if (Serializer.needsMigration(rawData)) {
+                    sceneData = Serializer.migrate(rawData);
+                } else {
+                    sceneData = rawData;
+                }
+                // 确保 components 被正确反序列化
+                if (sceneData.components && Array.isArray(sceneData.components)) {
+                    sceneData.components = Serializer.deserializeComponents(sceneData.components);
+                }
+                // 确保 settings 被正确反序列化
+                if (sceneData.settings) {
+                    sceneData.settings = Serializer.deserializeSettings(sceneData.settings);
+                }
+            }
         } else if (this.directoryHandle) {
             const fileHandle = await FileSystemAdapter.getFileHandle(
                 this.directoryHandle, 
@@ -565,12 +592,28 @@ export class ProjectManager {
             throw new Error('无法加载场景数据');
         }
 
+        // 确保 sceneData 有正确的结构
+        if (!sceneData.components) {
+            sceneData.components = [];
+        }
+        if (!sceneData.settings) {
+            sceneData.settings = Serializer.deserializeSettings({});
+        }
+        if (!sceneData.metadata) {
+            sceneData.metadata = {
+                name: scene.name,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+        }
+
         this.currentScene = {
             ...scene,
             data: sceneData,
             isModified: false
         };
 
+        console.log('[ProjectManager] Scene loaded:', this.currentScene);
         this.emit('sceneLoaded', this.currentScene);
         return this.currentScene;
     }
@@ -583,12 +626,27 @@ export class ProjectManager {
             throw new Error('没有打开的场景');
         }
 
+        // 序列化组件数据
+        let serializedComponents = [];
+        if (Array.isArray(components)) {
+            serializedComponents = components.map(comp => {
+                // 如果组件有 toJSON 方法，使用它
+                if (comp && typeof comp.toJSON === 'function') {
+                    return comp.toJSON();
+                }
+                // 否则直接使用（可能已经是序列化的数据）
+                return comp;
+            }).filter(c => c !== null);
+        }
+
         const sceneData = {
-            ...this.currentScene.data,
-            components: components,
-            settings: settings,
+            version: Serializer.CURRENT_VERSION,
+            name: this.currentScene.name,
+            components: serializedComponents,
+            settings: Serializer.serializeSettings(settings || {}),
             metadata: {
-                ...this.currentScene.data.metadata,
+                ...(this.currentScene.data?.metadata || {}),
+                name: this.currentScene.name,
                 updatedAt: new Date().toISOString()
             }
         };
@@ -600,11 +658,7 @@ export class ProjectManager {
                 sceneData
             );
         } else if (this.directoryHandle) {
-            const json = Serializer.serialize(
-                components, 
-                settings, 
-                sceneData.metadata
-            );
+            const json = JSON.stringify(sceneData, null, 2);
             const fileHandle = await FileSystemAdapter.getFileHandle(
                 this.directoryHandle, 
                 this.currentScene.fileName,

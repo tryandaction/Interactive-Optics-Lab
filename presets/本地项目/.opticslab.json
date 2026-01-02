@@ -1,0 +1,9 @@
+{
+  "id": "proj_1767334526816_o84xaaj4w",
+  "name": "本地项目",
+  "storageMode": "local",
+  "githubUrl": null,
+  "syncCommandTemplate": "git add .\ngit commit -m \"{{message}}\"\ngit push origin main",
+  "createdAt": "2026-01-02T06:15:26.816Z",
+  "updatedAt": "2026-01-02T06:18:00.381Z"
+}

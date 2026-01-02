@@ -193,6 +193,10 @@ export class ActiveSceneManager {
     getComponentsFromCanvas() {
         // 尝试从全局获取
         if (typeof window !== 'undefined') {
+            // main.js 使用 window.components
+            if (window.components && Array.isArray(window.components)) {
+                return window.components;
+            }
             if (window.gameObjects) {
                 return window.gameObjects;
             }
@@ -226,16 +230,23 @@ export class ActiveSceneManager {
 
     /**
      * 绑定键盘快捷键
+     * 注意：Ctrl+S 的处理已经在 main.js 的 handleKeyDown 中实现
+     * 这里只处理其他快捷键，避免重复
      */
     bindKeyboardShortcuts() {
         if (typeof document === 'undefined') return;
 
+        // 注意：不再监听 Ctrl+S，因为 main.js 已经处理了
+        // 这里只处理新建场景和新建项目的快捷键
         document.addEventListener('keydown', (e) => {
-            // Ctrl+S: 保存当前场景
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                this.handleSaveShortcut();
-            }
+            // 如果在输入框中，不处理快捷键
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement && (
+                activeElement.tagName === 'INPUT' || 
+                activeElement.tagName === 'SELECT' || 
+                activeElement.tagName === 'TEXTAREA'
+            );
+            if (isInputFocused) return;
 
             // Ctrl+N: 新建场景
             if (e.ctrlKey && !e.shiftKey && e.key === 'n') {
@@ -253,6 +264,7 @@ export class ActiveSceneManager {
 
     /**
      * 处理保存快捷键
+     * 注意：这个方法现在由 main.js 的 saveCurrentSceneToProject 调用
      */
     async handleSaveShortcut() {
         try {

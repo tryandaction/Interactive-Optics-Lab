@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "name": "test2",
+  "components": [],
+  "settings": {
+    "mode": "ray_trace",
+    "maxRays": 1001,
+    "maxBounces": 500,
+    "minIntensity": 0.0001,
+    "showGrid": true,
+    "showArrows": false,
+    "arrowSpeed": 100,
+    "fastWhiteLightMode": false
+  },
+  "metadata": {
+    "createdAt": "2026-01-02T06:17:57.833Z",
+    "updatedAt": "2026-01-02T06:18:00.492Z",
+    "name": "test2"
+  }
+}

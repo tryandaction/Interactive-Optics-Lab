@@ -353,16 +353,18 @@ export class UnifiedProjectPanel {
     // ============ 场景操作 ============
 
     onSceneLoaded(scene) {
+        console.log('[UnifiedProjectPanel] onSceneLoaded called with:', scene);
         // 通知主应用加载场景数据
         if (scene && scene.data) {
             const event = new CustomEvent('sceneDataLoaded', { 
                 detail: { 
-                    scene,
-                    components: scene.data.components,
-                    settings: scene.data.settings
+                    scene: scene
                 }
             });
+            console.log('[UnifiedProjectPanel] Dispatching sceneDataLoaded event');
             document.dispatchEvent(event);
+        } else {
+            console.error('[UnifiedProjectPanel] Invalid scene data in onSceneLoaded:', scene);
         }
     }
 
@@ -553,12 +555,17 @@ export class UnifiedProjectPanel {
                     // 获取当前画布数据
                     const components = window.components || [];
                     const settings = {
-                        showGrid: window.showGrid,
-                        maxRaysPerSource: window.maxRaysPerSource,
-                        globalMaxBounces: window.globalMaxBounces,
-                        globalMinIntensity: window.globalMinIntensity
+                        mode: window.currentMode || 'ray_trace',
+                        showGrid: window.showGrid !== false,
+                        maxRays: window.maxRaysPerSource || 100,
+                        maxBounces: window.globalMaxBounces || 50,
+                        minIntensity: window.globalMinIntensity || 0.001,
+                        showArrows: window.globalShowArrows || false,
+                        arrowSpeed: window.arrowAnimationSpeed || 100,
+                        fastWhiteLightMode: window.fastWhiteLightMode || false
                     };
                     
+                    console.log('[UnifiedProjectPanel] Saving scene with components:', components.length);
                     // 保存场景
                     await this.projectManager.saveScene(components, settings);
                 }

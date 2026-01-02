@@ -180,20 +180,20 @@ export class Serializer {
     static deserializeComponent(compData) {
         if (!compData) return null;
 
-        // 处理新格式（2.0.0）
+        // 处理新格式（2.0.0）- 有 _raw 字段
         if (compData._raw) {
             return {
                 ...compData._raw,
                 type: compData.type,
                 id: compData.id,
-                posX: compData.x,
-                posY: compData.y,
-                angleDeg: compData.angle,
+                posX: compData.x ?? compData._raw.posX ?? 0,
+                posY: compData.y ?? compData._raw.posY ?? 0,
+                angleDeg: compData.angle ?? compData._raw.angleDeg ?? 0,
                 ...compData.properties
             };
         }
 
-        // 处理旧格式（1.0, 1.1）
+        // 处理旧格式（1.0, 1.1）或直接保存的格式
         return {
             type: compData.type,
             id: compData.id,
@@ -202,6 +202,7 @@ export class Serializer {
             angleDeg: compData.angleDeg ?? compData.angle ?? 0,
             label: compData.label,
             notes: compData.notes,
+            // 保留所有其他属性
             ...compData
         };
     }

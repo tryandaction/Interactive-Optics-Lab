@@ -178,9 +178,11 @@ export class ProjectTreeRenderer {
 
         if (type === 'scene') {
             try {
-                await this.projectManager.loadScene(id);
+                console.log('[ProjectTreeRenderer] Loading scene:', id);
+                const scene = await this.projectManager.loadScene(id);
+                console.log('[ProjectTreeRenderer] Scene loaded successfully:', scene);
             } catch (err) {
-                console.error('Failed to load scene:', err);
+                console.error('[ProjectTreeRenderer] Failed to load scene:', err);
                 this.showNotification(`加载场景失败: ${err.message}`, 'error');
             }
         }
