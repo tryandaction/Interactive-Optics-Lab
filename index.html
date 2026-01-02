@@ -798,12 +798,17 @@
     
     <!-- 统一项目管理模块 -->
     <script type="module">
-        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js?v=2';
+        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js?v=3';
         
-        // 等待 DOM 加载完成后初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            // 初始化统一项目面板
-            window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
+        // 初始化函数
+        function initProjectPanel() {
+            console.log('[Init] Starting UnifiedProjectPanel initialization...');
+            try {
+                window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
+                console.log('[Init] UnifiedProjectPanel initialized successfully');
+            } catch (error) {
+                console.error('[Init] Failed to initialize UnifiedProjectPanel:', error);
+            }
             
             // 监听场景数据加载事件
             document.addEventListener('sceneDataLoaded', (e) => {
@@ -812,9 +817,15 @@
                     window.loadSceneFromData({ components, settings });
                 }
             });
-            
-            console.log('UnifiedProjectPanel initialized');
-        });
+        }
+        
+        // 检查 DOM 是否已经加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initProjectPanel);
+        } else {
+            // DOM 已经加载完成，直接初始化
+            initProjectPanel();
+        }
     </script>
     
     <!-- 应用代码 -->

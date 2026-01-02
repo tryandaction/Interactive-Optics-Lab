@@ -10,16 +10,19 @@ import { ProjectTreeRenderer } from './ProjectTreeRenderer.js';
 
 export class UnifiedProjectPanel {
     constructor(containerSelector) {
+        console.log('[UnifiedProjectPanel] Constructor called with selector:', containerSelector);
         this.container = document.querySelector(containerSelector);
         if (!this.container) {
             console.error('UnifiedProjectPanel: Container not found:', containerSelector);
             return;
         }
+        console.log('[UnifiedProjectPanel] Container found:', this.container);
 
         // 初始化管理器
         this.projectManager = new ProjectManager();
         this.activeSceneManager = new ActiveSceneManager(this.projectManager);
         this.syncService = new SyncService();
+        console.log('[UnifiedProjectPanel] Managers initialized');
 
         // 初始化 UI 组件
         this.treeRenderer = null;
@@ -28,6 +31,7 @@ export class UnifiedProjectPanel {
     }
 
     init() {
+        console.log('[UnifiedProjectPanel] init() called');
         this.renderPanel();
         this.bindEvents();
         this.activeSceneManager.init();
@@ -38,6 +42,7 @@ export class UnifiedProjectPanel {
             this.treeRenderer = new ProjectTreeRenderer(treeContainer, this.projectManager);
             this.treeRenderer.render();
         }
+        console.log('[UnifiedProjectPanel] Initialization complete');
     }
 
     // ============ 渲染 ============
@@ -132,22 +137,92 @@ export class UnifiedProjectPanel {
     // ============ 事件绑定 ============
 
     bindEvents() {
-        // 工具栏按钮
-        this.container.querySelector('#btn-new-project')?.addEventListener('click', () => {
-            this.showCreateProjectModal();
+        console.log('[UnifiedProjectPanel] bindEvents() called');
+        
+        // 使用事件委托来处理工具栏按钮点击
+        // 这样即使按钮在 DOM 中被重新创建，事件也能正常工作
+        this.container.addEventListener('click', (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+            
+            const buttonId = target.id;
+            console.log('[UnifiedProjectPanel] Button clicked:', buttonId, target);
+            
+            switch (buttonId) {
+                case 'btn-new-project':
+                    console.log('[UnifiedProjectPanel] New project button clicked via delegation');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showCreateProjectModal();
+                    break;
+                case 'btn-open-project':
+                    console.log('[UnifiedProjectPanel] Open project button clicked via delegation');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.openProject();
+                    break;
+                case 'btn-new-scene':
+                    console.log('[UnifiedProjectPanel] New scene button clicked via delegation');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showCreateSceneModal();
+                    break;
+                case 'btn-sync':
+                    console.log('[UnifiedProjectPanel] Sync button clicked via delegation');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showSyncModal();
+                    break;
+            }
         });
+        
+        console.log('[UnifiedProjectPanel] Event delegation set up on container');
+        
+        // 也直接绑定按钮事件作为备份
+        const newProjectBtn = this.container.querySelector('#btn-new-project');
+        const openProjectBtn = this.container.querySelector('#btn-open-project');
+        const newSceneBtn = this.container.querySelector('#btn-new-scene');
+        const syncBtn = this.container.querySelector('#btn-sync');
+        
+        console.log('[UnifiedProjectPanel] Direct button references:', {
+            newProjectBtn: !!newProjectBtn,
+            openProjectBtn: !!openProjectBtn,
+            newSceneBtn: !!newSceneBtn,
+            syncBtn: !!syncBtn
+        });
+        
+        if (newProjectBtn) {
+            newProjectBtn.onclick = (e) => {
+                console.log('[UnifiedProjectPanel] New project button onclick fired');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showCreateProjectModal();
+            };
+        }
 
-        this.container.querySelector('#btn-open-project')?.addEventListener('click', () => {
-            this.openProject();
-        });
+        if (openProjectBtn) {
+            openProjectBtn.onclick = (e) => {
+                console.log('[UnifiedProjectPanel] Open project button onclick fired');
+                e.preventDefault();
+                e.stopPropagation();
+                this.openProject();
+            };
+        }
 
-        this.container.querySelector('#btn-new-scene')?.addEventListener('click', () => {
-            this.showCreateSceneModal();
-        });
+        if (newSceneBtn) {
+            newSceneBtn.onclick = (e) => {
+                console.log('[UnifiedProjectPanel] New scene button onclick fired');
+                e.preventDefault();
+                e.stopPropagation();
+                this.showCreateSceneModal();
+            };
+        }
 
-        this.container.querySelector('#btn-sync')?.addEventListener('click', () => {
-            this.showSyncModal();
-        });
+        if (syncBtn) {
+            syncBtn.onclick = () => {
+                this.showSyncModal();
+            };
+        }
 
         // 项目管理器事件
         this.projectManager.on('projectChanged', (project) => {
@@ -294,121 +369,137 @@ export class UnifiedProjectPanel {
     // ============ 模态框 ============
 
     showCreateProjectModal() {
-        const isFileSystemSupported = this.projectManager.isFileSystemAPISupported();
+        console.log('[UnifiedProjectPanel] showCreateProjectModal called');
         
-        const modal = this.createModal('create-project-modal', `
-            <h3>创建新项目</h3>
-            <form id="create-project-form">
-                <div class="form-group">
-                    <label for="project-name">项目名称</label>
-                    <input type="text" id="project-name" required placeholder="输入项目名称">
-                </div>
-                <div class="form-group">
-                    <label for="storage-mode">存储方式</label>
-                    <select id="storage-mode">
-                        ${isFileSystemSupported ? `
-                            <option value="local">本地文件夹（选择保存位置）</option>
-                            <option value="github">GitHub 仓库（关联已克隆的仓库）</option>
-                        ` : ''}
-                        <option value="localStorage">浏览器存储（无需选择位置）</option>
-                    </select>
-                </div>
-                <div class="form-group storage-hint" id="storage-hint-local" ${isFileSystemSupported ? '' : 'style="display:none;"'}>
-                    <small style="color: var(--text-color-light);">
-                        点击"创建"后将弹出文件夹选择对话框，请选择一个位置来保存项目。
-                    </small>
-                </div>
-                <div class="form-group storage-hint" id="storage-hint-github" style="display: none;">
-                    <small style="color: var(--text-color-light);">
-                        请先在本地克隆 GitHub 仓库，然后选择克隆的文件夹。
-                    </small>
-                </div>
-                <div class="form-group storage-hint" id="storage-hint-localStorage" ${isFileSystemSupported ? 'style="display:none;"' : ''}>
-                    <small style="color: var(--text-color-light);">
-                        项目将保存在浏览器本地存储中，清除浏览器数据会丢失项目。
-                    </small>
-                </div>
-                <div class="form-group github-options" style="display: none;">
-                    <label for="github-url">GitHub 仓库 URL（可选）</label>
-                    <input type="url" id="github-url" placeholder="https://github.com/user/repo">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-cancel">取消</button>
-                    <button type="submit" class="btn-primary">创建</button>
-                </div>
-            </form>
-        `);
-
-        // 存储模式切换
-        const storageModeSelect = modal.querySelector('#storage-mode');
-        const githubOptions = modal.querySelector('.github-options');
-        const hintLocal = modal.querySelector('#storage-hint-local');
-        const hintGithub = modal.querySelector('#storage-hint-github');
-        const hintLocalStorage = modal.querySelector('#storage-hint-localStorage');
-        
-        const updateHints = () => {
-            const mode = storageModeSelect.value;
-            githubOptions.style.display = mode === 'github' ? 'block' : 'none';
-            if (hintLocal) hintLocal.style.display = mode === 'local' ? 'block' : 'none';
-            if (hintGithub) hintGithub.style.display = mode === 'github' ? 'block' : 'none';
-            if (hintLocalStorage) hintLocalStorage.style.display = mode === 'localStorage' ? 'block' : 'none';
-        };
-        
-        storageModeSelect?.addEventListener('change', updateHints);
-
-        // 表单提交
-        modal.querySelector('#create-project-form')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        try {
+            const isFileSystemSupported = this.projectManager.isFileSystemAPISupported();
+            console.log('[UnifiedProjectPanel] File System API supported:', isFileSystemSupported);
             
-            const name = modal.querySelector('#project-name').value.trim();
-            const storageMode = modal.querySelector('#storage-mode').value;
-            const githubUrl = modal.querySelector('#github-url')?.value.trim();
+            const modalContent = `
+                <h3>创建新项目</h3>
+                <form id="create-project-form">
+                    <div class="form-group">
+                        <label for="project-name">项目名称</label>
+                        <input type="text" id="project-name" required placeholder="输入项目名称">
+                    </div>
+                    <div class="form-group">
+                        <label for="storage-mode">存储方式</label>
+                        <select id="storage-mode">
+                            ${isFileSystemSupported ? `
+                                <option value="local">本地文件夹（选择保存位置）</option>
+                                <option value="github">GitHub 仓库（关联已克隆的仓库）</option>
+                            ` : ''}
+                            <option value="localStorage">浏览器存储（无需选择位置）</option>
+                        </select>
+                    </div>
+                    <div class="form-group storage-hint" id="storage-hint-local" ${isFileSystemSupported ? '' : 'style="display:none;"'}>
+                        <small style="color: var(--text-color-light);">
+                            点击"创建"后将弹出文件夹选择对话框，请选择一个位置来保存项目。
+                        </small>
+                    </div>
+                    <div class="form-group storage-hint" id="storage-hint-github" style="display: none;">
+                        <small style="color: var(--text-color-light);">
+                            请先在本地克隆 GitHub 仓库，然后选择克隆的文件夹。
+                        </small>
+                    </div>
+                    <div class="form-group storage-hint" id="storage-hint-localStorage" ${isFileSystemSupported ? 'style="display:none;"' : ''}>
+                        <small style="color: var(--text-color-light);">
+                            项目将保存在浏览器本地存储中，清除浏览器数据会丢失项目。
+                        </small>
+                    </div>
+                    <div class="form-group github-options" style="display: none;">
+                        <label for="github-url">GitHub 仓库 URL（可选）</label>
+                        <input type="url" id="github-url" placeholder="https://github.com/user/repo">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-cancel">取消</button>
+                        <button type="submit" class="btn-primary">创建</button>
+                    </div>
+                </form>
+            `;
+            
+            console.log('[UnifiedProjectPanel] Creating modal...');
+            const modal = this.createModal('create-project-modal', modalContent);
+            console.log('[UnifiedProjectPanel] Modal created:', modal);
 
-            if (!name) {
-                this.showNotification('请输入项目名称', 'warning');
-                return;
-            }
+            // 存储模式切换
+            const storageModeSelect = modal.querySelector('#storage-mode');
+            const githubOptions = modal.querySelector('.github-options');
+            const hintLocal = modal.querySelector('#storage-hint-local');
+            const hintGithub = modal.querySelector('#storage-hint-github');
+            const hintLocalStorage = modal.querySelector('#storage-hint-localStorage');
+            
+            const updateHints = () => {
+                const mode = storageModeSelect.value;
+                githubOptions.style.display = mode === 'github' ? 'block' : 'none';
+                if (hintLocal) hintLocal.style.display = mode === 'local' ? 'block' : 'none';
+                if (hintGithub) hintGithub.style.display = mode === 'github' ? 'block' : 'none';
+                if (hintLocalStorage) hintLocalStorage.style.display = mode === 'localStorage' ? 'block' : 'none';
+            };
+            
+            storageModeSelect?.addEventListener('change', updateHints);
 
-            try {
-                await this.projectManager.createProject({
-                    name,
-                    storageMode,
-                    githubUrl
-                });
+            // 表单提交
+            modal.querySelector('#create-project-form')?.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const name = modal.querySelector('#project-name').value.trim();
+                const storageMode = modal.querySelector('#storage-mode').value;
+                const githubUrl = modal.querySelector('#github-url')?.value.trim();
 
+                if (!name) {
+                    this.showNotification('请输入项目名称', 'warning');
+                    return;
+                }
+
+                try {
+                    await this.projectManager.createProject({
+                        name,
+                        storageMode,
+                        githubUrl
+                    });
+
+                    this.closeModal(modal);
+                    this.showNotification('项目创建成功', 'success');
+
+                    // 刷新最近项目列表
+                    this.renderRecentProjects();
+
+                    // 展开新项目
+                    const project = this.projectManager.getCurrentProject();
+                    if (project && this.treeRenderer) {
+                        this.treeRenderer.expandProject(project.id);
+                    }
+                } catch (err) {
+                    if (!err.message.includes('取消')) {
+                        this.showNotification(`创建项目失败: ${err.message}`, 'error');
+                    }
+                }
+            });
+
+            modal.querySelector('.btn-cancel')?.addEventListener('click', () => {
                 this.closeModal(modal);
-                this.showNotification('项目创建成功', 'success');
-
-                // 刷新最近项目列表
-                this.renderRecentProjects();
-
-                // 展开新项目
-                const project = this.projectManager.getCurrentProject();
-                if (project && this.treeRenderer) {
-                    this.treeRenderer.expandProject(project.id);
-                }
-            } catch (err) {
-                if (!err.message.includes('取消')) {
-                    this.showNotification(`创建项目失败: ${err.message}`, 'error');
-                }
-            }
-        });
-
-        modal.querySelector('.btn-cancel')?.addEventListener('click', () => {
-            this.closeModal(modal);
-        });
-        
-        // 聚焦到输入框
-        setTimeout(() => {
-            modal.querySelector('#project-name')?.focus();
-        }, 100);
+            });
+            
+            // 聚焦到输入框
+            setTimeout(() => {
+                modal.querySelector('#project-name')?.focus();
+            }, 100);
+            
+        } catch (error) {
+            console.error('[UnifiedProjectPanel] Error in showCreateProjectModal:', error);
+            this.showNotification('创建项目对话框出错: ' + error.message, 'error');
+        }
     }
 
     showCreateSceneModal() {
+        console.log('[UnifiedProjectPanel] showCreateSceneModal called');
         const project = this.projectManager.getCurrentProject();
+        console.log('[UnifiedProjectPanel] Current project:', project);
         
         // 如果没有打开的项目，提示用户先创建项目
         if (!project) {
+            console.log('[UnifiedProjectPanel] No project open, showing confirm dialog');
             const confirmCreate = confirm('还没有打开的项目。是否先创建一个新项目？');
             if (confirmCreate) {
                 this.showCreateProjectModal();
@@ -741,7 +832,12 @@ export class UnifiedProjectPanel {
         `;
 
         document.body.appendChild(modal);
+        
+        // 使用 display: flex 和 visible 类来显示模态框
         modal.style.display = 'flex';
+        // 强制重排后添加 visible 类以触发过渡动画
+        modal.offsetHeight; // 触发重排
+        modal.classList.add('visible');
 
         // 关闭按钮
         modal.querySelector('.modal-close-btn')?.addEventListener('click', () => {
@@ -760,8 +856,12 @@ export class UnifiedProjectPanel {
 
     closeModal(modal) {
         if (modal) {
-            modal.style.display = 'none';
-            modal.remove();
+            modal.classList.remove('visible');
+            // 等待过渡动画完成后移除元素
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.remove();
+            }, 200);
         }
     }
 
