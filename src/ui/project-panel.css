@@ -66,15 +66,39 @@
     border-radius: 4px;
     user-select: none;
     transition: background-color 0.15s;
+    color: var(--text-color, #333);
+}
+
+body[data-ui-theme="dark"] .tree-node {
+    color: var(--text-color, #dee2e6);
 }
 
 .tree-node:hover {
     background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
 }
 
+body[data-ui-theme="dark"] .tree-node:hover {
+    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
+}
+
 .tree-node.active {
     background-color: var(--active-bg, rgba(0, 120, 212, 0.1));
     color: var(--active-color, #0078d4);
+}
+
+/* 暗色主题下的活动节点 */
+body[data-ui-theme="dark"] .tree-node.active {
+    background-color: var(--active-bg, rgba(13, 110, 253, 0.2));
+    color: var(--active-color, #6ea8fe);
+}
+
+/* 选中但非活动的节点 */
+.tree-node.selected {
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+body[data-ui-theme="dark"] .tree-node.selected {
+    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
 }
 
 .tree-node.dragging {
@@ -146,26 +170,49 @@
 .project-tree-empty button {
     padding: 6px 12px;
     border: 1px solid var(--border-color, #ddd);
-    background: var(--bg-color, #fff);
+    background: var(--panel-bg, #fff);
+    color: var(--text-color, #333);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
+    transition: background-color 0.15s, border-color 0.15s;
 }
 
 .project-tree-empty button:hover {
     background: var(--hover-bg, #f5f5f5);
+    border-color: var(--primary-color, #0078d4);
+}
+
+body[data-ui-theme="dark"] .project-tree-empty button {
+    background: var(--input-bg, #495057);
+    border-color: var(--border-color, #6c757d);
+    color: var(--text-color, #dee2e6);
+}
+
+body[data-ui-theme="dark"] .project-tree-empty button:hover {
+    background: var(--hover-bg, #5a6268);
+    border-color: var(--primary-color, #0d6efd);
 }
 
 /* ============ 右键菜单 ============ */
 .project-tree-context-menu {
     position: fixed;
-    background: var(--bg-color, #fff);
+    background: var(--panel-bg, #fff);
     border: 1px solid var(--border-color, #ddd);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    min-width: 150px;
+    min-width: 160px;
     z-index: 10000;
     padding: 4px 0;
+    color: var(--text-color, #333);
+}
+
+/* 暗色主题下的右键菜单 */
+body[data-ui-theme="dark"] .project-tree-context-menu {
+    background: var(--panel-bg, #343a40);
+    border-color: var(--border-color, #495057);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    color: var(--text-color, #dee2e6);
 }
 
 .project-tree-context-menu hr {
@@ -174,15 +221,67 @@
     border-top: 1px solid var(--border-color, #eee);
 }
 
+body[data-ui-theme="dark"] .project-tree-context-menu hr {
+    border-top-color: var(--border-color, #495057);
+}
+
 .context-menu-item {
     padding: 8px 16px;
     cursor: pointer;
     font-size: 13px;
-    transition: background-color 0.15s;
+    transition: background-color 0.15s, color 0.15s;
+    color: var(--text-color, #333);
+}
+
+body[data-ui-theme="dark"] .context-menu-item {
+    color: var(--text-color, #dee2e6);
 }
 
 .context-menu-item:hover {
-    background-color: var(--hover-bg, rgba(0, 120, 212, 0.1));
+    background-color: var(--primary-color, #0078d4);
+    color: #fff;
+}
+
+body[data-ui-theme="dark"] .context-menu-item:hover {
+    background-color: var(--primary-color, #0d6efd);
+    color: #fff;
+}
+
+/* 危险操作项（如删除） */
+.context-menu-item.danger {
+    color: #dc3545;
+}
+
+.context-menu-item.danger:hover {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+/* 禁用项 */
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* 内联重命名输入框 */
+.inline-rename-input {
+    width: 100%;
+    padding: 2px 4px;
+    font-size: inherit;
+    font-family: inherit;
+    border: 1px solid var(--primary-color, #0078d4);
+    border-radius: 3px;
+    outline: none;
+    background: var(--input-bg, #fff);
+    color: var(--input-text, #333);
+    box-sizing: border-box;
+}
+
+body[data-ui-theme="dark"] .inline-rename-input {
+    background: var(--input-bg, #495057);
+    color: var(--input-text, #f8f9fa);
+    border-color: var(--primary-color, #0d6efd);
 }
 
 /* ============ 同步状态栏 ============ */
@@ -215,6 +314,10 @@
     font-weight: 500;
 }
 
+body[data-ui-theme="dark"] .recent-projects-section h5 {
+    color: var(--text-color-secondary, #adb5bd);
+}
+
 .recent-projects-list {
     max-height: 120px;
     overflow-y: auto;
@@ -229,10 +332,19 @@
     border-radius: 4px;
     font-size: 12px;
     transition: background-color 0.15s;
+    color: var(--text-color, #333);
+}
+
+body[data-ui-theme="dark"] .recent-project-item {
+    color: var(--text-color, #dee2e6);
 }
 
 .recent-project-item:hover {
     background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+body[data-ui-theme="dark"] .recent-project-item:hover {
+    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
 }
 
 .recent-project-item .recent-project-icon {

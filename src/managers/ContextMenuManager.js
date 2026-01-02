@@ -41,14 +41,14 @@ export class ContextMenuManager extends EventEmitter {
             display: none;
             position: fixed;
             z-index: 10001;
-            background: var(--bg-primary, #1e1e1e);
-            border: 1px solid var(--border-color, #333);
+            background: var(--panel-bg, #fff);
+            border: 1px solid var(--border-color, #ddd);
             border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             min-width: 180px;
             padding: 4px 0;
             font-size: 13px;
-            color: var(--text-primary, #fff);
+            color: var(--text-color, #333);
         `;
         
         // 点击其他地方关闭菜单
@@ -219,18 +219,25 @@ export class ContextMenuManager extends EventEmitter {
     _renderMenu(items) {
         this._menuElement.innerHTML = '';
         
+        // 根据当前主题动态更新样式
+        const isDarkTheme = document.body.getAttribute('data-ui-theme') === 'dark';
+        this._menuElement.style.background = isDarkTheme ? 'var(--panel-bg, #343a40)' : 'var(--panel-bg, #fff)';
+        this._menuElement.style.borderColor = isDarkTheme ? 'var(--border-color, #495057)' : 'var(--border-color, #ddd)';
+        this._menuElement.style.color = isDarkTheme ? 'var(--text-color, #dee2e6)' : 'var(--text-color, #333)';
+        this._menuElement.style.boxShadow = isDarkTheme ? '0 4px 16px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.15)';
+        
         for (const item of items) {
             if (item.separator) {
                 const separator = document.createElement('div');
                 separator.className = 'context-menu-separator';
                 separator.style.cssText = `
                     height: 1px;
-                    background: var(--border-color, #333);
+                    background: var(--border-color, ${isDarkTheme ? '#495057' : '#eee'});
                     margin: 4px 8px;
                 `;
                 this._menuElement.appendChild(separator);
             } else {
-                const menuItem = this._createMenuItem(item);
+                const menuItem = this._createMenuItem(item, isDarkTheme);
                 this._menuElement.appendChild(menuItem);
             }
         }
@@ -240,31 +247,38 @@ export class ContextMenuManager extends EventEmitter {
      * 创建菜单项元素
      * @private
      */
-    _createMenuItem(item) {
+    _createMenuItem(item, isDarkTheme = false) {
         const element = document.createElement('div');
         element.className = 'context-menu-item';
+        
+        const textColor = isDarkTheme ? 'var(--text-color, #dee2e6)' : 'var(--text-color, #333)';
+        const hoverBg = 'var(--primary-color, #0078d4)';
+        
         element.style.cssText = `
             display: flex;
             align-items: center;
             padding: 6px 12px;
             cursor: ${item.disabled ? 'default' : 'pointer'};
             opacity: ${item.disabled ? '0.5' : '1'};
-            transition: background 0.1s;
+            transition: background 0.15s, color 0.15s;
+            color: ${textColor};
         `;
         
         element.innerHTML = `
             <span class="menu-icon" style="width: 20px; margin-right: 8px; text-align: center;">${item.icon || ''}</span>
             <span class="menu-label" style="flex: 1;">${item.label}</span>
-            ${item.shortcut ? `<span class="menu-shortcut" style="color: var(--text-secondary, #888); font-size: 11px; margin-left: 16px;">${item.shortcut}</span>` : ''}
+            ${item.shortcut ? `<span class="menu-shortcut" style="color: var(--text-color-secondary, ${isDarkTheme ? '#adb5bd' : '#888'}); font-size: 11px; margin-left: 16px;">${item.shortcut}</span>` : ''}
         `;
         
         if (!item.disabled) {
             element.addEventListener('mouseenter', () => {
-                element.style.background = 'var(--bg-hover, #2d2d2d)';
+                element.style.background = hoverBg;
+                element.style.color = '#fff';
             });
             
             element.addEventListener('mouseleave', () => {
                 element.style.background = 'transparent';
+                element.style.color = textColor;
             });
             
             element.addEventListener('click', () => {

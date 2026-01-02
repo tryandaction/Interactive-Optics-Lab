@@ -4346,7 +4346,14 @@ function generateSceneDataObject() {
 // --- END REPLACEMENT ---
 
 // --- REPLACEMENT for loadSceneFromData (V2 - Uses constructor & setProperty correctly) ---
-function loadSceneFromData(sceneData) {
+/**
+ * 从数据对象加载场景
+ * @param {Object} sceneData - 场景数据
+ * @param {Object} options - 选项
+ * @param {boolean} options.switchToPropertiesTab - 是否切换到属性面板，默认 true
+ */
+function loadSceneFromData(sceneData, options = {}) {
+    const { switchToPropertiesTab = true } = options;
     console.log("--- Loading Scene from Data Object ---"); // Log start
     try {
         components = [];
@@ -4541,7 +4548,10 @@ function loadSceneFromData(sceneData) {
         document.dispatchEvent(new CustomEvent('sceneSaved'));
         
         updateInspector(); // Clear inspector as nothing is selected initially
-        activateTab('properties-tab'); // Ensure properties tab is active
+        // 只有在需要时才切换到属性面板
+        if (switchToPropertiesTab) {
+            activateTab('properties-tab');
+        }
         console.log(`--- Scene loaded successfully. Components: ${components.length}, Mode: ${currentMode} ---`);
         return true; // Indicate success
 
@@ -4554,7 +4564,9 @@ function loadSceneFromData(sceneData) {
         historyManager.clear();
         updateUndoRedoUI();
         updateInspector();
-        activateTab('properties-tab');
+        if (switchToPropertiesTab) {
+            activateTab('properties-tab');
+        }
         needsRetrace = true;
         sceneModified = false;
         return false; // Indicate failure

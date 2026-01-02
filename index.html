@@ -1087,8 +1087,8 @@
                             };
                             console.log('[sceneDataLoaded] Loading scene with', loadData.components?.length || 0, 'components');
                             
-                            // 加载场景数据到画布
-                            const success = loadSceneFromData(loadData);
+                            // 加载场景数据到画布，不切换到属性面板（保持在项目面板）
+                            const success = loadSceneFromData(loadData, { switchToPropertiesTab: false });
                             
                             if (success) {
                                 console.log('[sceneDataLoaded] Scene loaded successfully');

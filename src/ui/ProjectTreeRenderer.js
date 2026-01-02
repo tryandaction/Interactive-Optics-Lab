@@ -154,7 +154,7 @@ export class ProjectTreeRenderer {
         });
     }
 
-    handleNodeClick(e, node) {
+    async handleNodeClick(e, node) {
         const type = node.dataset.type;
         const id = node.dataset.id;
 
@@ -167,27 +167,22 @@ export class ProjectTreeRenderer {
             }
             this.render();
         } else if (type === 'scene') {
+            // 单击场景即可加载（跳转）
             this.selectedNodeId = id;
-            this.render();
-        }
-    }
-
-    async handleNodeDoubleClick(e, node) {
-        const type = node.dataset.type;
-        const id = node.dataset.id;
-
-        if (type === 'scene') {
+            
             // 检查是否是当前场景
             const currentScene = this.projectManager.getCurrentScene();
             if (currentScene && currentScene.id === id) {
                 console.log('[ProjectTreeRenderer] Scene already loaded:', id);
+                this.render();
                 return;
             }
 
             try {
-                console.log('[ProjectTreeRenderer] Loading scene:', id);
+                console.log('[ProjectTreeRenderer] Loading scene (single click):', id);
                 const scene = await this.projectManager.loadScene(id);
                 console.log('[ProjectTreeRenderer] Scene loaded successfully:', scene);
+                // 注意：不自动切换到属性面板，保持在项目面板
             } catch (err) {
                 // 用户取消操作不需要显示错误
                 if (err.message === '用户取消了操作') {
@@ -198,6 +193,97 @@ export class ProjectTreeRenderer {
                 this.showNotification(`加载场景失败: ${err.message}`, 'error');
             }
         }
+    }
+
+    handleNodeDoubleClick(e, node) {
+        const type = node.dataset.type;
+        const id = node.dataset.id;
+
+        if (type === 'scene') {
+            // 双击场景进入重命名模式
+            e.preventDefault();
+            e.stopPropagation();
+            this.startInlineRename(node, id);
+        } else if (type === 'project') {
+            // 双击项目也可以重命名
+            e.preventDefault();
+            e.stopPropagation();
+            this.startInlineRename(node, id, 'project');
+        }
+    }
+
+    /**
+     * 开始内联重命名
+     */
+    startInlineRename(node, id, type = 'scene') {
+        const nameSpan = node.querySelector('.node-name');
+        if (!nameSpan) return;
+
+        const currentName = nameSpan.textContent.replace(/^• /, ''); // 移除修改标记
+        const originalHtml = nameSpan.innerHTML;
+
+        // 创建输入框
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentName;
+        input.className = 'inline-rename-input';
+        input.style.cssText = `
+            width: 100%;
+            padding: 2px 4px;
+            font-size: inherit;
+            font-family: inherit;
+            border: 1px solid var(--primary-color, #0078d4);
+            border-radius: 3px;
+            outline: none;
+            background: var(--input-bg, #fff);
+            color: var(--input-text, #333);
+            box-sizing: border-box;
+        `;
+
+        nameSpan.innerHTML = '';
+        nameSpan.appendChild(input);
+        input.focus();
+        input.select();
+
+        const finishRename = async (save) => {
+            const newName = input.value.trim();
+            
+            if (save && newName && newName !== currentName) {
+                try {
+                    if (type === 'scene') {
+                        await this.projectManager.renameScene(id, newName);
+                        this.showNotification('场景已重命名', 'success');
+                    } else if (type === 'project') {
+                        await this.projectManager.renameProject(newName);
+                        this.showNotification('项目已重命名', 'success');
+                    }
+                } catch (err) {
+                    console.error('Rename failed:', err);
+                    this.showNotification(`重命名失败: ${err.message}`, 'error');
+                    nameSpan.innerHTML = originalHtml;
+                    return;
+                }
+            } else {
+                nameSpan.innerHTML = originalHtml;
+            }
+            
+            this.render();
+        };
+
+        input.addEventListener('blur', () => finishRename(true));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                finishRename(false);
+            }
+        });
+
+        // 阻止点击事件冒泡
+        input.addEventListener('click', (e) => e.stopPropagation());
+        input.addEventListener('dblclick', (e) => e.stopPropagation());
     }
 
     handleContextMenu(e, node) {
@@ -213,24 +299,60 @@ export class ProjectTreeRenderer {
     showContextMenu(x, y, type, id) {
         this.hideContextMenu();
 
+        const isDarkTheme = document.body.getAttribute('data-ui-theme') === 'dark';
+        
         const menu = document.createElement('div');
         menu.className = 'project-tree-context-menu';
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
+        
+        // 动态设置主题相关样式
+        if (isDarkTheme) {
+            menu.style.background = 'var(--panel-bg, #343a40)';
+            menu.style.borderColor = 'var(--border-color, #495057)';
+            menu.style.color = 'var(--text-color, #dee2e6)';
+            menu.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.4)';
+        }
 
         const items = this.getContextMenuItems(type, id);
         menu.innerHTML = items.map(item => {
             if (item.separator) {
-                return '<hr>';
+                return `<hr style="border-top-color: var(--border-color, ${isDarkTheme ? '#495057' : '#eee'});">`;
             }
-            return `<div class="context-menu-item" data-action="${item.action}">${item.label}</div>`;
+            const isDanger = item.action === 'delete';
+            return `<div class="context-menu-item ${isDanger ? 'danger' : ''}" data-action="${item.action}">${item.label}</div>`;
         }).join('');
 
         document.body.appendChild(menu);
         this.contextMenu = menu;
 
-        // 绑定菜单项点击
+        // 确保菜单在视口内
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth) {
+            menu.style.left = `${window.innerWidth - menuRect.width - 8}px`;
+        }
+        if (menuRect.bottom > window.innerHeight) {
+            menu.style.top = `${window.innerHeight - menuRect.height - 8}px`;
+        }
+
+        // 绑定菜单项点击和悬停效果
         menu.querySelectorAll('.context-menu-item').forEach(item => {
+            const isDanger = item.classList.contains('danger');
+            const normalColor = isDarkTheme ? 'var(--text-color, #dee2e6)' : 'var(--text-color, #333)';
+            const dangerColor = '#dc3545';
+            
+            item.style.color = isDanger ? dangerColor : normalColor;
+            
+            item.addEventListener('mouseenter', () => {
+                item.style.background = isDanger ? dangerColor : 'var(--primary-color, #0078d4)';
+                item.style.color = '#fff';
+            });
+            
+            item.addEventListener('mouseleave', () => {
+                item.style.background = 'transparent';
+                item.style.color = isDanger ? dangerColor : normalColor;
+            });
+            
             item.addEventListener('click', () => {
                 this.handleContextMenuAction(item.dataset.action, type, id);
                 this.hideContextMenu();
