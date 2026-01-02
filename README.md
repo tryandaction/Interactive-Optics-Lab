@@ -105,13 +105,9 @@ G           显示/隐藏网格
 Interactive-Optics-Lab/
 ├── index.html              # 主页面
 ├── style.css               # 主样式
-├── collaboration.css       # 协作样式
 ├── main.js                 # 主逻辑入口
-├── user.js                 # 本地用户管理
 ├── projectManager.js       # 项目管理
 ├── interactionEnhancer.js  # 交互增强
-├── collaborationManager.js # 协作管理
-├── collaborationUI.js      # 协作UI
 ├── presets/                # 预设场景
 │   └── preset_double_slit.json
 ├── src/                    # 模块化源代码

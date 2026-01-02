@@ -195,12 +195,6 @@
 
         <div class="menubar-spacer"></div>
 
-        <!-- User Status Area (Local Mode) -->
-        <div class="menu-right">
-            <div id="user-status-top">本地用户</div>
-            <button class="menubar-button" id="user-action-btn-top">修改用户名</button>
-        </div> <!-- End menu-right -->
-
     </div>
     <!-- END Top Menubar -->
 
@@ -617,31 +611,6 @@
         </div>
     </div>
 
-    <!-- Invite Collaborator Modal -->
-    <div id="invite-collaborator-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content" style="max-width: 500px;">
-            <span class="modal-close-btn" id="invite-collaborator-modal-close-btn">×</span>
-
-            <h2>邀请协作者</h2>
-            <p id="current-project-display" style="margin-bottom: 15px; padding: 10px; background: var(--panel-bg); border-radius: 4px;"></p>
-
-            <form id="invite-collaborator-form">
-                <div class="form-group">
-                    <label for="collaborator-email">协作者邮箱:</label>
-                    <input type="email" id="collaborator-email" required placeholder="输入协作者的注册邮箱">
-                </div>
-                <div class="form-group">
-                    <label for="collaborator-permission">权限:</label>
-                    <select id="collaborator-permission" required>
-                        <option value="viewer">查看者（只能查看）</option>
-                        <option value="editor">编辑者（可以编辑）</option>
-                    </select>
-                </div>
-                <button type="submit" class="primary-btn" style="width: 100%;">发送邀请</button>
-            </form>
-        </div>
-    </div>
-
     <!-- User Guide Modal (Placeholder) -->
     <div id="guide-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 700px; max-height: 85vh;">
@@ -658,7 +627,7 @@
             <h4>2. 界面布局</h4>
             <p>模拟器界面主要分为三个区域和一个顶部菜单栏：</p>
             <ul>
-                <li><strong>顶部菜单栏:</strong> 包含文件操作（新建、导入、导出、场景管理）、编辑（撤销/重做、删除）、视图（重置、网格）、模拟（模式切换、设置、动画控制）、帮助以及用户登录/状态。
+                <li><strong>顶部菜单栏:</strong> 包含文件操作（新建、导入、导出、场景管理）、编辑（撤销/重做、删除）、视图（重置、网格）、模拟（模式切换、设置、动画控制）、帮助等功能。
                 </li>
                 <li><strong>左侧工具栏:</strong> 陈列所有可用的光学元件，按类别分组，点击即可选择用于添加到画布。</li>
                 <li><strong>中间模拟区域 (画布):</strong> 主要的工作区域，您可以在此放置、移动、旋转光学元件，并观察光线的实时传播。</li>
@@ -779,7 +748,7 @@
             </ul>
 
             <h4>10. 未来展望</h4>
-            <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、用户系统与云同步、协作、更丰富的可视化选项等。</p>
+            <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、更丰富的可视化选项等。</p>
             
             </div> <!-- End guide-content -->
         </div>

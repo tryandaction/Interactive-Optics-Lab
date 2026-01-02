@@ -180,17 +180,10 @@ body {
     /* Prevent menubar from shrinking */
 }
 
-.menu-left,
-.menu-right {
+.menu-left {
     display: flex;
     align-items: center;
 }
-
-.menu-right {
-    margin-right: 5px;
-}
-
-/* Reduce right margin slightly */
 
 .dropbtn {
     background-color: transparent;
@@ -297,18 +290,7 @@ body {
     display: block;
 }
 
-#user-status-top {
-    margin-right: 15px;
-    /* More spacing */
-    font-size: 13px;
-    color: var(--dark-gray);
-    font-weight: 500;
-    padding: 8px 0;
-    /* Match button vertical padding */
-}
-
 .menubar-button {
-    /* Affects Login/Logout buttons */
     padding: 6px 12px;
     /* Adjust padding slightly */
     font-size: 13px;
@@ -319,31 +301,6 @@ body {
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-/* Primary button style (Login/Register or Save) */
-#user-action-btn-top {
-    background-color: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-#user-action-btn-top:hover {
-    background-color: #0056b3;
-    border-color: #0056b3;
-}
-
-/* Secondary button style (Logout) */
-#logout-btn-top.secondary {
-    /* Ensure class is used if needed */
-    background-color: var(--secondary-color);
-    color: white;
-    border-color: var(--secondary-color);
-}
-
-#logout-btn-top.secondary:hover {
-    background-color: #5a6268;
-    border-color: #545b62;
 }
 
 /* --- Main Content Layout --- */
@@ -1037,9 +994,6 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     color: #333;
 }
 
-/* Keep Auth Form Styles if needed */
-/* Keep Saved Scenes List Styles if using separate modal */
-
 /* Style for User Guide Modal */
 #guide-modal .modal-content {
     max-width: 700px;
@@ -1652,11 +1606,6 @@ body[data-ui-theme="dark"] .scene-save-hint {
     background: #3a5f8c;
 }
 
-/* Auth Modal Form Styles */
-#auth-form-container {
-    width: 100%;
-}
-
 .form-group {
     margin-bottom: 15px;
 }
@@ -1684,45 +1633,6 @@ body[data-ui-theme="dark"] .scene-save-hint {
     outline: none;
     border-color: var(--input-focus-border);
     box-shadow: 0 0 0 3px var(--input-focus-shadow);
-}
-
-#auth-form-container button[type="submit"] {
-    width: 100%;
-    padding: 10px;
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-#auth-form-container button[type="submit"]:hover {
-    background-color: #0056b3;
-}
-
-#auth-form-container button[type="submit"]:disabled {
-    background-color: #cccccc;
-    border-color: #cccccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.switch-form-link {
-    text-align: center;
-    margin-top: 15px;
-    color: var(--text-color-secondary);
-}
-
-.switch-form-link a {
-    color: var(--primary-color);
-    text-decoration: none;
-}
-
-.switch-form-link a:hover {
-    text-decoration: underline;
 }
 
 .error-text {
@@ -1869,141 +1779,6 @@ body[data-ui-theme="dark"] .scene-save-hint {
     text-align: left !important;
 }
 
-/* --- Style for Auth Modal Disabled Buttons --- */
-#auth-form-container button[type="submit"]:disabled {
-    background-color: #cccccc;
-    border-color: #cccccc;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-/* --- Cloud Scenes Modal Styles --- */
-#cloud-scenes-content {
-    min-width: 600px;
-}
-
-.cloud-scenes-toolbar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    align-items: center;
-}
-
-.cloud-scenes-toolbar input {
-    flex: 1;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--input-bg);
-    color: var(--text-color);
-}
-
-.cloud-scenes-toolbar button {
-    padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--button-bg);
-    color: var(--button-text);
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.cloud-scenes-toolbar button:hover {
-    background: var(--button-hover-bg);
-}
-
-#cloud-scenes-list {
-    max-height: 400px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-}
-
-.cloud-scene-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    margin-bottom: 10px;
-    background: var(--panel-bg);
-}
-
-.scene-info {
-    flex: 1;
-}
-
-.scene-name {
-    font-weight: bold;
-    font-size: 16px;
-    color: var(--text-color);
-    margin-bottom: 4px;
-}
-
-.scene-meta {
-    font-size: 12px;
-    color: var(--text-color-light);
-    margin-bottom: 4px;
-}
-
-.scene-description {
-    font-size: 14px;
-    color: var(--text-color);
-    opacity: 0.8;
-}
-
-.scene-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.scene-action-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.scene-action-btn.load-btn {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.scene-action-btn.load-btn:hover {
-    background: var(--primary-hover-color);
-}
-
-.scene-action-btn.share-btn {
-    background: var(--success-color, #28a745);
-    color: white;
-    border-color: var(--success-color, #28a745);
-}
-
-.scene-action-btn.share-btn:hover {
-    background: var(--success-hover-color, #218838);
-}
-
-.scene-action-btn.delete-btn {
-    background: var(--danger-color, #dc3545);
-    color: white;
-    border-color: var(--danger-color, #dc3545);
-}
-
-.scene-action-btn.delete-btn:hover {
-    background: var(--danger-hover-color, #c82333);
-}
-
-.cloud-scene-actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-color);
-}
-
 /* --- 项目管理样式 --- */
 .project-item {
     display: flex;
@@ -2122,106 +1897,6 @@ body[data-ui-theme="dark"] .scene-save-hint {
 .project-action-btn.delete-btn:hover {
     background: #c82333;
     border-color: #c82333;
-}
-
-/* --- 协作面板样式 --- */
-.online-user-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    margin-bottom: 4px;
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.online-user-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.online-user-info {
-    flex: 1;
-}
-
-.online-user-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-color);
-}
-
-.online-user-status {
-    font-size: 11px;
-    color: var(--text-color-secondary);
-}
-
-.online-user-cursor {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #28a745;
-}
-
-/* --- 用户内容区分样式 --- */
-.user-content-highlight {
-    filter: brightness(1.2) saturate(1.3);
-    box-shadow: 0 0 8px rgba(13, 110, 253, 0.3);
-}
-
-.user-content-dimmed {
-    opacity: 0.4;
-    filter: grayscale(30%);
-}
-
-.user-content-hidden {
-    display: none !important;
-}
-
-/* --- 协作光标样式 --- */
-.collaboration-cursor {
-    position: absolute;
-    pointer-events: none;
-    z-index: 1000;
-    transition: all 0.1s ease;
-}
-
-.collaboration-cursor::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    width: 20px;
-    height: 20px;
-    border: 2px solid;
-    border-radius: 50%;
-    animation: cursor-pulse 2s infinite;
-}
-
-.collaboration-cursor::after {
-    content: attr(data-username);
-    position: absolute;
-    top: -25px;
-    left: 25px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    white-space: nowrap;
-}
-
-@keyframes cursor-pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.2); opacity: 0.7; }
 }
 
 /* --- 通知系统样式 --- */

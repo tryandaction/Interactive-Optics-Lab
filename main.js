@@ -2941,13 +2941,11 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
 // Helper function to show specific content within the modal
 function showModalContent(contentIdToShow) {
     const modal = document.getElementById('settings-modal');
-    const authContainer = document.getElementById('auth-form-container');
     const settingsContainer = document.getElementById('settings-content-container');
 
-    if (!modal || !authContainer || !settingsContainer) return;
+    if (!modal || !settingsContainer) return;
 
     // Hide all content containers first
-    authContainer.style.display = 'none';
     settingsContainer.style.display = 'none';
 
     // Show the requested container
@@ -4364,8 +4362,6 @@ function setupEventListeners() {
     document.getElementById('menu-keyboard-shortcuts')?.addEventListener('click', (e) => { e.preventDefault(); showKeyboardShortcuts(); });
     document.getElementById('menu-performance-stats')?.addEventListener('click', (e) => { e.preventDefault(); showPerformanceStats(); });
 
-    // Cloud Menu Items
-    document.getElementById('menu-cloud-save')?.addEventListener('click', (e) => { e.preventDefault(); saveSceneToCloud(); });
     // --- Toolbar (Tool selection only) ---
     if (toolbar) {
         toolbar.addEventListener('click', (e) => {
@@ -4435,24 +4431,10 @@ function setupEventListeners() {
     if (sceneImportBtn) sceneImportBtn.addEventListener('click', triggerFileInputForImport);
     // Scene list item listeners are added dynamically in updateSavedScenesList
 
-    // Cloud Scenes Modal Controls
-    const saveToCloudBtn = document.getElementById('save-current-to-cloud-btn');
-    if (saveToCloudBtn) saveToCloudBtn.addEventListener('click', saveSceneToCloud);
-    const createNewCloudBtn = document.getElementById('create-new-cloud-scene-btn');
-    if (createNewCloudBtn) createNewCloudBtn.addEventListener('click', () => { alert("新建云端场景功能开发中..."); });
-    const refreshCloudBtn = document.getElementById('refresh-cloud-scenes');
-    if (refreshCloudBtn) refreshCloudBtn.addEventListener('click', showUserScenes);
-    const cloudSceneSearch = document.getElementById('cloud-scene-search');
-    if (cloudSceneSearch) cloudSceneSearch.addEventListener('input', (e) => { filterCloudScenes(e.target.value); });
-
     // --- Modal Close Buttons & Overlay Clicks ---
-    document.getElementById('auth-modal-close-btn')?.addEventListener('click', closeAuthModal);
-    document.getElementById('cloud-scenes-modal-close-btn')?.addEventListener('click', closeCloudScenesModal);
     document.getElementById('guide-modal-close-btn')?.addEventListener('click', () => { const m = document.getElementById('guide-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } });
     document.getElementById('about-modal-close-btn')?.addEventListener('click', () => { const m = document.getElementById('about-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } });
     // Add closing by clicking overlay for modals
-    document.getElementById('auth-modal')?.addEventListener('click', (e) => { if (e.target.id === 'auth-modal') closeAuthModal(); });
-    document.getElementById('cloud-scenes-modal')?.addEventListener('click', (e) => { if (e.target.id === 'cloud-scenes-modal') closeCloudScenesModal(); });
     document.getElementById('guide-modal')?.addEventListener('click', (e) => { if (e.target.id === 'guide-modal') { const m = document.getElementById('guide-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } } });
     document.getElementById('about-modal')?.addEventListener('click', (e) => { if (e.target.id === 'about-modal') { const m = document.getElementById('about-modal'); if (m) { m.classList.remove('visible'); setTimeout(() => m.style.display = 'none', 300); } } });
 
@@ -5301,35 +5283,10 @@ function handleTouchEnd(event) {
 
 // --- END Touch Event Handler Functions ---
 
-// --- Auth Modal Form Switching ---
-function switchToRegister() {
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const authTitle = document.getElementById('auth-title');
-    const loginError = document.getElementById('login-error');
-
-    if (loginForm) loginForm.style.display = 'none';
-    if (registerForm) registerForm.style.display = 'block';
-    if (authTitle) authTitle.textContent = '注册';
-    if (loginError) loginError.style.display = 'none'; // Hide errors on switch
-}
-
-function switchToLogin() {
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const authTitle = document.getElementById('auth-title');
-    const registerError = document.getElementById('register-error');
-
-    if (registerForm) registerForm.style.display = 'none';
-    if (loginForm) loginForm.style.display = 'block';
-    if (authTitle) authTitle.textContent = '登录';
-    if (registerError) registerError.style.display = 'none'; // Hide errors on switch
-}
-
 // main.js - 全新且最终的主题管理函数
 
 /**
- * 应用组合主题，并将其保存到 localStorage 和云端。
+ * 应用组合主题，并将其保存到 localStorage。
  * @param {string} combinedThemeName - e.g., "light-ui-dark-canvas"
  */
 function applyCombinedTheme(combinedThemeName) {
