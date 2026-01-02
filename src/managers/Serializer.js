@@ -91,8 +91,7 @@ export class Serializer {
      */
     static extractProperties(data, component) {
         const properties = {};
-        const excludeKeys = ['type', 'id', 'posX', 'posY', 'angleDeg', 'label', 'notes', 
-                           'userId', 'lastEditedBy', 'lastEditedAt', 'version'];
+        const excludeKeys = ['type', 'id', 'posX', 'posY', 'angleDeg', 'label', 'notes'];
         
         for (const key in data) {
             if (!excludeKeys.includes(key) && data.hasOwnProperty(key)) {

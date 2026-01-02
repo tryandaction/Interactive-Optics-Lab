@@ -4,8 +4,6 @@ class ProjectManager {
     constructor() {
         this.currentProject = null;
         this.currentSceneId = null;
-        this.userFilter = 'all';
-        this.dimOtherContent = true;
         this.projects = [];
         this.storageKey = 'opticsLab_projects';
         this.init();
@@ -52,10 +50,6 @@ class ProjectManager {
         document.getElementById('project-create-btn')?.addEventListener('click', () => this.showCreateProjectModal());
         document.getElementById('project-search')?.addEventListener('input', (e) => this.filterProjects(e.target.value));
 
-        // 协作标签页事件
-        document.getElementById('user-content-filter')?.addEventListener('change', (e) => this.setUserFilter(e.target.value));
-        document.getElementById('dim-other-content')?.addEventListener('change', (e) => this.setDimOtherContent(e.target.checked));
-
         // 模态框事件
         this.bindModalEvents();
     }
@@ -101,7 +95,6 @@ class ProjectManager {
     }
 
     createProjectItemHTML(project) {
-        const isOwner = project.ownerId === window.userManager?.currentUser?.id;
         const scenesCount = project.scenes?.length || 0;
 
         return `
@@ -109,7 +102,6 @@ class ProjectManager {
                 <div class="project-info">
                     <div class="project-name">${project.name}</div>
                     <div class="project-meta">
-                        创建者: ${project.ownerName || '本地用户'} |
                         场景数: ${scenesCount} |
                         更新: ${new Date(project.updatedAt).toLocaleDateString()}
                     </div>
@@ -168,7 +160,6 @@ class ProjectManager {
             }
         }
 
-        this.updateCollaborationUI();
         this.showNotification(`已加载项目: ${project.name}`, 'success');
         this.hideProjectsModal();
     }
@@ -184,8 +175,6 @@ class ProjectManager {
             id: 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             name: projectData.name,
             description: projectData.description || '',
-            ownerId: window.userManager?.currentUser?.id,
-            ownerName: window.userManager?.currentUser?.username || '本地用户',
             scenes: [],
             tags: projectData.tags || [],
             createdAt: new Date().toISOString(),
@@ -234,7 +223,6 @@ class ProjectManager {
         if (this.currentProject && this.currentProject.id === projectId) {
             this.currentProject = project;
             this.currentSceneId = newScene.id;
-            this.updateCollaborationUI();
         }
 
         this.showNotification(`场景"${sceneName}"已创建`, 'success');
@@ -270,7 +258,6 @@ class ProjectManager {
         if (this.currentProject && this.currentProject.id === projectId) {
             this.currentProject = null;
             this.currentSceneId = null;
-            this.updateCollaborationUI();
         }
 
         this.showNotification('项目已删除', 'success');
@@ -297,47 +284,6 @@ class ProjectManager {
             this.currentProject.updatedAt = new Date().toISOString();
             this.saveProjectsToStorage();
             this.showNotification('场景已保存', 'success');
-        }
-    }
-
-    // ============ 用户内容过滤 ============
-
-    updateCollaborationUI() {
-        const projectInfo = document.getElementById('current-project-info');
-        const userFilterSection = document.getElementById('user-filter-section');
-
-        if (this.currentProject) {
-            document.getElementById('current-project-name').textContent = this.currentProject.name;
-            document.getElementById('current-project-owner').textContent = this.currentProject.ownerName || '本地用户';
-            document.getElementById('current-project-collaborators').textContent = '本地模式';
-
-            projectInfo.style.display = 'block';
-            userFilterSection.style.display = 'block';
-        } else {
-            projectInfo.style.display = 'none';
-            userFilterSection.style.display = 'none';
-        }
-    }
-
-    setUserFilter(userId) {
-        this.userFilter = userId;
-        this.applyUserFilter();
-    }
-
-    setDimOtherContent(dim) {
-        this.dimOtherContent = dim;
-        this.applyUserFilter();
-    }
-
-    applyUserFilter() {
-        window.userContentFilter = {
-            filter: this.userFilter,
-            dimOther: this.dimOtherContent,
-            currentUserId: window.userManager?.currentUser?.id
-        };
-
-        if (window.needsRetrace !== undefined) {
-            window.needsRetrace = true;
         }
     }
 

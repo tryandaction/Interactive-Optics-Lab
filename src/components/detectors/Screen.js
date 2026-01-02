@@ -9,8 +9,8 @@ import { OpticalComponent } from '../../core/OpticalComponent.js';
 export class Screen extends OpticalComponent {
     static functionDescription = "接收并显示光线命中位置与强度分布。";
 
-    constructor(pos, length = 150, angleDeg = 0, numBins = 200, userId = null) {
-        super(pos, angleDeg, "屏幕", userId);
+    constructor(pos, length = 150, angleDeg = 0, numBins = 200) {
+        super(pos, angleDeg, "屏幕");
         this.length = Math.max(10, length);
         this.numBins = Math.max(1, numBins);
         this.showPattern = true;

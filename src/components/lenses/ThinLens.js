@@ -44,8 +44,8 @@ export const THICK_LENS_PRESETS = {
 export class ThinLens extends OpticalComponent {
     static functionDescription = "基于薄透镜/厚透镜公式使光线汇聚或发散，可模拟色散，支持多种透镜类型。";
 
-    constructor(pos, diameter = 80, focalLength = 150, angleDeg = 90, userId = null) {
-        super(pos, angleDeg, "薄透镜", userId);
+    constructor(pos, diameter = 80, focalLength = 150, angleDeg = 90) {
+        super(pos, angleDeg, "薄透镜");
         this.diameter = Math.max(10, diameter);
 
         this.lensType = LENS_TYPES.THIN_LENS;

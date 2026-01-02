@@ -9,8 +9,8 @@ import { OpticalComponent } from '../../core/OpticalComponent.js';
 export class Mirror extends OpticalComponent {
     static functionDescription = "依据反射定律反射入射光线，改变光路方向。";
 
-    constructor(pos, length = 100, angleDeg = 0, userId = null) {
-        super(pos, angleDeg, "反射镜", userId);
+    constructor(pos, length = 100, angleDeg = 0) {
+        super(pos, angleDeg, "反射镜");
         this.length = Math.max(1, length);
         // Geometry cache
         this.p1 = pos.clone();

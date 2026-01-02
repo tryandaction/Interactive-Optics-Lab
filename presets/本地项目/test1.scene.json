@@ -10,10 +10,6 @@
       "posY": 140,
       "angleDeg": 0,
       "notes": "",
-      "userId": null,
-      "lastEditedBy": null,
-      "lastEditedAt": "2026-01-02T07:19:35.686Z",
-      "version": 1,
       "wavelength": 550,
       "intensity": 1,
       "numRays": 1,
@@ -23,7 +19,6 @@
       "polarizationAngleDeg": 0,
       "ignoreDecay": false,
       "beamDiameter": 10,
-      "initialBeamWaist": "local_1767279156418_mgl4yv6h0",
       "gaussianEnabled": true
     },
     {
@@ -34,10 +29,6 @@
       "posY": 185,
       "angleDeg": 0,
       "notes": "",
-      "userId": null,
-      "lastEditedBy": null,
-      "lastEditedAt": "2026-01-02T07:19:37.093Z",
-      "version": 1,
       "wavelength": 550,
       "intensity": 10,
       "rayCount": 201,
@@ -45,7 +36,7 @@
       "enabled": true,
       "polarizationType": "unpolarized",
       "polarizationAngleDeg": 0,
-      "ignoreDecay": "local_1767279156418_mgl4yv6h0",
+      "ignoreDecay": false,
       "beamDiameter": 1
     },
     {
@@ -56,10 +47,6 @@
       "posY": 254,
       "angleDeg": 0,
       "notes": "",
-      "userId": null,
-      "lastEditedBy": null,
-      "lastEditedAt": "2026-01-02T07:19:38.510Z",
-      "version": 1,
       "wavelength": 550,
       "intensity": 10,
       "rayCount": 201,
@@ -67,7 +54,7 @@
       "enabled": true,
       "polarizationType": "unpolarized",
       "polarizationAngleDeg": 0,
-      "ignoreDecay": "local_1767279156418_mgl4yv6h0",
+      "ignoreDecay": false,
       "beamDiameter": 1
     },
     {
@@ -78,10 +65,6 @@
       "posY": 301,
       "angleDeg": 0,
       "notes": "",
-      "userId": null,
-      "lastEditedBy": null,
-      "lastEditedAt": "2026-01-02T07:19:39.454Z",
-      "version": 1,
       "baseIntensity": 75,
       "rayCount": 41,
       "spreadDeg": 0,
@@ -90,7 +73,6 @@
       "polarizationAngleDeg": 0,
       "ignoreDecay": false,
       "beamDiameter": 10,
-      "initialBeamWaist": "local_1767279156418_mgl4yv6h0",
       "gaussianEnabled": true
     }
   ],

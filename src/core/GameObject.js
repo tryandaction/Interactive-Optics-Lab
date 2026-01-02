@@ -6,7 +6,7 @@
 import { Vector } from './Vector.js';
 
 export class GameObject {
-    constructor(pos, angleDeg = 0, label = "Object", userId = null) {
+    constructor(pos, angleDeg = 0, label = "Object") {
         if (!(pos instanceof Vector)) {
             console.error("GameObject position must be a Vector! Defaulting position.", label);
             pos = new Vector(100, 100);
@@ -16,12 +16,6 @@ export class GameObject {
         this.angleRad = angleDeg * (Math.PI / 180);
         this.label = label;
         this.notes = "";
-        this.userId = userId;
-
-        // 协作元数据
-        this.lastEditedBy = userId;
-        this.lastEditedAt = new Date().toISOString();
-        this.version = 1;
 
         // 交互状态
         this.selected = false;
@@ -187,10 +181,6 @@ export class GameObject {
                 break;
         }
 
-        if (handled && typeof window !== 'undefined' && window.collaborationManager?.currentUserId) {
-            this.updateLastEdited(window.collaborationManager.currentUserId);
-        }
-
         if (needsGeomUpdate) {
             if (handled && (propName === 'posX' || propName === 'posY')) {
                 if (typeof this.onPositionChanged === 'function') {
@@ -257,19 +247,8 @@ export class GameObject {
             posX: this.pos.x,
             posY: this.pos.y,
             angleDeg: this.angleRad * (180 / Math.PI),
-            notes: this.notes,
-            userId: this.userId,
-            lastEditedBy: this.lastEditedBy,
-            lastEditedAt: this.lastEditedAt,
-            version: this.version
+            notes: this.notes
         };
-    }
-
-    // --- 协作方法 ---
-    updateLastEdited(userId) {
-        this.lastEditedBy = userId;
-        this.lastEditedAt = new Date().toISOString();
-        this.version += 1;
     }
 
     // --- 重置 ---

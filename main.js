@@ -36,7 +36,6 @@ let canvas, ctx, toolbar, simulationArea, inspector, inspectorContent, deleteBtn
 window.globalMaxBounces = MAX_RAY_BOUNCES;
 window.globalMinIntensity = MIN_RAY_INTENSITY;
 
-let currentUser = null; // DEPRECATED: Use window.userManager.currentUser instead
 let initialized = false; // Flag to prevent multiple initializations
 
 // --- Global State ---
@@ -555,45 +554,6 @@ function draw() {
     // Draw all components with user content filtering
     components.forEach(comp => {
         try {
-            // Apply user content filtering
-            let shouldDraw = true;
-            let shouldDim = false;
-
-            if (window.userContentFilter && window.userContentFilter.currentUserId) {
-                const filter = window.userContentFilter.filter;
-                const currentUserId = window.userContentFilter.currentUserId;
-                const compUserId = comp.userId;
-
-                if (filter === 'all') {
-                    // Show all content
-                    shouldDraw = true;
-                    shouldDim = false;
-                } else if (filter === 'mine') {
-                    // Only show current user's content
-                    shouldDraw = compUserId === currentUserId;
-                    shouldDim = false;
-                } else if (filter && filter !== 'all') {
-                    // Show only specific user's content
-                    shouldDraw = compUserId === filter;
-                    shouldDim = false;
-                }
-
-                // If dimming other content is enabled and we're not showing only one user's content
-                if (window.userContentFilter.dimOther && filter === 'all' && compUserId && compUserId !== currentUserId) {
-                    shouldDim = true;
-                }
-            }
-
-            if (!shouldDraw) {
-                return; // Skip drawing this component
-            }
-
-            // Apply dimming if needed
-            if (shouldDim) {
-                ctx.save();
-                ctx.globalAlpha = 0.3; // Dim other users' content
-            }
-
             comp.draw(ctx); // Draw the component itself
 
             // Draw selection highlight (which includes angle handle)
@@ -601,11 +561,6 @@ function draw() {
             // Subclasses might override drawSelection to add more highlights.
             if (comp === selectedComponent) {
                 comp.drawSelection(ctx);
-            }
-
-            // Restore alpha if dimmed
-            if (shouldDim) {
-                ctx.restore();
             }
 
         } catch (e) {
@@ -1952,142 +1907,6 @@ function areValuesEqual(val1, val2, tolerance = 1e-6) {
 }
 // --- END OF REPLACEMENT ---
 
-// --- Update User Interface (Top Right) ---
-function updateUserUI() {
-    const userStatusEl = document.getElementById('user-status-top');
-    const userActionBtn = document.getElementById('user-action-btn-top');
-    const logoutBtn = document.getElementById('logout-btn-top');
-    const userScenesBtn = document.getElementById('user-scenes-btn-top'); // Get cloud scenes button too
-
-    // Ensure elements exist before proceeding
-    if (!userStatusEl || !userActionBtn || !logoutBtn || !userScenesBtn) {
-        console.warn("One or more top user UI elements not found, cannot update.");
-        return;
-    }
-
-    const userManager = window.userManager;
-    if (userManager && userManager.isUserLoggedIn()) { // User is logged in
-        const currentUser = userManager.getCurrentUser();
-        userStatusEl.textContent = `欢迎, ${currentUser?.username || '用户'}`;
-        userActionBtn.textContent = '保存到云端';
-        userActionBtn.style.display = 'inline-block';
-        userScenesBtn.style.display = 'inline-block';
-        logoutBtn.style.display = 'inline-block';
-    } else { // User is not logged in
-        userStatusEl.textContent = '未登录';
-        userActionBtn.textContent = '登录 / 注册';
-        userActionBtn.style.display = 'inline-block';
-        userScenesBtn.style.display = 'none';
-        logoutBtn.style.display = 'none';
-    }
-}
-
-
-// --- Cloud/User Actions Functions ---
-async function showUserScenes() { // Show cloud scenes for logged-in user
-    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
-        showTemporaryMessage("请先登录以查看云端场景", 'warning');
-        return;
-    }
-
-    try {
-        // 显示加载状态
-        const container = document.getElementById('cloud-scenes-list');
-        if (container) {
-            container.innerHTML = '<p class="placeholder-text">正在加载云端场景...</p>';
-        }
-
-        showCloudScenesModal(); // 先显示模态框
-
-        const response = await window.userManager.getScenes();
-        if (response.success) {
-            displayCloudScenes(response.scenes);
-        } else {
-            showTemporaryMessage("获取云端场景失败: " + (response.message || "未知错误"), 'error');
-            if (container) {
-                container.innerHTML = '<p class="placeholder-text" style="color: var(--danger-color);">加载失败，请刷新重试</p>';
-            }
-        }
-    } catch (error) {
-        console.error("获取云端场景错误:", error);
-        showTemporaryMessage("获取云端场景失败，请稍后重试", 'error');
-        const container = document.getElementById('cloud-scenes-list');
-        if (container) {
-            container.innerHTML = '<p class="placeholder-text" style="color: var(--danger-color);">网络错误，请检查连接</p>';
-        }
-    }
-}
-
-async function saveSceneToCloud() { // Save current scene to cloud
-    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
-        alert("请先登录以保存到云端");
-        return;
-    }
-
-    const sceneName = prompt("请输入场景名称:", `我的光学实验 ${new Date().toLocaleDateString()}`);
-    if (!sceneName || !sceneName.trim()) {
-        return;
-    }
-
-    try {
-        const sceneData = generateSceneDataObject();
-        if (!sceneData) {
-            alert("无法生成场景数据");
-            return;
-        }
-
-        sceneData.name = sceneName.trim();
-        sceneData.description = "通过光学实验室保存的场景";
-        sceneData.isPublic = false; // 默认私有
-
-        const response = await window.userManager.saveScene(sceneData);
-        if (response.success) {
-            showTemporaryMessage(`场景 "${sceneName}" 已成功保存到云端！`, 'success');
-            sceneModified = false;
-        } else {
-            showTemporaryMessage("保存失败: " + (response.message || "未知错误"), 'error');
-        }
-    } catch (error) {
-        console.error("保存到云端错误:", error);
-        alert("保存到云端失败，请稍后重试");
-    }
-}
-
-
-function logoutUser() { // Handles logout
-    console.log("Logging out user...");
-    if (window.userManager) {
-        window.userManager.logout();
-    } else {
-        // Fallback if userManager is not available
-        currentUser = null;
-    }
-
-    // Decide what to do with the current scene on logout
-    if (sceneModified) {
-        // Prompt to save locally before clearing?
-        if (confirm("您有未保存的更改。登出前是否要将其另存为本地场景？")) {
-            handleSaveAsClick(); // Trigger Save As dialog
-            // Note: Logout will proceed even if save is cancelled here.
-        }
-    }
-    sceneModified = false; // Discard any remaining unsaved changes
-
-    // Clear the scene or reload page? Clearing is less disruptive.
-    components = [];
-    selectedComponent = null;
-    updateInspector(); // Update inspector (will show placeholder)
-    activateTab('properties-tab'); // Switch back to properties tab
-    updateUserUI(); // Update top-right UI to logged-out state
-    needsRetrace = true;
-    alert("已登出。");
-}
-// --- End Placeholder Functions ---
-
-
-
-
-
 
 // --- REPLACEMENT for getMousePos function ---
 function getMousePos(canvasElement, event) {
@@ -2138,19 +1957,18 @@ function handleMouseDown(event) {
     if (componentToAdd) {
         let newComp = null;
         const compPos = mousePos.clone();
-        const currentUserId = window.userManager?.currentUser?.id;
         try {
             // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
             // 光源默认朝右（0°）
             switch (componentToAdd) {
                 // 光源类 - 默认朝右 (0°)
-                case 'LaserSource': newComp = new LaserSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                case 'FanSource': newComp = new FanSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                case 'LineSource': newComp = new LineSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                case 'LaserSource': newComp = new LaserSource(compPos, 0); break;
+                case 'FanSource': newComp = new FanSource(compPos, 0); break;
+                case 'LineSource': newComp = new LineSource(compPos, 0); break;
+                case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0); break;
                 
                 // 镜子类 - 默认竖直 (90°)
-                case 'Mirror': newComp = new Mirror(compPos, 100, 90, currentUserId); break;
+                case 'Mirror': newComp = new Mirror(compPos, 100, 90); break;
                 case 'SphericalMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
                 case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
                 case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
@@ -2161,7 +1979,7 @@ function handleMouseDown(event) {
                 case 'Screen': newComp = new Screen(compPos, 150, 90); break;
                 
                 // 透镜类 - 默认竖直 (90°)
-                case 'ThinLens': newComp = new ThinLens(compPos, 80, 150, 90, currentUserId); break;
+                case 'ThinLens': newComp = new ThinLens(compPos, 80, 150, 90); break;
                 
                 // 光阑/狭缝 - 默认竖直 (90°)
                 case 'Aperture': newComp = new Aperture(compPos, 150, 1, 10, 20, 90); break;
@@ -3150,302 +2968,6 @@ function showModalContent(contentIdToShow) {
 function openSettingsModal() { // Name kept for potential legacy calls, now activates tab
     console.log("Activating Settings Tab.");
     activateTab('settings-tab'); // activateTab handles loading controls via loadSettingsIntoControls
-}
-
-// Function called when clicking the Login/Register button (when logged out)
-// --- Auth Modal Control ---
-function showLoginRegisterModal() {
-    const modal = document.getElementById('auth-modal');
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const loginError = document.getElementById('login-error');
-    const registerError = document.getElementById('register-error');
-    const authTitle = document.getElementById('auth-title');
-
-    if (!modal || !loginForm || !registerForm || !loginError || !registerError || !authTitle) {
-        console.error("Auth modal elements not found! Cannot show."); return;
-    }
-    loginForm.reset();
-    registerForm.reset();
-    loginError.style.display = 'none'; loginError.textContent = ''; // Clear text too
-    registerError.style.display = 'none'; registerError.textContent = ''; // Clear text too
-    loginForm.style.display = 'block';   // Show login form
-    registerForm.style.display = 'none'; // Hide register form
-    authTitle.textContent = '登录';
-
-    modal.style.display = 'flex';
-    setTimeout(() => { modal.classList.add('visible'); }, 10);
-}
-
-function closeAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    if (modal) {
-        modal.classList.remove('visible');
-        setTimeout(() => { modal.style.display = 'none'; }, 300); // Match CSS transition
-    }
-}
-
-function showCloudScenesModal(scenes = []) {
-    const modal = document.getElementById('cloud-scenes-modal');
-    if (modal) {
-        modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('visible'), 10);
-        displayCloudScenes(scenes);
-    }
-}
-
-function closeCloudScenesModal() {
-    const modal = document.getElementById('cloud-scenes-modal');
-    if (modal) {
-        modal.classList.remove('visible');
-        setTimeout(() => { modal.style.display = 'none'; }, 300);
-    }
-}
-
-function displayCloudScenes(scenes) {
-    const container = document.getElementById('cloud-scenes-list');
-    if (!container) return;
-
-    if (!scenes || scenes.length === 0) {
-        container.innerHTML = '<p class="placeholder-text">暂无云端场景</p>';
-        return;
-    }
-
-    container.innerHTML = '';
-    scenes.forEach(scene => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'cloud-scene-item';
-
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'scene-info';
-
-        const nameDiv = document.createElement('div');
-        nameDiv.className = 'scene-name';
-        nameDiv.textContent = scene.name;
-        infoDiv.appendChild(nameDiv);
-
-        const metaDiv = document.createElement('div');
-        metaDiv.className = 'scene-meta';
-        metaDiv.textContent = `创建于 ${new Date(scene.createdAt).toLocaleDateString()} | 更新于 ${new Date(scene.updatedAt).toLocaleDateString()}`;
-        infoDiv.appendChild(metaDiv);
-
-        if (scene.description) {
-            const descDiv = document.createElement('div');
-            descDiv.className = 'scene-description';
-            descDiv.textContent = scene.description;
-            infoDiv.appendChild(descDiv);
-        }
-
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'scene-actions';
-
-        const loadBtn = document.createElement('button');
-        loadBtn.className = 'scene-action-btn load-btn';
-        loadBtn.textContent = '加载';
-        loadBtn.onclick = () => loadCloudScene(scene.id);
-        actionsDiv.appendChild(loadBtn);
-
-        const shareBtn = document.createElement('button');
-        shareBtn.className = 'scene-action-btn share-btn';
-        shareBtn.textContent = '分享';
-        shareBtn.onclick = () => shareCloudScene(scene);
-        actionsDiv.appendChild(shareBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'scene-action-btn delete-btn';
-        deleteBtn.textContent = '删除';
-        deleteBtn.onclick = () => deleteCloudScene(scene.id, scene.name);
-        actionsDiv.appendChild(deleteBtn);
-
-        itemDiv.appendChild(infoDiv);
-        itemDiv.appendChild(actionsDiv);
-        container.appendChild(itemDiv);
-    });
-}
-
-async function loadCloudScene(sceneId) {
-    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
-        alert("请先登录");
-        return;
-    }
-
-    if (sceneModified && !confirm("当前场景有未保存的更改，加载云端场景将覆盖更改。是否继续？")) {
-        return;
-    }
-
-    try {
-        const response = await window.userManager.getScene(sceneId);
-        if (response.success) {
-            if (loadSceneFromData(response.scene.data)) {
-                showTemporaryMessage("云端场景加载成功！", 'success');
-                closeCloudScenesModal();
-            } else {
-                showTemporaryMessage("加载场景数据失败", 'error');
-            }
-        } else {
-            showTemporaryMessage("获取场景失败: " + (response.message || "未知错误"), 'error');
-        }
-    } catch (error) {
-        console.error("加载云端场景错误:", error);
-        alert("加载云端场景失败，请稍后重试");
-    }
-}
-
-async function deleteCloudScene(sceneId, sceneName) {
-    if (!window.userManager || !window.userManager.isUserLoggedIn()) {
-        alert("请先登录");
-        return;
-    }
-
-    if (!confirm(`确定要删除云端场景 "${sceneName}" 吗？此操作无法撤销。`)) {
-        return;
-    }
-
-    try {
-        const response = await window.userManager.deleteScene(sceneId);
-        if (response.success) {
-            showTemporaryMessage("场景删除成功！", 'success');
-            // 刷新场景列表
-            showUserScenes();
-        } else {
-            showTemporaryMessage("删除失败: " + (response.message || "未知错误"), 'error');
-        }
-    } catch (error) {
-        console.error("删除云端场景错误:", error);
-        alert("删除云端场景失败，请稍后重试");
-    }
-}
-
-function shareCloudScene(scene) {
-    // 生成分享链接
-    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${scene._id}`;
-    const isPublic = scene.isPublic;
-
-    const shareText = `光学实验室场景: ${scene.name}\n${scene.description || '一个精彩的光学实验场景'}\n创建时间: ${new Date(scene.createdAt).toLocaleDateString()}\n分享链接: ${shareUrl}`;
-
-    if (navigator.share) {
-        navigator.share({
-            title: `光学实验室 - ${scene.name}`,
-            text: shareText,
-            url: shareUrl
-        }).then(() => {
-            showTemporaryMessage("场景已成功分享！", 'success');
-        }).catch((error) => {
-            console.error('分享失败:', error);
-            copyShareLink(shareUrl);
-        });
-    } else {
-        copyShareLink(shareUrl);
-    }
-}
-
-function copyShareLink(shareUrl) {
-    // 复制到剪贴板
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            showTemporaryMessage("分享链接已复制到剪贴板！", 'success');
-        }).catch((error) => {
-            console.error('复制失败:', error);
-            showShareDialog(shareUrl);
-        });
-    } else {
-        showShareDialog(shareUrl);
-    }
-}
-
-function showShareDialog(shareUrl) {
-    // 显示分享对话框
-    const shareDialog = document.createElement('div');
-    shareDialog.className = 'modal-overlay';
-    shareDialog.innerHTML = `
-        <div class="modal-content" style="max-width: 500px;">
-            <h3>分享场景</h3>
-            <p>复制下面的链接分享给其他人：</p>
-            <div style="margin: 15px 0;">
-                <input type="text" value="${shareUrl}" readonly style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color);" onclick="this.select();">
-            </div>
-            <div style="text-align: center;">
-                <button onclick="navigator.clipboard.writeText('${shareUrl}').then(() => alert('链接已复制！')).catch(() => alert('复制失败，请手动复制'));" style="margin-right: 10px;">复制链接</button>
-                <button onclick="this.closest('.modal-overlay').remove();" class="secondary">关闭</button>
-            </div>
-        </div>
-    `;
-
-    // 添加样式
-    shareDialog.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); display: flex; justify-content: center;
-        align-items: center; z-index: 3000;
-    `;
-
-    document.body.appendChild(shareDialog);
-
-    // 点击背景关闭
-    shareDialog.addEventListener('click', (e) => {
-        if (e.target === shareDialog) {
-            shareDialog.remove();
-        }
-    });
-}
-
-/**
- * 处理URL中的分享参数，自动加载分享的场景
- */
-async function handleSharedScene() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const shareId = urlParams.get('share');
-
-    if (shareId && window.userManager) {
-        // 如果用户已登录，直接加载分享场景
-        if (window.userManager.isUserLoggedIn()) {
-            try {
-                const response = await window.userManager.getScene(shareId);
-                if (response.success) {
-                    if (loadSceneFromData(response.scene.data)) {
-                        console.log('分享场景加载成功');
-                        // 可选：显示成功消息
-                        // showTemporaryMessage('分享场景已加载', 'success');
-                    } else {
-                        console.error('加载分享场景数据失败');
-                    }
-                } else {
-                    console.error('获取分享场景失败:', response.message);
-                }
-            } catch (error) {
-                console.error('加载分享场景错误:', error);
-            }
-        } else {
-            // 用户未登录，提示登录后查看分享场景
-            const shouldLogin = confirm('此链接包含分享的光学实验场景。请登录后查看。');
-            if (shouldLogin) {
-                window.userManager.showAuthModal();
-                // 保存分享ID，登录后自动加载
-                sessionStorage.setItem('pendingShareId', shareId);
-            }
-        }
-    }
-}
-
-/**
- * 检查登录后是否需要加载分享场景
- */
-function checkPendingSharedScene() {
-    const shareId = sessionStorage.getItem('pendingShareId');
-    if (shareId && window.userManager && window.userManager.isUserLoggedIn()) {
-        sessionStorage.removeItem('pendingShareId');
-        handleSharedScene(); // 重新处理分享场景加载
-    }
-}
-
-function filterCloudScenes(searchTerm) {
-    const items = document.querySelectorAll('.cloud-scene-item');
-    items.forEach(item => {
-        const name = item.querySelector('.scene-name')?.textContent || '';
-        const desc = item.querySelector('.scene-description')?.textContent || '';
-        const visible = name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       desc.toLowerCase().includes(searchTerm.toLowerCase());
-        item.style.display = visible ? 'flex' : 'none';
-    });
 }
 
 /**
@@ -4844,16 +4366,6 @@ function setupEventListeners() {
 
     // Cloud Menu Items
     document.getElementById('menu-cloud-save')?.addEventListener('click', (e) => { e.preventDefault(); saveSceneToCloud(); });
-    document.getElementById('menu-cloud-load')?.addEventListener('click', (e) => { e.preventDefault(); showUserScenes(); });
-
-    // --- Top Right User Buttons ---
-    const userActionBtnTop = document.getElementById('user-action-btn-top');
-    const logoutBtnTop = document.getElementById('logout-btn-top');
-    const userScenesBtnTop = document.getElementById('user-scenes-btn-top');
-    if (userActionBtnTop) userActionBtnTop.addEventListener('click', () => { if (window.userManager && window.userManager.isUserLoggedIn()) saveSceneToCloud(); else showLoginRegisterModal(); });
-    if (logoutBtnTop) logoutBtnTop.addEventListener('click', logoutUser);
-    if (userScenesBtnTop) userScenesBtnTop.addEventListener('click', showUserScenes);
-
     // --- Toolbar (Tool selection only) ---
     if (toolbar) {
         toolbar.addEventListener('click', (e) => {
@@ -5864,13 +5376,6 @@ function applyCombinedTheme(combinedThemeName) {
         switcher.value = combinedThemeName;
     }
 
-    // 保存到用户偏好（本地模式，不会触发递归）
-    if (window.userManager && window.userManager.currentUser) {
-        window.userManager.currentUser.preferences = window.userManager.currentUser.preferences || {};
-        window.userManager.currentUser.preferences.theme = combinedThemeName;
-        window.userManager.saveUserToStorage();
-    }
-
     console.log(`主题已应用: UI=${uiTheme}, 画布=${canvasTheme}`);
 }
 
@@ -5954,7 +5459,6 @@ function initialize() {
     // --- Initial Setup ---
     resizeCanvas();          // Set initial canvas size and scaling
     setupEventListeners();   // Setup ALL event listeners, including tabs and modals
-    updateUserUI();        // Set initial user UI state based on currentUser
     activateTab('properties-tab'); // Activate properties tab by default
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
 
@@ -6019,9 +5523,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         initVectorVariables();
         
         initialize();
-
-        // 处理URL中的分享参数
-        setTimeout(handleSharedScene, 100); // 稍后执行，确保UserManager已初始化
     } else {
         console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent, HistoryManager) 未定义！脚本加载顺序可能错误。");
         alert("无法加载核心脚本，请检查控制台获取详细信息！");

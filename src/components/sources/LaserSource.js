@@ -13,8 +13,8 @@ export class LaserSource extends GameObject {
     constructor(pos, angleDeg = 0, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, 
                 numRays = 1, spreadDeg = 0, enabled = true, polarizationType = 'unpolarized', 
                 polarizationAngleDeg = 0, ignoreDecay = false, beamDiameter = 10.0, 
-                initialBeamWaist = 5.0, userId = null) {
-        super(pos, angleDeg, "激光", userId);
+                initialBeamWaist = 5.0) {
+        super(pos, angleDeg, "激光");
         
         this.wavelength = wavelength ?? DEFAULT_WAVELENGTH_NM;
         this.intensity = Math.max(0, intensity ?? 1.0);
