@@ -917,7 +917,9 @@
              * @param {boolean} modified - 是否已修改
              */
             setModified(modified) {
-                if (this.isModified === modified) return; // 避免重复更新
+                // 强制更新，不检查是否相同（确保状态始终正确）
+                this.isModified = modified;
+                console.log('[SceneStatusDisplay] setModified:', modified);
                 
                 this.isModified = modified;
                 console.log('[SceneStatusDisplay] setModified:', modified);

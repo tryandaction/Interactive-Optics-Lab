@@ -950,6 +950,65 @@ body[data-ui-theme="dark"] .tab-content .prop select:focus {
     transform: translateY(0);
 }
 
+/* 未保存更改对话框样式 */
+.unsaved-changes-dialog {
+    text-align: center;
+}
+
+.unsaved-changes-dialog .dialog-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.unsaved-changes-dialog h3 {
+    margin: 0 0 15px 0;
+    color: var(--text-color);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.unsaved-changes-dialog p {
+    margin: 0 0 10px 0;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.unsaved-changes-dialog .dialog-hint {
+    color: var(--text-color-secondary);
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+.unsaved-changes-dialog .dialog-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.unsaved-changes-dialog .btn-discard {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.unsaved-changes-dialog .btn-discard:hover {
+    background-color: var(--hover-bg);
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.unsaved-changes-dialog .btn-save {
+    background-color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    color: white;
+}
+
+.unsaved-changes-dialog .btn-save:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
 .modal-content h2 {
     margin-top: 0;
     margin-bottom: 20px;

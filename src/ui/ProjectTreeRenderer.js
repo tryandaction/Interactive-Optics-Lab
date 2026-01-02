@@ -177,11 +177,23 @@ export class ProjectTreeRenderer {
         const id = node.dataset.id;
 
         if (type === 'scene') {
+            // 检查是否是当前场景
+            const currentScene = this.projectManager.getCurrentScene();
+            if (currentScene && currentScene.id === id) {
+                console.log('[ProjectTreeRenderer] Scene already loaded:', id);
+                return;
+            }
+
             try {
                 console.log('[ProjectTreeRenderer] Loading scene:', id);
                 const scene = await this.projectManager.loadScene(id);
                 console.log('[ProjectTreeRenderer] Scene loaded successfully:', scene);
             } catch (err) {
+                // 用户取消操作不需要显示错误
+                if (err.message === '用户取消了操作') {
+                    console.log('[ProjectTreeRenderer] Scene load cancelled by user');
+                    return;
+                }
                 console.error('[ProjectTreeRenderer] Failed to load scene:', err);
                 this.showNotification(`加载场景失败: ${err.message}`, 'error');
             }

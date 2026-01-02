@@ -545,8 +545,13 @@ export class ProjectManager {
 
     /**
      * 加载场景
+     * @param {string} sceneId - 场景ID
+     * @param {Object} options - 选项
+     * @param {boolean} options.skipUnsavedCheck - 跳过未保存检查
+     * @param {boolean} options.forceSave - 强制保存当前场景
+     * @param {boolean} options.forceDiscard - 强制丢弃当前场景的更改
      */
-    async loadScene(sceneId) {
+    async loadScene(sceneId, options = {}) {
         if (!this.currentProject) {
             throw new Error('没有打开的项目');
         }
@@ -554,6 +559,17 @@ export class ProjectManager {
         const scene = this.currentProject.scenes.find(s => s.id === sceneId);
         if (!scene) {
             throw new Error('场景不存在');
+        }
+
+        // 如果当前场景有未保存的更改，需要处理
+        if (this.currentScene && this.currentScene.isModified && !options.skipUnsavedCheck) {
+            // 发出事件让 UI 层处理保存确认
+            const result = await this.handleUnsavedChanges(options);
+            if (result === 'cancel') {
+                throw new Error('用户取消了操作');
+            }
+            // result === 'save' 时，saveScene 已经在 handleUnsavedChanges 中被调用
+            // result === 'discard' 时，继续加载新场景
         }
 
         let sceneData;
@@ -616,6 +632,47 @@ export class ProjectManager {
         console.log('[ProjectManager] Scene loaded:', this.currentScene);
         this.emit('sceneLoaded', this.currentScene);
         return this.currentScene;
+    }
+
+    /**
+     * 处理未保存的更改
+     * @param {Object} options - 选项
+     * @returns {Promise<string>} 'save' | 'discard' | 'cancel'
+     */
+    async handleUnsavedChanges(options = {}) {
+        if (options.forceSave) {
+            // 强制保存
+            await this.requestSaveCurrentScene();
+            return 'save';
+        }
+        
+        if (options.forceDiscard) {
+            // 强制丢弃
+            return 'discard';
+        }
+
+        // 发出事件，让 UI 层显示确认对话框
+        return new Promise((resolve) => {
+            this.emit('unsavedChangesDetected', {
+                scene: this.currentScene,
+                resolve: (result) => {
+                    resolve(result);
+                }
+            });
+        });
+    }
+
+    /**
+     * 请求保存当前场景（通过事件让 UI 层处理）
+     */
+    async requestSaveCurrentScene() {
+        return new Promise((resolve, reject) => {
+            this.emit('saveRequested', {
+                scene: this.currentScene,
+                resolve: () => resolve(),
+                reject: (err) => reject(err)
+            });
+        });
     }
 
     /**

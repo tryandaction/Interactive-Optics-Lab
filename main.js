@@ -118,18 +118,21 @@ const LOCALSTORAGE_SCENE_KEY = 'opticsLabSceneData'; // Key for saving/loading s
  * 触发 sceneModified 事件，更新 UI 显示
  */
 function markSceneAsModified() {
-    if (!sceneModified) {
-        sceneModified = true;
-        // 触发自定义事件，通知 UI 更新
-        document.dispatchEvent(new CustomEvent('sceneModified'));
+    const wasModified = sceneModified;
+    sceneModified = true;
+    
+    // 触发自定义事件，通知 UI 更新
+    document.dispatchEvent(new CustomEvent('sceneModified'));
+    
+    if (!wasModified) {
         console.log('[Scene] Marked as modified');
-        
-        // 同时通知 ProjectManager（如果存在）
-        if (window.unifiedProjectPanel) {
-            const pm = window.unifiedProjectPanel.getProjectManager();
-            if (pm && pm.markSceneAsModified) {
-                pm.markSceneAsModified();
-            }
+    }
+    
+    // 同时通知 ProjectManager（如果存在）
+    if (window.unifiedProjectPanel) {
+        const pm = window.unifiedProjectPanel.getProjectManager();
+        if (pm && pm.markSceneAsModified) {
+            pm.markSceneAsModified();
         }
     }
 }
@@ -139,10 +142,13 @@ function markSceneAsModified() {
  * 触发 sceneSaved 事件，更新 UI 显示
  */
 function markSceneAsSaved() {
-    if (sceneModified) {
-        sceneModified = false;
-        // 触发自定义事件，通知 UI 更新
-        document.dispatchEvent(new CustomEvent('sceneSaved'));
+    const wasModified = sceneModified;
+    sceneModified = false;
+    
+    // 触发自定义事件，通知 UI 更新
+    document.dispatchEvent(new CustomEvent('sceneSaved'));
+    
+    if (wasModified) {
         console.log('[Scene] Marked as saved');
     }
 }

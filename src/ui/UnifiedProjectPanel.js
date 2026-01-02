@@ -234,6 +234,22 @@ export class UnifiedProjectPanel {
             this.onSceneLoaded(scene);
         });
 
+        // 处理未保存更改的确认
+        this.projectManager.on('unsavedChangesDetected', async ({ scene, resolve }) => {
+            const result = await this.showUnsavedChangesDialog(scene);
+            resolve(result);
+        });
+
+        // 处理保存请求
+        this.projectManager.on('saveRequested', async ({ scene, resolve, reject }) => {
+            try {
+                await this.saveCurrentSceneInternal();
+                resolve();
+            } catch (err) {
+                reject(err);
+            }
+        });
+
         // 同步服务事件
         this.syncService.on('statusChanged', ({ newStatus }) => {
             this.updateSyncStatus(newStatus);
@@ -923,6 +939,88 @@ export class UnifiedProjectPanel {
      */
     markSceneAsModified() {
         this.activeSceneManager.markAsModified();
+    }
+
+    // ============ 未保存更改处理 ============
+
+    /**
+     * 显示未保存更改对话框
+     * @param {Object} scene - 当前场景
+     * @returns {Promise<string>} 'save' | 'discard' | 'cancel'
+     */
+    async showUnsavedChangesDialog(scene) {
+        return new Promise((resolve) => {
+            const sceneName = scene?.name || '当前场景';
+            
+            const modal = this.createModal('unsaved-changes-modal', `
+                <div class="unsaved-changes-dialog">
+                    <div class="dialog-icon">⚠️</div>
+                    <h3>未保存的更改</h3>
+                    <p>场景 "<strong>${this.escapeHtml(sceneName)}</strong>" 有未保存的更改。</p>
+                    <p class="dialog-hint">是否要在切换前保存？</p>
+                    <div class="form-actions dialog-buttons">
+                        <button type="button" class="btn-cancel" data-action="cancel">取消</button>
+                        <button type="button" class="btn-secondary btn-discard" data-action="discard">不保存</button>
+                        <button type="button" class="btn-primary btn-save" data-action="save">保存</button>
+                    </div>
+                </div>
+            `);
+
+            const handleAction = (action) => {
+                this.closeModal(modal);
+                resolve(action);
+            };
+
+            modal.querySelector('.btn-cancel')?.addEventListener('click', () => handleAction('cancel'));
+            modal.querySelector('.btn-discard')?.addEventListener('click', () => handleAction('discard'));
+            modal.querySelector('.btn-save')?.addEventListener('click', async () => {
+                try {
+                    await this.saveCurrentSceneInternal();
+                    handleAction('save');
+                } catch (err) {
+                    this.showNotification(`保存失败: ${err.message}`, 'error');
+                    // 保存失败后不关闭对话框，让用户选择其他操作
+                }
+            });
+
+            // ESC 键取消
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    handleAction('cancel');
+                    document.removeEventListener('keydown', handleKeyDown);
+                }
+            };
+            document.addEventListener('keydown', handleKeyDown);
+        });
+    }
+
+    /**
+     * 内部保存当前场景方法
+     * 从全局获取组件和设置并保存
+     */
+    async saveCurrentSceneInternal() {
+        // 获取当前画布数据
+        const components = window.components || [];
+        const settings = {
+            mode: window.currentMode || 'ray_trace',
+            showGrid: window.showGrid !== false,
+            maxRays: window.maxRaysPerSource || 100,
+            maxBounces: window.globalMaxBounces || 50,
+            minIntensity: window.globalMinIntensity || 0.001,
+            showArrows: window.globalShowArrows || false,
+            arrowSpeed: window.arrowAnimationSpeed || 100,
+            fastWhiteLightMode: window.fastWhiteLightMode || false
+        };
+
+        console.log('[UnifiedProjectPanel] Saving scene with', components.length, 'components');
+        
+        // 保存场景
+        await this.projectManager.saveScene(components, settings);
+        
+        // 触发全局保存事件
+        document.dispatchEvent(new CustomEvent('sceneSaved'));
+        
+        this.showNotification('场景已保存', 'success');
     }
 }
 
