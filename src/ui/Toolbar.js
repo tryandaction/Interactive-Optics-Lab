@@ -166,7 +166,10 @@ export const DEFAULT_TOOL_GROUPS = [
             { type: 'LaserSource', label: '激光', tooltip: '添加激光光源' },
             { type: 'FanSource', label: '扇形光', tooltip: '添加扇形光源' },
             { type: 'LineSource', label: '线光源', tooltip: '添加线光源' },
-            { type: 'WhiteLightSource', label: '白光', tooltip: '添加白光光源' }
+            { type: 'WhiteLightSource', label: '白光', tooltip: '添加白光光源' },
+            { type: 'PointSource', label: '点光源', tooltip: '添加点光源' },
+            { type: 'LEDSource', label: 'LED', tooltip: '添加LED光源' },
+            { type: 'PulsedLaserSource', label: '脉冲激光', tooltip: '添加脉冲激光源' }
         ]
     },
     {
@@ -175,13 +178,19 @@ export const DEFAULT_TOOL_GROUPS = [
             { type: 'Mirror', label: '平面镜', tooltip: '添加平面反射镜' },
             { type: 'ConcaveMirror', label: '凹面镜', tooltip: '添加凹面反射镜' },
             { type: 'ConvexMirror', label: '凸面镜', tooltip: '添加凸面反射镜' },
-            { type: 'ParabolicMirrorToolbar', label: '抛物面镜', tooltip: '添加抛物面反射镜' }
+            { type: 'ParabolicMirrorToolbar', label: '抛物面镜', tooltip: '添加抛物面反射镜' },
+            { type: 'DichroicMirror', label: '二向色镜', tooltip: '添加二向色镜' },
+            { type: 'MetallicMirror', label: '金属镜', tooltip: '添加金属镜' },
+            { type: 'RingMirror', label: '环形镜', tooltip: '添加环形镜' }
         ]
     },
     {
         label: '透镜',
         tools: [
-            { type: 'ThinLens', label: '薄透镜', tooltip: '添加薄透镜' }
+            { type: 'ThinLens', label: '薄透镜', tooltip: '添加薄透镜' },
+            { type: 'CylindricalLens', label: '柱面透镜', tooltip: '添加柱面透镜' },
+            { type: 'AsphericLens', label: '非球面透镜', tooltip: '添加非球面透镜' },
+            { type: 'GRINLens', label: 'GRIN透镜', tooltip: '添加梯度折射率透镜' }
         ]
     },
     {
@@ -192,14 +201,41 @@ export const DEFAULT_TOOL_GROUPS = [
             { type: 'HalfWavePlate', label: '半波片', tooltip: '添加半波片' },
             { type: 'QuarterWavePlate', label: '四分之一波片', tooltip: '添加四分之一波片' },
             { type: 'FaradayRotator', label: '法拉第旋转器', tooltip: '添加法拉第旋转器' },
-            { type: 'FaradayIsolator', label: '法拉第隔离器', tooltip: '添加法拉第隔离器' }
+            { type: 'FaradayIsolator', label: '法拉第隔离器', tooltip: '添加法拉第隔离器' },
+            { type: 'WollastonPrism', label: 'Wollaston棱镜', tooltip: '添加Wollaston偏振分束棱镜' }
         ]
     },
     {
         label: '探测器',
         tools: [
             { type: 'Screen', label: '屏幕', tooltip: '添加屏幕' },
-            { type: 'Photodiode', label: '光电二极管', tooltip: '添加光电二极管' }
+            { type: 'Photodiode', label: '光电二极管', tooltip: '添加光电二极管' },
+            { type: 'CCDCamera', label: 'CCD相机', tooltip: '添加CCD相机' },
+            { type: 'Spectrometer', label: '光谱仪', tooltip: '添加光谱仪' },
+            { type: 'PowerMeter', label: '功率计', tooltip: '添加功率计' },
+            { type: 'PolarizationAnalyzer', label: '偏振分析仪', tooltip: '添加偏振分析仪' }
+        ]
+    },
+    {
+        label: '调制器',
+        tools: [
+            { type: 'ElectroOpticModulator', label: 'EOM', tooltip: '添加电光调制器' },
+            { type: 'AcoustoOpticModulator', label: 'AOM', tooltip: '添加声光调制器' },
+            { type: 'VariableAttenuator', label: '可调衰减器', tooltip: '添加可调衰减器' },
+            { type: 'OpticalChopper', label: '光学斩波器', tooltip: '添加光学斩波器' }
+        ]
+    },
+    {
+        label: '原子物理',
+        tools: [
+            { type: 'AtomicCell', label: '原子气室', tooltip: '添加原子气室' },
+            { type: 'MagneticCoil', label: '磁场线圈', tooltip: '添加磁场线圈标注' }
+        ]
+    },
+    {
+        label: '干涉仪',
+        tools: [
+            { type: 'FabryPerotCavity', label: 'F-P腔', tooltip: '添加法布里-珀罗腔' }
         ]
     },
     {
@@ -209,7 +245,6 @@ export const DEFAULT_TOOL_GROUPS = [
             { type: 'DiffractionGrating', label: '衍射光栅', tooltip: '添加衍射光栅' },
             { type: 'DielectricBlock', label: '介质块', tooltip: '添加介质块' },
             { type: 'OpticalFiber', label: '光纤', tooltip: '添加光纤' },
-            { type: 'AcoustoOpticModulator', label: 'AOM', tooltip: '添加声光调制器' },
             { type: 'Aperture', label: '光阑', tooltip: '添加光阑' }
         ]
     },

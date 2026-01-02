@@ -9,3 +9,4 @@ export { HalfWavePlate } from './HalfWavePlate.js';
 export { QuarterWavePlate } from './QuarterWavePlate.js';
 export { FaradayRotator } from './FaradayRotator.js';
 export { FaradayIsolator } from './FaradayIsolator.js';
+export { WollastonPrism } from './WollastonPrism.js';
