@@ -480,15 +480,6 @@
                     <input type="checkbox" id="setting-arrow-trail" checked>
                 </div>
                 <div class="prop">
-                    <label for="setting-mouse-drag-shadow" title="拖动元件时显示鼠标拖影效果">鼠标拖影:</label>
-                    <input type="checkbox" id="setting-mouse-drag-shadow">
-                </div>
-                <div class="prop">
-                    <label for="setting-drag-shadow-duration" title="拖影消失的时间（毫秒）">拖影持续时间:</label>
-                    <input type="range" id="setting-drag-shadow-duration" min="100" max="2000" value="500" step="100">
-                    <span id="setting-drag-shadow-duration-value">500ms</span>
-                </div>
-                <div class="prop">
                     <label for="arrow-speed" title="调整光路箭头的移动速度">箭头速度:</label>
                     <input type="range" id="arrow-speed" min="10" max="500" value="100" step="10">
                 </div>
@@ -803,11 +794,11 @@
 
     <!-- JavaScript Files -->
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
-    <script type="module" src="src/compat/legacy-globals.js"></script>
+    <script type="module" src="src/compat/legacy-globals.js?v=2"></script>
     
     <!-- 统一项目管理模块 -->
     <script type="module">
-        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';
+        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js?v=2';
         
         // 等待 DOM 加载完成后初始化
         document.addEventListener('DOMContentLoaded', () => {

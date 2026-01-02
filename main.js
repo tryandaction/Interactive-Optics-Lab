@@ -112,15 +112,6 @@ const LOCALSTORAGE_SCENE_KEY = 'opticsLabSceneData'; // Key for saving/loading s
 // let showGrid = true;         // Default: Show grid initially
 // const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings'; // Key for saving settings
 
-// --- Drag Shadow State ---
-let dragShadowEnabled = false; // Default: disabled
-let dragShadowDuration = 800;  // Duration in ms (longer for trail effect)
-let dragShadowStartTime = 0;   // When drag started
-let dragShadowComponent = null; // Component being dragged for shadow
-let dragShadowPosition = null;  // Position of shadow
-let dragShadowTrail = [];      // Array of {pos: Vector, time: number, color: string} for trail
-let lastTrailUpdate = 0;       // Last time trail was updated
-
 // Helper function to convert hex color to rgba
 function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -399,76 +390,6 @@ function draw() {
     ctx.scale(cameraScale, cameraScale);
 
     // Now, all subsequent drawing commands are in the transformed coordinate system
-
-    // --- Draw Drag Shadow ---
-    if (dragShadowEnabled && dragShadowComponent && dragShadowPosition) {
-        const now = performance.now();
-        const elapsed = now - dragShadowStartTime;
-
-        // Draw glowing star-like trail particles
-        if (dragShadowTrail.length > 0) {
-            ctx.save();
-
-            // Draw particles with glow effect
-            dragShadowTrail.forEach((particle, index) => {
-                const particleAge = now - particle.time;
-                const lifeProgress = particleAge / dragShadowDuration;
-
-                if (lifeProgress < 1) {
-                    const alpha = (1 - lifeProgress) * 0.8;
-                    const scale = 1 + lifeProgress * 0.5; // Grow as they fade
-
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.translate(particle.pos.x, particle.pos.y);
-                    ctx.rotate(particle.rotation + lifeProgress * Math.PI); // Rotate as they age
-                    ctx.scale(scale, scale);
-
-                    // Create glowing star effect
-                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size * 2);
-                    gradient.addColorStop(0, particle.color);
-                    gradient.addColorStop(0.3, hexToRgba(particle.color, 0.5)); // Semi-transparent
-                    gradient.addColorStop(1, hexToRgba(particle.color, 0.0)); // Fully transparent
-
-                    ctx.fillStyle = gradient;
-
-                    // Draw star shape
-                    ctx.beginPath();
-                    const spikes = 5;
-                    const outerRadius = particle.size;
-                    const innerRadius = particle.size * 0.4;
-
-                    for (let i = 0; i < spikes * 2; i++) {
-                        const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                        const angle = (i * Math.PI) / spikes;
-                        const x = Math.cos(angle) * radius;
-                        const y = Math.sin(angle) * radius;
-
-                        if (i === 0) ctx.moveTo(x, y);
-                        else ctx.lineTo(x, y);
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-
-                    // Add extra glow with larger circle
-                    ctx.globalAlpha = alpha * 0.3;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, particle.size * 3, 0, Math.PI * 2);
-                    ctx.fill();
-
-                    ctx.restore();
-                } else {
-                    // Remove dead particles
-                    dragShadowTrail.splice(index, 1);
-                }
-            });
-
-            ctx.restore();
-        }
-
-        // Note: Component shadow removed to avoid covering by the actual component
-    }
-    // --- End Draw Drag Shadow ---
 
     // Define the visible area in logical coordinates (useful for culling later)
     const viewPortLogicalWidth = canvas.width / cameraScale;
@@ -907,7 +828,7 @@ function drawPlacementPreview(ctx) {
 ctx.restore();
 }
 
-// --- Collaboration Integration: Component Creation with Ownership ---
+// --- Mouse Event Handlers ---
 function handleMouseDown(event) {
 // 确保 Vector 变量已初始化
 if (!mousePos || !cameraOffset) {
@@ -958,11 +879,6 @@ if (componentToAdd) {
         }
 
         if (newComp) {
-            // Mark ownership for collaboration
-            if (window.collaborationManager && window.collaborationManager.currentUserId) {
-                window.collaborationManager.markComponentOwnership(newComp, window.collaborationManager.currentUserId);
-            }
-
             components.push(newComp);
             selectedComponent = newComp;
             updateInspector();
@@ -996,14 +912,6 @@ if (hitComponent) {
     // Start dragging
     isDragging = true;
     draggingComponents = [hitComponent];
-    // Initialize Drag Shadow
-    if (dragShadowEnabled && draggingComponents.length > 0) {
-        dragShadowComponent = draggingComponents[0]; // Use primary component for shadow
-        dragShadowPosition = draggingComponents[0].pos.clone();
-        dragShadowStartTime = performance.now();
-        dragShadowTrail = []; // Clear previous trail
-        lastTrailUpdate = performance.now();
-    }
     dragStartOffsets = new Map();
     dragStartOffsets.set(hitComponent.id, hitComponent.pos.subtract(mousePos));
     dragStartMousePos = mousePos.clone();
@@ -2399,12 +2307,6 @@ function handleMouseDown(event) {
         if (specificHandleClicked) {
             // --- Dragging a specific handle (only the primary component moves/rotates) ---
             draggingComponents = [clickedComponent]; // Only drag the clicked one
-            // --- Initialize Drag Shadow ---
-            if (dragShadowEnabled && draggingComponents.length > 0) {
-                dragShadowComponent = draggingComponents[0]; // Use primary component for shadow
-                dragShadowPosition = draggingComponents[0].pos.clone();
-                dragShadowStartTime = performance.now();
-            }
             clickedComponent.startDrag(mousePos); // Let component determine handle type
             // Record state for single component move/rotate
             if (clickedComponent.dragging) {
@@ -2418,12 +2320,6 @@ function handleMouseDown(event) {
         } else {
             // --- Dragging the body (move all selected components) ---
             draggingComponents = [...selectedComponents]; // Drag all selected
-            // --- Initialize Drag Shadow ---
-            if (dragShadowEnabled && draggingComponents.length > 0) {
-                dragShadowComponent = draggingComponents[0]; // Use primary component for shadow
-                dragShadowPosition = draggingComponents[0].pos.clone();
-                dragShadowStartTime = performance.now();
-            }
             const startPositions = new Map(); // Use Map for start values { compId -> Vector }
             draggingComponents.forEach(comp => {
                 if (comp.pos instanceof Vector) {
@@ -2586,31 +2482,6 @@ function handleMouseMove(event) {
                 comp.pos.set(newPosX, newPosY);
                 if (typeof comp.onPositionChanged === 'function') { try { comp.onPositionChanged(); } catch (e) { } }
                 if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (e) { } }
-
-                // Update drag shadow trail
-                if (dragShadowEnabled && comp === dragShadowComponent) {
-                    const now = performance.now();
-                    if (now - lastTrailUpdate > 50) { // Add particle every 50ms
-                        // Create colorful star-like particles
-                        const colors = ['#00BFFF', '#1E90FF', '#4169E1', '#0000FF', '#8A2BE2', '#9370DB'];
-                        for (let i = 0; i < 3; i++) { // 3 particles per update
-                            const angle = Math.random() * Math.PI * 2;
-                            const distance = Math.random() * 15 + 5;
-                            const particlePos = new Vector(
-                                newPosX + Math.cos(angle) * distance,
-                                newPosY + Math.sin(angle) * distance
-                            );
-                            dragShadowTrail.push({
-                                pos: particlePos,
-                                time: now,
-                                color: colors[Math.floor(Math.random() * colors.length)],
-                                size: Math.random() * 3 + 2,
-                                rotation: Math.random() * Math.PI * 2
-                            });
-                        }
-                        lastTrailUpdate = now;
-                    }
-                }
             }
         }); // End loop applying positions
 
@@ -2743,12 +2614,8 @@ function handleMouseUp(event) {
     dragStartOffsets.clear();
     ongoingActionState = null;
 
-    // Clear drag shadow trail when drag ends
+    // Clear guides when drag ends
     if (dragJustEnded) {
-        dragShadowTrail = [];
-        dragShadowComponent = null;
-        dragShadowPosition = null;
-        dragShadowStartTime = 0;
         activeGuides = [];
         needsRetrace = true;
     }
@@ -3824,17 +3691,14 @@ function closeSettingsModal() {
 function saveSettings() {
     const settings = {
         showGrid: showGrid,
-        maxRaysPerSource: window.maxRaysPerSource,     // <<<--- 确认这里是 window.maxRaysPerSource
+        maxRaysPerSource: window.maxRaysPerSource,
         globalMaxBounces: window.globalMaxBounces,
         globalMinIntensity: window.globalMinIntensity,
         fastWhiteLightMode: fastWhiteLightMode,
         globalShowArrows: globalShowArrows,
         onlyShowSelectedSourceArrow: onlyShowSelectedSourceArrow,
         arrowAnimationSpeed: arrowAnimationSpeed,
-        showArrowTrail: showArrowTrail,
-        dragShadowEnabled: dragShadowEnabled,
-        dragShadowDuration: dragShadowDuration
-        // Add other settings here later
+        showArrowTrail: showArrowTrail
     };
     try {
         localStorage.setItem(LOCALSTORAGE_SETTINGS_KEY, JSON.stringify(settings));
@@ -3857,8 +3721,6 @@ function loadSettings() {
     onlyShowSelectedSourceArrow = false;
     arrowAnimationSpeed = 100;
     showArrowTrail = true;
-    dragShadowEnabled = false;
-    dragShadowDuration = 500;
 
     if (savedSettingsJson) {
         try {
@@ -3873,15 +3735,13 @@ function loadSettings() {
                 onlyShowSelectedSourceArrow = savedSettings.onlyShowSelectedSourceArrow !== undefined ? savedSettings.onlyShowSelectedSourceArrow : onlyShowSelectedSourceArrow;
                 arrowAnimationSpeed = typeof savedSettings.arrowAnimationSpeed === 'number' ? savedSettings.arrowAnimationSpeed : arrowAnimationSpeed;
                 showArrowTrail = savedSettings.showArrowTrail !== undefined ? savedSettings.showArrowTrail : showArrowTrail;
-                dragShadowEnabled = savedSettings.dragShadowEnabled !== undefined ? savedSettings.dragShadowEnabled : dragShadowEnabled;
-                dragShadowDuration = typeof savedSettings.dragShadowDuration === 'number' ? savedSettings.dragShadowDuration : dragShadowDuration;
 
-                console.log("Settings loaded:", { showGrid, maxRaysPerSource: window.maxRaysPerSource, globalMaxBounces: window.globalMaxBounces, globalMinIntensity: window.globalMinIntensity, globalShowArrows, onlyShowSelectedSourceArrow, arrowAnimationSpeed, showArrowTrail, dragShadowEnabled, dragShadowDuration });
+                console.log("Settings loaded:", { showGrid, maxRaysPerSource: window.maxRaysPerSource, globalMaxBounces: window.globalMaxBounces, globalMinIntensity: window.globalMinIntensity, globalShowArrows, onlyShowSelectedSourceArrow, arrowAnimationSpeed, showArrowTrail });
             }
         } catch (e) { console.error("Error parsing settings from localStorage:", e); }
     } else { console.log("No saved settings found, using defaults."); }
 
-    console.log(`Applying settings: Max Bounces=${window.globalMaxBounces}, Min Intensity=${window.globalMinIntensity.toExponential(2)}, Arrows=${globalShowArrows}, Trail=${showArrowTrail}, Drag Shadow=${dragShadowEnabled}`);
+    console.log(`Applying settings: Max Bounces=${window.globalMaxBounces}, Min Intensity=${window.globalMinIntensity.toExponential(2)}, Arrows=${globalShowArrows}, Trail=${showArrowTrail}`);
     needsRetrace = true;
 }
 // --- END OF REPLACEMENT ---
@@ -4581,19 +4441,6 @@ function setupEventListeners() {
     if (selectedArrowCheckbox) selectedArrowCheckbox.addEventListener('change', () => { onlyShowSelectedSourceArrow = selectedArrowCheckbox.checked; saveSettings(); });
     const arrowTrailCheckbox = document.getElementById('setting-arrow-trail');
     if (arrowTrailCheckbox) arrowTrailCheckbox.addEventListener('change', () => { showArrowTrail = arrowTrailCheckbox.checked; saveSettings(); });
-    // --- ADD Listener for Mouse Drag Shadow ---
-    const mouseDragShadowCheckbox = document.getElementById('setting-mouse-drag-shadow');
-    if (mouseDragShadowCheckbox) mouseDragShadowCheckbox.addEventListener('change', () => { dragShadowEnabled = mouseDragShadowCheckbox.checked; saveSettings(); });
-    const dragShadowDurationSlider = document.getElementById('setting-drag-shadow-duration');
-    const dragShadowDurationValue = document.getElementById('setting-drag-shadow-duration-value');
-    if (dragShadowDurationSlider) {
-        dragShadowDurationSlider.addEventListener('input', () => {
-            dragShadowDuration = parseInt(dragShadowDurationSlider.value);
-            if (dragShadowDurationValue) dragShadowDurationValue.textContent = dragShadowDuration + 'ms';
-            saveSettings();
-        });
-    }
-    // --- END Listener for Mouse Drag Shadow ---
     // --- ADD Listener for Grid Snap ---
     const gridSnapCheckbox = document.getElementById('setting-enable-snap');
     if (gridSnapCheckbox) {
@@ -4839,11 +4686,6 @@ function setupEventListeners() {
         console.error("错误：未能找到ID为 'combined-theme-switcher' 的主题下拉菜单！请检查 index.html 文件。");
     }
     // --- 修复代码结束 ---
-
-    // Setup collaboration UI event listeners
-    if (window.collaborationUI) {
-        window.collaborationUI.attachEventListeners();
-    }
 
     console.log("Event listeners setup complete.");
 
@@ -5118,9 +4960,6 @@ function loadSettingsIntoControls() {
     const selectedArrowCheckbox = document.getElementById('setting-selected-arrow');
     const arrowTrailCheckbox = document.getElementById('setting-arrow-trail');
     const speedSlider = document.getElementById('arrow-speed'); // Get speed slider
-    const mouseDragShadowCheckbox = document.getElementById('setting-mouse-drag-shadow');
-    const dragShadowDurationSlider = document.getElementById('setting-drag-shadow-duration');
-    const dragShadowDurationValue = document.getElementById('setting-drag-shadow-duration-value');
 
     const updateSpan = (span, value, formatFn) => { if (span) span.textContent = `(${formatFn(value)})`; };
 
@@ -5134,9 +4973,6 @@ function loadSettingsIntoControls() {
     if (selectedArrowCheckbox) selectedArrowCheckbox.checked = onlyShowSelectedSourceArrow;
     if (arrowTrailCheckbox) arrowTrailCheckbox.checked = showArrowTrail;
     if (speedSlider) speedSlider.value = arrowAnimationSpeed; // Load speed value
-    if (mouseDragShadowCheckbox) mouseDragShadowCheckbox.checked = dragShadowEnabled;
-    if (dragShadowDurationSlider) dragShadowDurationSlider.value = dragShadowDuration;
-    if (dragShadowDurationValue) dragShadowDurationValue.textContent = dragShadowDuration + 'ms';
 
     updateSpan(maxRaysValueSpan, window.maxRaysPerSource, v => v);
     updateSpan(maxBouncesValueSpan, window.globalMaxBounces, v => v);
@@ -5672,11 +5508,6 @@ function initialize() {
     updateUserUI();        // Set initial user UI state based on currentUser
     activateTab('properties-tab'); // Activate properties tab by default
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
-
-    // Initialize collaboration
-    window.collaborationManager = new CollaborationManager();
-    window.collaborationUI = new CollaborationUI(window.collaborationManager);
-    window.collaborationUI.init();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace
