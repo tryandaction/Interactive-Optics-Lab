@@ -294,6 +294,8 @@ export class UnifiedProjectPanel {
     // ============ 模态框 ============
 
     showCreateProjectModal() {
+        const isFileSystemSupported = this.projectManager.isFileSystemAPISupported();
+        
         const modal = this.createModal('create-project-modal', `
             <h3>创建新项目</h3>
             <form id="create-project-form">
@@ -304,17 +306,31 @@ export class UnifiedProjectPanel {
                 <div class="form-group">
                     <label for="storage-mode">存储方式</label>
                     <select id="storage-mode">
-                        ${this.projectManager.isFileSystemAPISupported() ? `
-                            <option value="local">本地文件夹</option>
-                            <option value="github">GitHub 仓库</option>
+                        ${isFileSystemSupported ? `
+                            <option value="local">本地文件夹（选择保存位置）</option>
+                            <option value="github">GitHub 仓库（关联已克隆的仓库）</option>
                         ` : ''}
-                        <option value="localStorage">浏览器存储</option>
+                        <option value="localStorage">浏览器存储（无需选择位置）</option>
                     </select>
                 </div>
+                <div class="form-group storage-hint" id="storage-hint-local" ${isFileSystemSupported ? '' : 'style="display:none;"'}>
+                    <small style="color: var(--text-color-light);">
+                        点击"创建"后将弹出文件夹选择对话框，请选择一个位置来保存项目。
+                    </small>
+                </div>
+                <div class="form-group storage-hint" id="storage-hint-github" style="display: none;">
+                    <small style="color: var(--text-color-light);">
+                        请先在本地克隆 GitHub 仓库，然后选择克隆的文件夹。
+                    </small>
+                </div>
+                <div class="form-group storage-hint" id="storage-hint-localStorage" ${isFileSystemSupported ? 'style="display:none;"' : ''}>
+                    <small style="color: var(--text-color-light);">
+                        项目将保存在浏览器本地存储中，清除浏览器数据会丢失项目。
+                    </small>
+                </div>
                 <div class="form-group github-options" style="display: none;">
-                    <label for="github-url">GitHub 仓库 URL</label>
+                    <label for="github-url">GitHub 仓库 URL（可选）</label>
                     <input type="url" id="github-url" placeholder="https://github.com/user/repo">
-                    <small>请先在本地克隆仓库</small>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-cancel">取消</button>
@@ -326,10 +342,19 @@ export class UnifiedProjectPanel {
         // 存储模式切换
         const storageModeSelect = modal.querySelector('#storage-mode');
         const githubOptions = modal.querySelector('.github-options');
+        const hintLocal = modal.querySelector('#storage-hint-local');
+        const hintGithub = modal.querySelector('#storage-hint-github');
+        const hintLocalStorage = modal.querySelector('#storage-hint-localStorage');
         
-        storageModeSelect?.addEventListener('change', () => {
-            githubOptions.style.display = storageModeSelect.value === 'github' ? 'block' : 'none';
-        });
+        const updateHints = () => {
+            const mode = storageModeSelect.value;
+            githubOptions.style.display = mode === 'github' ? 'block' : 'none';
+            if (hintLocal) hintLocal.style.display = mode === 'local' ? 'block' : 'none';
+            if (hintGithub) hintGithub.style.display = mode === 'github' ? 'block' : 'none';
+            if (hintLocalStorage) hintLocalStorage.style.display = mode === 'localStorage' ? 'block' : 'none';
+        };
+        
+        storageModeSelect?.addEventListener('change', updateHints);
 
         // 表单提交
         modal.querySelector('#create-project-form')?.addEventListener('submit', async (e) => {
@@ -338,6 +363,11 @@ export class UnifiedProjectPanel {
             const name = modal.querySelector('#project-name').value.trim();
             const storageMode = modal.querySelector('#storage-mode').value;
             const githubUrl = modal.querySelector('#github-url')?.value.trim();
+
+            if (!name) {
+                this.showNotification('请输入项目名称', 'warning');
+                return;
+            }
 
             try {
                 await this.projectManager.createProject({
@@ -349,28 +379,61 @@ export class UnifiedProjectPanel {
                 this.closeModal(modal);
                 this.showNotification('项目创建成功', 'success');
 
+                // 刷新最近项目列表
+                this.renderRecentProjects();
+
                 // 展开新项目
                 const project = this.projectManager.getCurrentProject();
                 if (project && this.treeRenderer) {
                     this.treeRenderer.expandProject(project.id);
                 }
             } catch (err) {
-                this.showNotification(`创建项目失败: ${err.message}`, 'error');
+                if (!err.message.includes('取消')) {
+                    this.showNotification(`创建项目失败: ${err.message}`, 'error');
+                }
             }
         });
 
         modal.querySelector('.btn-cancel')?.addEventListener('click', () => {
             this.closeModal(modal);
         });
+        
+        // 聚焦到输入框
+        setTimeout(() => {
+            modal.querySelector('#project-name')?.focus();
+        }, 100);
     }
 
     showCreateSceneModal() {
+        const project = this.projectManager.getCurrentProject();
+        
+        // 如果没有打开的项目，提示用户先创建项目
+        if (!project) {
+            const confirmCreate = confirm('还没有打开的项目。是否先创建一个新项目？');
+            if (confirmCreate) {
+                this.showCreateProjectModal();
+            }
+            return;
+        }
+        
         const modal = this.createModal('create-scene-modal', `
             <h3>新建场景</h3>
+            <p style="color: var(--text-color-light); font-size: 13px; margin-bottom: 15px;">
+                项目: <strong>${this.escapeHtml(project.name)}</strong>
+            </p>
             <form id="create-scene-form">
                 <div class="form-group">
                     <label for="scene-name">场景名称</label>
                     <input type="text" id="scene-name" required placeholder="输入场景名称">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="use-current-canvas" checked>
+                        使用当前画布内容
+                    </label>
+                    <small style="display: block; color: var(--text-color-light); margin-top: 5px;">
+                        勾选后将保存当前画布上的所有元件到新场景
+                    </small>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-cancel">取消</button>
@@ -383,11 +446,39 @@ export class UnifiedProjectPanel {
             e.preventDefault();
             
             const name = modal.querySelector('#scene-name').value.trim();
+            const useCurrentCanvas = modal.querySelector('#use-current-canvas')?.checked;
+
+            if (!name) {
+                this.showNotification('请输入场景名称', 'warning');
+                return;
+            }
 
             try {
-                await this.projectManager.createScene(name);
+                // 创建场景
+                const scene = await this.projectManager.createScene(name);
+                
+                // 如果选择使用当前画布内容，保存当前场景数据
+                if (useCurrentCanvas && scene) {
+                    // 获取当前画布数据
+                    const components = window.components || [];
+                    const settings = {
+                        showGrid: window.showGrid,
+                        maxRaysPerSource: window.maxRaysPerSource,
+                        globalMaxBounces: window.globalMaxBounces,
+                        globalMinIntensity: window.globalMinIntensity
+                    };
+                    
+                    // 保存场景
+                    await this.projectManager.saveScene(components, settings);
+                }
+                
                 this.closeModal(modal);
                 this.showNotification('场景创建成功', 'success');
+                
+                // 刷新树视图
+                if (this.treeRenderer) {
+                    this.treeRenderer.render();
+                }
             } catch (err) {
                 this.showNotification(`创建场景失败: ${err.message}`, 'error');
             }
@@ -396,6 +487,11 @@ export class UnifiedProjectPanel {
         modal.querySelector('.btn-cancel')?.addEventListener('click', () => {
             this.closeModal(modal);
         });
+        
+        // 聚焦到输入框
+        setTimeout(() => {
+            modal.querySelector('#scene-name')?.focus();
+        }, 100);
     }
 
     showSyncModal() {

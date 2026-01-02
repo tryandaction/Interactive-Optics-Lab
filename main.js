@@ -3591,6 +3591,223 @@ function showTemporaryMessage(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
+// 导出到全局
+window.showTemporaryMessage = showTemporaryMessage;
+
+/**
+ * 简单的创建项目对话框（当 UnifiedProjectPanel 不可用时的回退方案）
+ */
+function showSimpleCreateProjectDialog() {
+    // 检查是否支持 File System Access API
+    const isFileSystemSupported = 'showDirectoryPicker' in window;
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'simple-create-project-modal';
+    modal.style.display = 'flex';
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="modal-close-btn" id="simple-project-modal-close">×</span>
+            <h2>创建新项目</h2>
+            <form id="simple-create-project-form">
+                <div class="form-group">
+                    <label for="simple-project-name">项目名称:</label>
+                    <input type="text" id="simple-project-name" required placeholder="输入项目名称" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="simple-storage-mode">存储方式:</label>
+                    <select id="simple-storage-mode" style="width: 100%; padding: 8px; margin-top: 5px;">
+                        ${isFileSystemSupported ? '<option value="local">本地文件夹（选择保存位置）</option>' : ''}
+                        <option value="localStorage">浏览器存储（无需选择位置）</option>
+                    </select>
+                </div>
+                <p style="font-size: 12px; color: var(--text-color-light); margin-top: 10px;">
+                    ${isFileSystemSupported ? 
+                        '选择"本地文件夹"将让您选择一个文件夹来保存项目文件。' : 
+                        '您的浏览器不支持文件系统API，项目将保存在浏览器存储中。'}
+                </p>
+                <div class="form-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" class="secondary-btn" id="simple-project-cancel">取消</button>
+                    <button type="submit" class="primary-btn">创建项目</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 关闭按钮
+    modal.querySelector('#simple-project-modal-close').addEventListener('click', () => {
+        modal.remove();
+    });
+    
+    modal.querySelector('#simple-project-cancel').addEventListener('click', () => {
+        modal.remove();
+    });
+    
+    // 点击背景关闭
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    
+    // 表单提交
+    modal.querySelector('#simple-create-project-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = modal.querySelector('#simple-project-name').value.trim();
+        const storageMode = modal.querySelector('#simple-storage-mode').value;
+        
+        if (!name) {
+            showTemporaryMessage('请输入项目名称', 'warning');
+            return;
+        }
+        
+        try {
+            if (storageMode === 'local' && isFileSystemSupported) {
+                // 使用 File System Access API
+                await createLocalFolderProject(name);
+            } else {
+                // 使用 localStorage
+                createLocalStorageProject(name);
+            }
+            
+            modal.remove();
+            showTemporaryMessage(`项目 "${name}" 创建成功！`, 'success');
+            
+            // 切换到项目标签页
+            activateTab('unified-project-tab');
+        } catch (err) {
+            if (!err.message.includes('取消')) {
+                showTemporaryMessage(`创建项目失败: ${err.message}`, 'error');
+            }
+        }
+    });
+    
+    // 聚焦到输入框
+    setTimeout(() => {
+        modal.querySelector('#simple-project-name').focus();
+    }, 100);
+}
+
+/**
+ * 使用 File System Access API 创建本地文件夹项目
+ */
+async function createLocalFolderProject(name) {
+    // 让用户选择父目录
+    const parentHandle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+        startIn: 'documents'
+    });
+    
+    // 创建项目目录
+    const projectHandle = await parentHandle.getDirectoryHandle(name, { create: true });
+    
+    // 创建项目配置文件
+    const configFile = await projectHandle.getFileHandle('.opticslab.json', { create: true });
+    const config = {
+        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11),
+        name: name,
+        storageMode: 'local',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        scenes: []
+    };
+    
+    const writable = await configFile.createWritable();
+    await writable.write(JSON.stringify(config, null, 2));
+    await writable.close();
+    
+    // 保存到最近项目列表
+    saveToRecentProjects({
+        id: config.id,
+        name: name,
+        storageMode: 'local',
+        path: name,
+        updatedAt: config.updatedAt
+    });
+    
+    // 如果 UnifiedProjectPanel 可用，通知它刷新
+    if (window.unifiedProjectPanel) {
+        window.unifiedProjectPanel.renderRecentProjects?.();
+    }
+    
+    return config;
+}
+
+/**
+ * 使用 localStorage 创建项目
+ */
+function createLocalStorageProject(name) {
+    const project = {
+        id: 'proj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11),
+        name: name,
+        storageMode: 'localStorage',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        scenes: []
+    };
+    
+    // 保存到 localStorage
+    const projectsKey = 'opticslab_projects';
+    let projects = [];
+    try {
+        const data = localStorage.getItem(projectsKey);
+        projects = data ? JSON.parse(data) : [];
+    } catch (e) {
+        projects = [];
+    }
+    
+    projects.push(project);
+    localStorage.setItem(projectsKey, JSON.stringify(projects));
+    
+    // 保存到最近项目列表
+    saveToRecentProjects({
+        id: project.id,
+        name: name,
+        storageMode: 'localStorage',
+        updatedAt: project.updatedAt
+    });
+    
+    // 如果 UnifiedProjectPanel 可用，通知它刷新
+    if (window.unifiedProjectPanel) {
+        window.unifiedProjectPanel.renderRecentProjects?.();
+    }
+    
+    return project;
+}
+
+/**
+ * 保存到最近项目列表
+ */
+function saveToRecentProjects(projectInfo) {
+    const recentKey = 'opticslab_recent_projects';
+    const maxRecent = 5;
+    
+    let recent = [];
+    try {
+        const data = localStorage.getItem(recentKey);
+        recent = data ? JSON.parse(data) : [];
+    } catch (e) {
+        recent = [];
+    }
+    
+    // 移除已存在的同一项目
+    recent = recent.filter(p => p.id !== projectInfo.id);
+    
+    // 添加到开头
+    recent.unshift(projectInfo);
+    
+    // 限制数量
+    if (recent.length > maxRecent) {
+        recent = recent.slice(0, maxRecent);
+    }
+    
+    localStorage.setItem(recentKey, JSON.stringify(recent));
+}
+
 /**
  * 改进的键盘快捷键提示
  */
@@ -4332,10 +4549,42 @@ function setupEventListeners() {
     // --- Top Menubar ---
     console.log("Setting up top menubar listeners...");
     // File Menu
-    document.getElementById('menu-new-scene')?.addEventListener('click', (e) => { e.preventDefault(); if (sceneModified && !confirm("当前场景有未保存的更改。确定要新建场景并放弃更改吗？")) return; console.log("Action: New Scene"); components = []; selectedComponent = null; updateInspector(); activateTab('properties-tab'); cameraOffset = new Vector(0, 0); cameraScale = 1.0; sceneModified = false; needsRetrace = true; });
+    document.getElementById('menu-new-scene')?.addEventListener('click', (e) => { 
+        e.preventDefault(); 
+        if (sceneModified && !confirm("当前场景有未保存的更改。确定要新建场景并放弃更改吗？")) return; 
+        console.log("Action: New Scene"); 
+        components = []; 
+        selectedComponent = null; 
+        updateInspector(); 
+        activateTab('properties-tab'); 
+        cameraOffset = new Vector(0, 0); 
+        cameraScale = 1.0; 
+        sceneModified = false; 
+        needsRetrace = true; 
+    });
+    
+    // 新建项目 - 连接到 UnifiedProjectPanel
+    document.getElementById('menu-new-project')?.addEventListener('click', (e) => { 
+        e.preventDefault(); 
+        console.log("Action: New Project");
+        if (window.unifiedProjectPanel) {
+            window.unifiedProjectPanel.showCreateProjectModal();
+        } else {
+            // 回退：显示简单的创建项目对话框
+            showSimpleCreateProjectDialog();
+        }
+    });
+    
+    // 管理项目 - 切换到项目标签页
+    document.getElementById('menu-manage-projects')?.addEventListener('click', (e) => { 
+        e.preventDefault(); 
+        console.log("Action: Manage Projects");
+        activateTab('unified-project-tab');
+    });
+    
     document.getElementById('menu-import-scene')?.addEventListener('click', (e) => { e.preventDefault(); triggerFileInputForImport(); });
     document.getElementById('menu-export-scene')?.addEventListener('click', (e) => { e.preventDefault(); exportScene(); });
-    document.getElementById('menu-manage-scenes')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('scenes-tab'); });
+    document.getElementById('menu-manage-scenes')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('unified-project-tab'); });
 
     // Edit Menu
     document.getElementById('menu-delete-selected')?.addEventListener('click', (e) => {

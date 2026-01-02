@@ -1,0 +1,8 @@
+{
+  "id": "proj_1767323633555_469f0d71a",
+  "name": "presets",
+  "storageMode": "local",
+  "syncCommandTemplate": "git add .\ngit commit -m \"{{message}}\"\ngit push origin main",
+  "createdAt": "2026-01-02T03:13:53.556Z",
+  "updatedAt": "2026-01-02T03:13:53.556Z"
+}
