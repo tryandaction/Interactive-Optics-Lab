@@ -70,6 +70,12 @@ import {
     ClearAllCommand, CompositeCommand, SelectCommand, MoveComponentsCommand
 } from '../managers/HistoryManager.js';
 import { SceneManager } from '../managers/SceneManager.js';
+import { Serializer } from '../managers/Serializer.js';
+import { FileSystemAdapter } from '../managers/FileSystemAdapter.js';
+import { LocalStorageAdapter } from '../managers/LocalStorageAdapter.js';
+import { ProjectManager } from '../managers/ProjectManager.js';
+import { ActiveSceneManager } from '../managers/ActiveSceneManager.js';
+import { SyncService } from '../managers/SyncService.js';
 
 // 应用
 import { SimulationApp } from '../app/SimulationApp.js';
@@ -167,6 +173,12 @@ if (typeof window !== 'undefined') {
     window.SelectCommand = SelectCommand;
     window.MoveComponentsCommand = MoveComponentsCommand;
     window.SceneManager = SceneManager;
+    window.Serializer = Serializer;
+    window.FileSystemAdapter = FileSystemAdapter;
+    window.LocalStorageAdapter = LocalStorageAdapter;
+    window.ProjectManager = ProjectManager;
+    window.ActiveSceneManager = ActiveSceneManager;
+    window.SyncService = SyncService;
 
     // 应用
     window.SimulationApp = SimulationApp;

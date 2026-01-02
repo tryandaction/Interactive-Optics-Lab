@@ -9,8 +9,10 @@
 
     <!-- Link to the external CSS file -->
     <link rel="stylesheet" href="style.css">
-    <!-- Collaboration styles -->
+    <!-- Collaboration styles (legacy, to be removed) -->
     <link rel="stylesheet" href="collaboration.css">
+    <!-- Unified Project Panel styles -->
+    <link rel="stylesheet" href="src/ui/project-panel.css">
 </head>
 
 <body> <!-- Visible content of the webpage -->
@@ -439,10 +441,8 @@
             <div class="tab-container">
                 <button class="tab-button active" data-tab="properties-tab">属性</button>
                 <button class="tab-button" data-tab="settings-tab">设置</button>
-                <button class="tab-button" data-tab="scenes-tab">场景</button>
-                <button class="tab-button" data-tab="projects-tab">项目</button>
-                <button class="tab-button" data-tab="collaboration-tab">协作</button>
-                <button class="tab-button" data-tab="info-tab">信息</button> <!-- Placeholder -->
+                <button class="tab-button" data-tab="unified-project-tab">项目</button>
+                <button class="tab-button" data-tab="info-tab">信息</button>
             </div>
 
             <div id="properties-tab" class="tab-content active">
@@ -534,134 +534,19 @@
                 </div>
             </div>
 
-            <div id="scenes-tab" class="tab-content">
-                <h4>场景管理</h4>
-                <p class="scene-tab-info"><i>管理您的光学实验场景，支持分类、搜索和云端同步。</i></p>
-
-                <!-- 搜索和筛选工具栏 -->
-                <div class="scene-toolbar">
-                    <input type="text" id="scene-search" placeholder="搜索场景..." class="scene-search">
-                    <select id="scene-category-filter" class="scene-category-filter">
-                        <option value="all">全部分类</option>
-                        <option value="recent">最近使用</option>
-                        <option value="favorites">收藏夹</option>
-                        <option value="physics">物理实验</option>
-                        <option value="education">教学演示</option>
-                        <option value="research">科研项目</option>
-                        <option value="templates">模板</option>
-                    </select>
-                    <select id="scene-sort" class="scene-sort">
-                        <option value="date_modified">按修改时间</option>
-                        <option value="name">按名称</option>
-                        <option value="date_created">按创建时间</option>
-                        <option value="last_accessed">按访问时间</option>
-                        <option value="access_count">按访问次数</option>
-                    </select>
-                </div>
-
-                <!-- 场景列表 -->
-                <div id="saved-scenes-list">
-                    <p class="placeholder-text">没有已保存的场景。</p>
-                </div>
-
-                <!-- 场景操作按钮 -->
-                <div class="scene-actions">
-                    <button id="scene-save-as-btn" class="primary-btn">保存当前场景...</button>
-                    <button id="scene-import-btn">导入文件...</button>
-                    <button id="scene-export-all-btn">批量导出...</button>
-                </div>
-            </div>
-
-            <div id="projects-tab" class="tab-content">
-                <h4>项目管理</h4>
-                <p class="scene-tab-info"><i>创建和管理协作项目，支持多用户同时编辑。</i></p>
-
-                <!-- 项目搜索和筛选工具栏 -->
-                <div class="scene-toolbar">
-                    <input type="text" id="project-search" placeholder="搜索项目..." class="scene-search">
-                    <select id="project-category-filter" class="scene-category-filter">
-                        <option value="all">全部项目</option>
-                        <option value="owned">我创建的</option>
-                        <option value="shared">分享给我的</option>
-                        <option value="recent">最近使用</option>
-                        <option value="active">进行中</option>
-                    </select>
-                    <select id="project-sort" class="scene-sort">
-                        <option value="date_modified">按修改时间</option>
-                        <option value="name">按名称</option>
-                        <option value="date_created">按创建时间</option>
-                        <option value="collaborators">按协作者数</option>
-                    </select>
-                </div>
-
-                <!-- 项目列表 -->
-                <div id="projects-list">
-                    <p class="placeholder-text">没有项目，请先创建一个新项目。</p>
-                </div>
-
-                <!-- 项目操作按钮 -->
-                <div class="scene-actions">
-                    <button id="project-create-btn" class="primary-btn">创建新项目</button>
-                    <button id="project-import-btn">导入项目</button>
-                </div>
-            </div>
-
-            <div id="collaboration-tab" class="tab-content">
-                <h4>协作面板</h4>
-                <p class="scene-tab-info"><i>查看当前项目的协作者和协作状态。</i></p>
-
-                <!-- 当前项目信息 -->
-                <div id="current-project-info" style="display: none;">
-                    <h5>当前项目</h5>
-                    <div id="project-details">
-                        <p><strong>项目名：</strong><span id="current-project-name"></span></p>
-                        <p><strong>所有者：</strong><span id="current-project-owner"></span></p>
-                        <p><strong>协作者：</strong><span id="current-project-collaborators"></span></p>
-                    </div>
-                    <hr>
-                </div>
-
-                <!-- 在线用户列表 -->
-                <div id="online-users-section">
-                    <h5>在线协作者</h5>
-                    <div id="online-users-list">
-                        <p class="placeholder-text">暂无协作者在线</p>
-                    </div>
-                </div>
-
-                <!-- 用户内容过滤器 -->
-                <div id="user-filter-section" style="display: none;">
-                    <h5>内容过滤</h5>
-                    <div class="prop">
-                        <label for="user-content-filter">显示用户内容:</label>
-                        <select id="user-content-filter">
-                            <option value="all">显示全部</option>
-                            <option value="mine">仅显示我的内容</option>
-                            <!-- 动态添加其他用户的选项 -->
-                        </select>
-                    </div>
-                    <div class="prop">
-                        <label for="dim-other-content">淡化其他用户内容:</label>
-                        <input type="checkbox" id="dim-other-content" checked>
-                    </div>
-                </div>
-
-                <!-- 协作操作 -->
-                <div class="scene-actions">
-                    <button id="invite-collaborator-btn">邀请协作者</button>
-                    <button id="leave-project-btn" style="display: none;">离开项目</button>
-                </div>
+            <!-- 新的统一项目面板 -->
+            <div id="unified-project-tab" class="tab-content">
+                <!-- 由 UnifiedProjectPanel 动态渲染 -->
             </div>
 
             <div id="info-tab" class="tab-content">
                 <h4>信息</h4>
-                <p>交互式光学实验室 v2.0</p>
-                <p>纯前端版本 - 无需后端服务器</p>
-                <p>所有数据保存在浏览器本地存储中</p>
+                <p>交互式光学实验室 v2.1</p>
+                <p>统一项目管理版本</p>
+                <p>支持本地文件夹和 GitHub 仓库</p>
                 <hr class="thin-hr">
                 <p><a href="https://github.com/tryandaction/Interactive-Optics-Lab" target="_blank">GitHub 项目主页</a></p>
                 <p>更多信息和帮助请查阅用户指南。</p>
-                <!-- Add version details, links etc. -->
             </div>
         </div> <!-- End Inspector -->
 
@@ -920,12 +805,35 @@
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
     <script type="module" src="src/compat/legacy-globals.js"></script>
     
+    <!-- 统一项目管理模块 -->
+    <script type="module">
+        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';
+        
+        // 等待 DOM 加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化统一项目面板
+            window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
+            
+            // 监听场景数据加载事件
+            document.addEventListener('sceneDataLoaded', (e) => {
+                const { components, settings } = e.detail;
+                if (window.loadSceneFromData) {
+                    window.loadSceneFromData({ components, settings });
+                }
+            });
+            
+            console.log('UnifiedProjectPanel initialized');
+        });
+    </script>
+    
     <!-- 应用代码 -->
     <script src="user.js"></script> <!-- 用户管理模块 -->
     <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
-    <script src="projectManager.js"></script> <!-- 项目管理模块 -->
-    <script src="collaborationManager.js"></script> <!-- 协作管理器 -->
-    <script src="collaborationUI.js"></script> <!-- 协作UI界面 -->
+    <!-- 旧的项目管理模块（已被 UnifiedProjectPanel 替代） -->
+    <!-- <script src="projectManager.js"></script> -->
+    <!-- 旧的协作模块（已移除） -->
+    <!-- <script src="collaborationManager.js"></script> -->
+    <!-- <script src="collaborationUI.js"></script> -->
     <script src="main.js"></script>
 
 </body>

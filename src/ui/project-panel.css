@@ -1,0 +1,393 @@
+/**
+ * project-panel.css - 统一项目面板样式
+ */
+
+/* ============ 面板容器 ============ */
+.unified-project-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+/* ============ 工具栏 ============ */
+.project-panel-toolbar {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    margin-bottom: 8px;
+}
+
+.project-panel-toolbar .btn-icon {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.project-panel-toolbar .btn-icon:hover:not(:disabled) {
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.1));
+}
+
+.project-panel-toolbar .btn-icon:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.project-panel-toolbar .toolbar-spacer {
+    flex: 1;
+}
+
+/* ============ 项目树 ============ */
+.project-tree-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 150px;
+}
+
+.project-tree {
+    font-size: 13px;
+}
+
+.tree-node {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+    transition: background-color 0.15s;
+}
+
+.tree-node:hover {
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.tree-node.active {
+    background-color: var(--active-bg, rgba(0, 120, 212, 0.1));
+    color: var(--active-color, #0078d4);
+}
+
+.tree-node.dragging {
+    opacity: 0.5;
+}
+
+.tree-node .node-toggle {
+    width: 16px;
+    font-size: 10px;
+    color: var(--text-color-light, #666);
+}
+
+.tree-node .node-icon {
+    margin-right: 6px;
+    font-size: 14px;
+}
+
+.tree-node .node-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-node .node-name.placeholder {
+    color: var(--text-color-light, #999);
+    font-style: italic;
+}
+
+.tree-node .sync-indicator {
+    margin-left: 4px;
+    font-size: 12px;
+}
+
+.tree-children {
+    padding-left: 20px;
+}
+
+.project-node {
+    font-weight: 500;
+}
+
+.scene-node {
+    font-weight: normal;
+}
+
+/* 空状态 */
+.project-tree-empty {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-color-light, #666);
+}
+
+.project-tree-empty .empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.project-tree-empty p {
+    margin: 0 0 16px 0;
+}
+
+.project-tree-empty .empty-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.project-tree-empty button {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #ddd);
+    background: var(--bg-color, #fff);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.project-tree-empty button:hover {
+    background: var(--hover-bg, #f5f5f5);
+}
+
+/* ============ 右键菜单 ============ */
+.project-tree-context-menu {
+    position: fixed;
+    background: var(--bg-color, #fff);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 150px;
+    z-index: 10000;
+    padding: 4px 0;
+}
+
+.project-tree-context-menu hr {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid var(--border-color, #eee);
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.15s;
+}
+
+.context-menu-item:hover {
+    background-color: var(--hover-bg, rgba(0, 120, 212, 0.1));
+}
+
+/* ============ 同步状态栏 ============ */
+.sync-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--info-bg, #e7f3ff);
+    border-radius: 4px;
+    margin: 8px 0;
+    font-size: 12px;
+}
+
+.sync-status-bar .sync-status-icon {
+    font-size: 14px;
+}
+
+/* ============ 最近项目 ============ */
+.recent-projects-section {
+    border-top: 1px solid var(--border-color, #ddd);
+    padding-top: 8px;
+    margin-top: 8px;
+}
+
+.recent-projects-section h5 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: var(--text-color-light, #666);
+    font-weight: 500;
+}
+
+.recent-projects-list {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.recent-project-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: background-color 0.15s;
+}
+
+.recent-project-item:hover {
+    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.recent-project-item .recent-project-icon {
+    font-size: 14px;
+}
+
+.recent-project-item .recent-project-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============ 回退提示 ============ */
+.fallback-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--warning-bg, #fff3cd);
+    border-radius: 4px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--warning-color, #856404);
+}
+
+/* ============ 模态框增强 ============ */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="url"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 4px;
+    font-size: 13px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color, #0078d4);
+    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-color-light, #666);
+}
+
+.form-group .variables-list {
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-color-light, #666);
+}
+
+.form-group .variables-list code {
+    background: var(--code-bg, #f5f5f5);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.form-actions button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border-color, #ddd);
+    color: var(--text-color, #333);
+}
+
+.btn-cancel:hover {
+    background: var(--hover-bg, #f5f5f5);
+}
+
+.btn-secondary {
+    background: var(--secondary-bg, #f0f0f0);
+    border: 1px solid var(--border-color, #ddd);
+    color: var(--text-color, #333);
+}
+
+.btn-secondary:hover {
+    background: var(--hover-bg, #e5e5e5);
+}
+
+.btn-primary {
+    background: var(--primary-color, #0078d4);
+    border: 1px solid var(--primary-color, #0078d4);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover, #106ebe);
+}
+
+.btn-link {
+    background: transparent;
+    border: none;
+    color: var(--primary-color, #0078d4);
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.btn-link:hover {
+    color: var(--primary-hover, #106ebe);
+}
+
+/* 命令预览 */
+.command-preview {
+    background: var(--code-bg, #1e1e1e);
+    color: var(--code-color, #d4d4d4);
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ============ 占位文本 ============ */
+.placeholder-text {
+    color: var(--text-color-light, #999);
+    font-style: italic;
+    font-size: 12px;
+    text-align: center;
+    padding: 12px;
+}
