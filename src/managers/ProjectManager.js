@@ -6,12 +6,19 @@
 import { FileSystemAdapter } from './FileSystemAdapter.js';
 import { LocalStorageAdapter } from './LocalStorageAdapter.js';
 import { Serializer } from './Serializer.js';
+import { 
+    validateFileName, 
+    ProjectError, 
+    ProjectErrorCode,
+    generateId 
+} from './types.js';
 
 export class ProjectManager {
     static RECENT_PROJECTS_KEY = 'opticslab_recent_projects';
     static MAX_RECENT_PROJECTS = 5;
     static PROJECT_CONFIG_FILE = '.opticslab.json';
     static SCENE_EXTENSION = '.scene.json';
+    static USER_SETTINGS_KEY = 'opticslab_user_settings';
 
     constructor() {
         this.currentProject = null;
@@ -21,7 +28,133 @@ export class ProjectManager {
         this.recentProjects = [];
         this.listeners = new Map();
         
+        /** @type {FileSystemDirectoryHandle|null} */
+        this.defaultProjectDirectory = null;
+        
+        /** @type {string|null} */
+        this.defaultProjectDirectoryPath = null;
+        
         this.loadRecentProjects();
+        this.loadUserSettings();
+    }
+
+    // ============ 用户设置 ============
+
+    /**
+     * 加载用户设置
+     */
+    loadUserSettings() {
+        try {
+            const data = localStorage.getItem(ProjectManager.USER_SETTINGS_KEY);
+            if (data) {
+                const settings = JSON.parse(data);
+                this.defaultProjectDirectoryPath = settings.defaultProjectDirectory || null;
+            }
+        } catch (e) {
+            console.warn('Failed to load user settings:', e);
+        }
+    }
+
+    /**
+     * 保存用户设置
+     */
+    saveUserSettings() {
+        try {
+            const settings = {
+                defaultProjectDirectory: this.defaultProjectDirectoryPath
+            };
+            localStorage.setItem(ProjectManager.USER_SETTINGS_KEY, JSON.stringify(settings));
+        } catch (e) {
+            console.warn('Failed to save user settings:', e);
+        }
+    }
+
+    /**
+     * 设置默认项目目录
+     * @param {FileSystemDirectoryHandle} handle - 目录句柄
+     */
+    async setDefaultDirectory(handle) {
+        if (!handle) {
+            this.defaultProjectDirectory = null;
+            this.defaultProjectDirectoryPath = null;
+        } else {
+            this.defaultProjectDirectory = handle;
+            this.defaultProjectDirectoryPath = handle.name;
+        }
+        this.saveUserSettings();
+        this.emit('defaultDirectoryChanged', { 
+            handle: this.defaultProjectDirectory,
+            path: this.defaultProjectDirectoryPath 
+        });
+    }
+
+    /**
+     * 获取默认项目目录路径
+     * @returns {string|null}
+     */
+    getDefaultDirectoryPath() {
+        return this.defaultProjectDirectoryPath;
+    }
+
+    /**
+     * 获取默认项目目录句柄
+     * @returns {FileSystemDirectoryHandle|null}
+     */
+    getDefaultDirectory() {
+        return this.defaultProjectDirectory;
+    }
+
+    /**
+     * 选择并设置默认项目目录
+     * @returns {Promise<FileSystemDirectoryHandle|null>}
+     */
+    async selectDefaultDirectory() {
+        try {
+            const handle = await FileSystemAdapter.selectDirectory({
+                startIn: 'documents'
+            });
+            
+            const hasPermission = await FileSystemAdapter.requestPermission(handle);
+            if (!hasPermission) {
+                throw new ProjectError('需要文件访问权限', ProjectErrorCode.PERMISSION_DENIED);
+            }
+            
+            await this.setDefaultDirectory(handle);
+            return handle;
+        } catch (e) {
+            if (e.message?.includes('用户取消')) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    // ============ 项目名称验证 ============
+
+    /**
+     * 验证项目名称
+     * @param {string} name - 项目名称
+     * @returns {{valid: boolean, error?: string}}
+     */
+    validateProjectName(name) {
+        if (!name || !name.trim()) {
+            return { valid: false, error: '项目名称不能为空' };
+        }
+        
+        const trimmedName = name.trim();
+        
+        // 使用文件名验证（项目名称会作为目录名）
+        const fileValidation = validateFileName(trimmedName);
+        if (!fileValidation.valid) {
+            return { valid: false, error: fileValidation.error };
+        }
+        
+        // 额外检查：长度限制
+        if (trimmedName.length > 255) {
+            return { valid: false, error: '项目名称过长（最多255个字符）' };
+        }
+        
+        return { valid: true };
     }
 
     // ============ 事件系统 ============
@@ -76,12 +209,14 @@ export class ProjectManager {
     async createProject(config) {
         const { name, storageMode, githubUrl, syncCommandTemplate } = config;
 
-        if (!name || !name.trim()) {
-            throw new Error('项目名称不能为空');
+        // 验证项目名称
+        const validation = this.validateProjectName(name);
+        if (!validation.valid) {
+            throw new ProjectError(validation.error, ProjectErrorCode.INVALID_FILE_NAME);
         }
 
         const project = {
-            id: this.generateId('proj'),
+            id: generateId('proj'),
             name: name.trim(),
             storageMode: storageMode || 'local',
             githubUrl: storageMode === 'github' ? githubUrl : null,
@@ -94,7 +229,7 @@ export class ProjectManager {
 
         if (storageMode === 'local' && this.isFileSystemSupported) {
             // 使用 File System Access API
-            await this.createLocalProject(project);
+            await this.createLocalProject(project, config.parentDirectory);
         } else if (storageMode === 'github' && this.isFileSystemSupported) {
             // GitHub 项目需要选择本地克隆目录
             await this.createGitHubProject(project, config.localPath);
@@ -114,13 +249,30 @@ export class ProjectManager {
 
     /**
      * 创建本地文件夹项目
+     * @param {Object} project - 项目对象
+     * @param {FileSystemDirectoryHandle} [parentDirectory] - 父目录（可选，默认使用默认目录或让用户选择）
      */
-    async createLocalProject(project) {
+    async createLocalProject(project, parentDirectory) {
         try {
-            // 让用户选择父目录
-            const parentHandle = await FileSystemAdapter.selectDirectory({
-                startIn: 'documents'
-            });
+            let parentHandle = parentDirectory;
+            
+            // 如果没有提供父目录，尝试使用默认目录或让用户选择
+            if (!parentHandle) {
+                if (this.defaultProjectDirectory) {
+                    // 验证默认目录权限
+                    const hasPermission = await FileSystemAdapter.requestPermission(this.defaultProjectDirectory);
+                    if (hasPermission) {
+                        parentHandle = this.defaultProjectDirectory;
+                    }
+                }
+                
+                // 如果仍然没有有效的父目录，让用户选择
+                if (!parentHandle) {
+                    parentHandle = await FileSystemAdapter.selectDirectory({
+                        startIn: 'documents'
+                    });
+                }
+            }
 
             // 创建项目目录
             const projectHandle = await FileSystemAdapter.createDirectory(parentHandle, project.name);
@@ -131,7 +283,8 @@ export class ProjectManager {
 
             project.path = project.name;
         } catch (e) {
-            throw new Error(`创建项目失败: ${e.message}`);
+            if (e instanceof ProjectError) throw e;
+            throw new ProjectError(`创建项目失败: ${e.message}`, ProjectErrorCode.OPERATION_FAILED);
         }
     }
 
@@ -674,10 +827,11 @@ git push origin main`;
     // ============ 工具方法 ============
 
     /**
-     * 生成唯一ID
+     * 生成唯一ID (使用导入的 generateId)
+     * @deprecated 使用 generateId from types.js
      */
     generateId(prefix = 'id') {
-        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        return generateId(prefix);
     }
 
     /**
@@ -743,13 +897,106 @@ git push origin main`;
 
     /**
      * 关闭当前项目
+     * @param {import('./types.js').CloseOptions} [options] - 关闭选项
+     * @returns {Promise<boolean>} 是否成功关闭
      */
-    closeProject() {
+    async closeProject(options = {}) {
+        if (!this.currentProject) {
+            return true;
+        }
+
+        const { force = false, saveAll = false, discardAll = false } = options;
+
+        // 检查未保存的更改
+        if (!force && !discardAll) {
+            const unsavedScenes = this.getUnsavedScenes();
+            
+            if (unsavedScenes.length > 0) {
+                if (saveAll) {
+                    // 保存所有未保存的场景
+                    for (const scene of unsavedScenes) {
+                        try {
+                            // 如果当前场景是未保存的，需要特殊处理
+                            if (this.currentScene && this.currentScene.id === scene.id) {
+                                // 发出事件让 UI 层处理保存
+                                this.emit('saveRequested', scene);
+                            }
+                        } catch (e) {
+                            console.error(`Failed to save scene ${scene.name}:`, e);
+                            // 保存失败，发出事件
+                            this.emit('saveFailed', { scene, error: e });
+                            return false;
+                        }
+                    }
+                } else {
+                    // 发出未保存更改检测事件，让 UI 层处理
+                    this.emit('unsavedChangesDetected', {
+                        scenes: unsavedScenes,
+                        callback: async (choice) => {
+                            if (choice === 'save') {
+                                return await this.closeProject({ ...options, saveAll: true });
+                            } else if (choice === 'discard') {
+                                return await this.closeProject({ ...options, discardAll: true });
+                            }
+                            // cancel - 不关闭
+                            return false;
+                        }
+                    });
+                    return false;
+                }
+            }
+        }
+
+        // 执行关闭
+        const closedProject = this.currentProject;
         this.currentProject = null;
         this.currentScene = null;
         this.directoryHandle = null;
-        this.emit('projectClosed');
+        
+        this.emit('projectClosed', closedProject);
         this.emit('projectChanged', null);
+        
+        return true;
+    }
+
+    /**
+     * 获取所有未保存的场景
+     * @returns {Array<{id: string, name: string, isModified: boolean}>}
+     */
+    getUnsavedScenes() {
+        const unsaved = [];
+        
+        // 检查当前场景
+        if (this.currentScene && this.currentScene.isModified) {
+            unsaved.push({
+                id: this.currentScene.id,
+                name: this.currentScene.name,
+                isModified: true
+            });
+        }
+        
+        // 检查项目中标记为已修改的场景
+        if (this.currentProject && this.currentProject.scenes) {
+            for (const scene of this.currentProject.scenes) {
+                if (scene.isModified && !unsaved.find(s => s.id === scene.id)) {
+                    unsaved.push({
+                        id: scene.id,
+                        name: scene.name,
+                        isModified: true
+                    });
+                }
+            }
+        }
+        
+        return unsaved;
+    }
+
+    /**
+     * 检查是否有未保存的更改
+     * @returns {boolean}
+     */
+    hasUnsavedChanges() {
+        return this.getUnsavedScenes().length > 0;
     }
 }
 

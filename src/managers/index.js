@@ -29,3 +29,32 @@ export { ProjectManager } from './ProjectManager.js';
 export { ActiveSceneManager } from './ActiveSceneManager.js';
 
 export { SyncService } from './SyncService.js';
+
+// 新增管理器
+export { EventEmitter } from './EventEmitter.js';
+
+export { TemporarySceneManager } from './TemporarySceneManager.js';
+
+export { FileOperationManager } from './FileOperationManager.js';
+
+export { SelectionManager } from './SelectionManager.js';
+
+export { ClipboardManager } from './ClipboardManager.js';
+
+export { DialogManager } from './DialogManager.js';
+
+export { ContextMenuManager } from './ContextMenuManager.js';
+
+export { AutoRecoveryManager } from './AutoRecoveryManager.js';
+
+export { ProjectSystemIntegration } from './ProjectSystemIntegration.js';
+
+// 类型和工具函数
+export {
+    ProjectErrorCode,
+    ProjectError,
+    generateId,
+    validateFileName,
+    generateUniqueFileName,
+    getCurrentTimestamp
+} from './types.js';
