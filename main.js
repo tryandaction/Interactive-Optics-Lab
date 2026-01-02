@@ -874,7 +874,6 @@ function drawPlacementPreview(ctx) {
 
     ctx.save();
     ctx.globalAlpha = 0.5; // Make preview semi-transparent
-    ctx.setLineDash([3, 3]); // Dashed outline
 
     // Create a temporary dummy component at mouse position for drawing its preview
     let previewComp = null;
@@ -934,10 +933,30 @@ function drawPlacementPreview(ctx) {
         if (previewComp) {
             // Use the component's own draw method for the preview
             previewComp.selected = false; // Ensure it's not drawn as selected
+            
+            // 保存当前状态，绘制元件，然后恢复状态
+            ctx.save();
             previewComp.draw(ctx);
+            ctx.restore();
+            
+            // 绘制虚线边框以指示这是预览
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 1;
+            
+            const bbox = previewComp.getBoundingBox ? previewComp.getBoundingBox() : null;
+            if (bbox) {
+                const padding = 5;
+                ctx.strokeRect(
+                    bbox.x - padding, 
+                    bbox.y - padding, 
+                    bbox.width + padding * 2, 
+                    bbox.height + padding * 2
+                );
+            }
         }
     } catch (e) { console.error("Error creating preview component:", e); }
-ctx.restore();
+    ctx.restore();
 }
 
 // --- Mouse Event Handlers ---
