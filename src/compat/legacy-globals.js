@@ -53,7 +53,10 @@ import {
 import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging } from '../simulation/index.js';
 
 // UI 模块
-import { EventHandler, Inspector, PROPERTY_GROUPS, Toolbar, DEFAULT_TOOL_GROUPS } from '../ui/index.js';
+import { 
+    EventHandler, Inspector, PROPERTY_GROUPS, Toolbar, DEFAULT_TOOL_GROUPS,
+    ProjectTreeRenderer, UnifiedProjectPanel 
+} from '../ui/index.js';
 
 // 状态管理
 import * as GlobalStateModule from '../state/GlobalState.js';
@@ -149,6 +152,8 @@ if (typeof window !== 'undefined') {
     window.PROPERTY_GROUPS = PROPERTY_GROUPS;
     window.Toolbar = Toolbar;
     window.DEFAULT_TOOL_GROUPS = DEFAULT_TOOL_GROUPS;
+    window.ProjectTreeRenderer = ProjectTreeRenderer;
+    window.UnifiedProjectPanel = UnifiedProjectPanel;
 
     // 状态管理
     window.GlobalState = GlobalStateModule;
