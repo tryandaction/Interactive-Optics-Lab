@@ -3595,6 +3595,35 @@ function showTemporaryMessage(message, type = 'info', duration = 3000) {
 window.showTemporaryMessage = showTemporaryMessage;
 
 /**
+ * 处理新建场景
+ */
+function handleNewScene() {
+    if (sceneModified && !confirm("当前场景有未保存的更改。确定要新建场景并放弃更改吗？")) {
+        return;
+    }
+    console.log("Action: New Scene");
+    components = [];
+    selectedComponent = null;
+    selectedComponents = [];
+    updateInspector();
+    activateTab('properties-tab');
+    cameraOffset = new Vector(0, 0);
+    cameraScale = 1.0;
+    sceneModified = false;
+    needsRetrace = true;
+    showTemporaryMessage('已创建新场景', 'success');
+}
+
+/**
+ * 处理新建项目
+ */
+function handleNewProject() {
+    console.log("handleNewProject called");
+    // 直接显示创建项目对话框，不依赖 UnifiedProjectPanel
+    showSimpleCreateProjectDialog();
+}
+
+/**
  * 简单的创建项目对话框（当 UnifiedProjectPanel 不可用时的回退方案）
  */
 function showSimpleCreateProjectDialog() {
@@ -4548,39 +4577,47 @@ function setupEventListeners() {
 
     // --- Top Menubar ---
     console.log("Setting up top menubar listeners...");
-    // File Menu
-    document.getElementById('menu-new-scene')?.addEventListener('click', (e) => { 
-        e.preventDefault(); 
-        if (sceneModified && !confirm("当前场景有未保存的更改。确定要新建场景并放弃更改吗？")) return; 
-        console.log("Action: New Scene"); 
-        components = []; 
-        selectedComponent = null; 
-        updateInspector(); 
-        activateTab('properties-tab'); 
-        cameraOffset = new Vector(0, 0); 
-        cameraScale = 1.0; 
-        sceneModified = false; 
-        needsRetrace = true; 
-    });
     
-    // 新建项目 - 连接到 UnifiedProjectPanel
-    document.getElementById('menu-new-project')?.addEventListener('click', (e) => { 
-        e.preventDefault(); 
-        console.log("Action: New Project");
-        if (window.unifiedProjectPanel) {
-            window.unifiedProjectPanel.showCreateProjectModal();
-        } else {
-            // 回退：显示简单的创建项目对话框
-            showSimpleCreateProjectDialog();
-        }
-    });
+    // 调试：检查元素是否存在
+    const menuNewProject = document.getElementById('menu-new-project');
+    const menuNewScene = document.getElementById('menu-new-scene');
+    console.log("menu-new-project element:", menuNewProject);
+    console.log("menu-new-scene element:", menuNewScene);
+    
+    // File Menu
+    if (menuNewScene) {
+        menuNewScene.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            e.stopPropagation();
+            console.log("menu-new-scene clicked!");
+            handleNewScene();
+        });
+    } else {
+        console.error("menu-new-scene element not found!");
+    }
+    
+    // 新建项目
+    if (menuNewProject) {
+        menuNewProject.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            e.stopPropagation();
+            console.log("menu-new-project clicked!");
+            handleNewProject();
+        });
+    } else {
+        console.error("menu-new-project element not found!");
+    }
     
     // 管理项目 - 切换到项目标签页
-    document.getElementById('menu-manage-projects')?.addEventListener('click', (e) => { 
-        e.preventDefault(); 
-        console.log("Action: Manage Projects");
-        activateTab('unified-project-tab');
-    });
+    const menuManageProjects = document.getElementById('menu-manage-projects');
+    if (menuManageProjects) {
+        menuManageProjects.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            e.stopPropagation();
+            console.log("Action: Manage Projects");
+            activateTab('unified-project-tab');
+        });
+    }
     
     document.getElementById('menu-import-scene')?.addEventListener('click', (e) => { e.preventDefault(); triggerFileInputForImport(); });
     document.getElementById('menu-export-scene')?.addEventListener('click', (e) => { e.preventDefault(); exportScene(); });
