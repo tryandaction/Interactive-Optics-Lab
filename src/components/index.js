@@ -22,3 +22,12 @@ export * from './special/index.js';
 
 // 辅助元件
 export * from './misc/index.js';
+
+// 光电调制器件
+export * from './modulators/index.js';
+
+// 原子物理专用元件
+export * from './atomic/index.js';
+
+// 干涉仪模块
+export * from './interferometers/index.js';
