@@ -2360,33 +2360,65 @@ function handleMouseDown(event) {
             try {
                 const compPos = mousePos.clone();
                 const currentUserId = window.userManager?.currentUser?.id; // Get current user ID for collaboration
+                // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
+                // 光源默认朝右（0°）
                 switch (componentToAdd) { // (Keep list complete)
+                    // 光源类 - 默认朝右 (0°)
                     case 'LaserSource': newComp = new LaserSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
                     case 'FanSource': newComp = new FanSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
                     case 'LineSource': newComp = new LineSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'Mirror': newComp = new Mirror(compPos, undefined, 0, currentUserId); break;
-                    case 'SphericalMirror': newComp = new SphericalMirror(compPos, undefined, undefined, 0, currentUserId); break;
-                    case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, undefined, undefined, 0, currentUserId); break;
-                    case 'Screen': newComp = new Screen(compPos, undefined, 0, undefined, currentUserId); break;
-                    case 'ThinLens': newComp = new ThinLens(compPos, undefined, undefined, 0, currentUserId); break;
-                    case 'Aperture': newComp = new Aperture(compPos, undefined, undefined, undefined, 0, currentUserId); break;
-                    case 'Polarizer': newComp = new Polarizer(compPos, undefined, undefined, 0, currentUserId); break;
-                    case 'BeamSplitter': newComp = new BeamSplitter(compPos, undefined, 0, undefined, undefined, undefined, currentUserId); break;
-                    case 'DielectricBlock': newComp = new DielectricBlock(compPos, undefined, undefined, 0, undefined, undefined, undefined, currentUserId); break;
-                    case 'Photodiode': newComp = new Photodiode(compPos, 0, undefined, currentUserId); break;
-                    case 'OpticalFiber': newComp = new OpticalFiber(compPos, undefined, 0, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'Prism': newComp = new Prism(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
                     case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos, undefined, undefined, 0, undefined, currentUserId); break;
-                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos, undefined, undefined, 0, currentUserId); break;
-                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos, undefined, undefined, 0, currentUserId); break;
+                    
+                    // 镜子类 - 默认竖直 (90°)
+                    case 'Mirror': newComp = new Mirror(compPos, undefined, 90, currentUserId); break;
+                    case 'SphericalMirror': newComp = new SphericalMirror(compPos, undefined, undefined, 90, currentUserId); break;
+                    case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, undefined, undefined, 90, currentUserId); break;
+                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90, currentUserId); break;
+                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 90, currentUserId); break;
+                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 90, currentUserId); break;
+                    
+                    // 屏幕 - 默认竖直 (90°)
+                    case 'Screen': newComp = new Screen(compPos, undefined, 90, undefined, currentUserId); break;
+                    
+                    // 透镜类 - 默认竖直 (90°)
+                    case 'ThinLens': newComp = new ThinLens(compPos, undefined, undefined, 90, currentUserId); break;
+                    
+                    // 光阑/狭缝 - 默认竖直 (90°)
+                    case 'Aperture': newComp = new Aperture(compPos, undefined, undefined, undefined, undefined, 90, currentUserId); break;
+                    
+                    // 偏振器件 - 默认竖直 (90°)
+                    case 'Polarizer': newComp = new Polarizer(compPos, undefined, undefined, 90, currentUserId); break;
+                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos, undefined, undefined, 90, currentUserId); break;
+                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos, undefined, undefined, 90, currentUserId); break;
+                    
+                    // 分束器 - 默认45°
+                    case 'BeamSplitter': newComp = new BeamSplitter(compPos, undefined, 45, undefined, undefined, undefined, currentUserId); break;
+                    
+                    // 介质块 - 默认0°（水平放置）
+                    case 'DielectricBlock': newComp = new DielectricBlock(compPos, undefined, undefined, 0, undefined, undefined, undefined, currentUserId); break;
+                    
+                    // 探测器 - 默认竖直 (90°)
+                    case 'Photodiode': newComp = new Photodiode(compPos, 90, undefined, currentUserId); break;
+                    
+                    // 光纤 - 默认0°
+                    case 'OpticalFiber': newComp = new OpticalFiber(compPos, undefined, 0, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                    
+                    // 棱镜 - 默认0°
+                    case 'Prism': newComp = new Prism(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
+                    
+                    // 衍射光栅 - 默认竖直 (90°)
+                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos, undefined, undefined, 90, undefined, currentUserId); break;
+                    
+                    // 声光调制器 - 默认0°
                     case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
-                    case 'FaradayRotator': newComp = new FaradayRotator(compPos, undefined, undefined, 0, undefined, currentUserId); break; // <-- ADD THIS LINE
-                    case 'FaradayIsolator': newComp = new FaradayIsolator(compPos, undefined, undefined, 0, currentUserId); break; // <-- ADD THIS LINE
-                    case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0, undefined, currentUserId); break; // <-- ADD THIS LINE
-                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 0, currentUserId); break;
-                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 0, currentUserId); break;
-                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0, currentUserId); break;
+                    
+                    // 法拉第器件 - 默认0°
+                    case 'FaradayRotator': newComp = new FaradayRotator(compPos, undefined, undefined, 0, undefined, currentUserId); break;
+                    case 'FaradayIsolator': newComp = new FaradayIsolator(compPos, undefined, undefined, 0, currentUserId); break;
+                    
+                    // 自定义元件 - 默认0°
+                    case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0, undefined, currentUserId); break;
+                    
                     default: console.warn("Unknown component type:", componentToAdd);
                 }
             } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
