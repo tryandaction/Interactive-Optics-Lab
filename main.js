@@ -881,12 +881,13 @@ function drawPlacementPreview(ctx) {
     try {
         // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
         // 光源默认朝右（0°）
+        // 注意：这里的参数必须与 handleMouseDown 中的元件创建代码完全一致！
         switch (componentToAdd) {
             // 光源类 - 默认朝右 (0°)
-            case 'LaserSource': previewComp = new LaserSource(previewPos); break;
-            case 'FanSource': previewComp = new FanSource(previewPos); break;
-            case 'LineSource': previewComp = new LineSource(previewPos); break;
-            case 'WhiteLightSource': previewComp = new WhiteLightSource(previewPos); break;
+            case 'LaserSource': previewComp = new LaserSource(previewPos, 0); break;
+            case 'FanSource': previewComp = new FanSource(previewPos, 0); break;
+            case 'LineSource': previewComp = new LineSource(previewPos, 0); break;
+            case 'WhiteLightSource': previewComp = new WhiteLightSource(previewPos, 0); break;
             
             // 镜子类 - 默认竖直 (90°)
             case 'Mirror': previewComp = new Mirror(previewPos, 100, 90); break;
@@ -899,44 +900,44 @@ function drawPlacementPreview(ctx) {
             // 屏幕 - 默认竖直 (90°)
             case 'Screen': previewComp = new Screen(previewPos, 150, 90); break;
             
-            // 透镜类 - 默认竖直 (90°)，构造函数已经是90°
-            case 'ThinLens': previewComp = new ThinLens(previewPos); break;
+            // 透镜类 - 默认竖直 (90°)
+            case 'ThinLens': previewComp = new ThinLens(previewPos, 80, 150, 90); break;
             
-            // 光阑/狭缝 - 默认竖直 (90°)，构造函数已经是90°
-            case 'Aperture': previewComp = new Aperture(previewPos); break;
+            // 光阑/狭缝 - 默认竖直 (90°)
+            case 'Aperture': previewComp = new Aperture(previewPos, 150, 1, 10, 20, 90); break;
             
-            // 偏振器件 - 默认竖直 (90°)，构造函数已经是90°
-            case 'Polarizer': previewComp = new Polarizer(previewPos); break;
-            case 'HalfWavePlate': previewComp = new HalfWavePlate(previewPos); break;
-            case 'QuarterWavePlate': previewComp = new QuarterWavePlate(previewPos); break;
+            // 偏振器件 - 默认竖直 (90°)
+            case 'Polarizer': previewComp = new Polarizer(previewPos, 100, 0, 90); break;
+            case 'HalfWavePlate': previewComp = new HalfWavePlate(previewPos, 80, 0, 90); break;
+            case 'QuarterWavePlate': previewComp = new QuarterWavePlate(previewPos, 80, 0, 90); break;
             
             // 分束器 - 默认45°
-            case 'BeamSplitter': previewComp = new BeamSplitter(previewPos); break;
+            case 'BeamSplitter': previewComp = new BeamSplitter(previewPos, 80, 45); break;
             
             // 介质块 - 默认0°（水平放置）
-            case 'DielectricBlock': previewComp = new DielectricBlock(previewPos); break;
+            case 'DielectricBlock': previewComp = new DielectricBlock(previewPos, 100, 60, 0); break;
             
             // 探测器 - 默认竖直 (90°)
-            case 'Photodiode': previewComp = new Photodiode(previewPos, 90); break;
+            case 'Photodiode': previewComp = new Photodiode(previewPos, 90, 20); break;
             
             // 光纤 - 默认0°
-            case 'OpticalFiber': previewComp = new OpticalFiber(previewPos); break;
+            case 'OpticalFiber': previewComp = new OpticalFiber(previewPos, undefined, 0); break;
             
             // 棱镜 - 默认0°
-            case 'Prism': previewComp = new Prism(previewPos); break;
+            case 'Prism': previewComp = new Prism(previewPos, 100, 60, 0); break;
             
-            // 衍射光栅 - 默认竖直 (90°)，构造函数已经是90°
-            case 'DiffractionGrating': previewComp = new DiffractionGrating(previewPos); break;
+            // 衍射光栅 - 默认竖直 (90°)
+            case 'DiffractionGrating': previewComp = new DiffractionGrating(previewPos, 100, 1.0, 90); break;
             
             // 声光调制器 - 默认0°
-            case 'AcoustoOpticModulator': previewComp = new AcoustoOpticModulator(previewPos); break;
+            case 'AcoustoOpticModulator': previewComp = new AcoustoOpticModulator(previewPos, undefined, undefined, 0); break;
             
             // 法拉第器件 - 默认0°
-            case 'FaradayRotator': previewComp = new FaradayRotator(previewPos); break;
-            case 'FaradayIsolator': previewComp = new FaradayIsolator(previewPos); break;
+            case 'FaradayRotator': previewComp = new FaradayRotator(previewPos, undefined, undefined, 0); break;
+            case 'FaradayIsolator': previewComp = new FaradayIsolator(previewPos, undefined, undefined, 0); break;
             
             // 自定义元件 - 默认0°
-            case 'CustomComponent': previewComp = new CustomComponent(previewPos); break;
+            case 'CustomComponent': previewComp = new CustomComponent(previewPos, undefined, undefined, 0); break;
         }
 
         if (previewComp) {
@@ -946,137 +947,6 @@ function drawPlacementPreview(ctx) {
         }
     } catch (e) { console.error("Error creating preview component:", e); }
     ctx.restore();
-}
-
-// --- Mouse Event Handlers ---
-function handleMouseDown(event) {
-// 确保 Vector 变量已初始化
-if (!mousePos || !cameraOffset) {
-    if (!initVectorVariables()) return;
-}
-// Convert screen coordinates to canvas logical coordinates
-const rect = canvas.getBoundingClientRect();
-const dpr = window.devicePixelRatio || 1;
-const cssX = event.clientX - rect.left;
-const cssY = event.clientY - rect.top;
-mousePos.x = (cssX - cameraOffset.x) / cameraScale;
-mousePos.y = (cssY - cameraOffset.y) / cameraScale;
-mouseIsDown = true;
-
-// Check if a component is selected from toolbar
-if (componentToAdd) {
-    // Create new component at mouse position
-    let newComp = null;
-    const compPos = mousePos.clone();
-    try {
-        // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
-        // 光源默认朝右（0°）
-        switch (componentToAdd) {
-            // 光源类 - 默认朝右 (0°)
-            case 'LaserSource': newComp = new LaserSource(compPos); break;
-            case 'FanSource': newComp = new FanSource(compPos); break;
-            case 'LineSource': newComp = new LineSource(compPos); break;
-            case 'WhiteLightSource': newComp = new WhiteLightSource(compPos); break;
-            
-            // 镜子类 - 默认竖直 (90°)
-            case 'Mirror': newComp = new Mirror(compPos, 100, 90); break;
-            case 'SphericalMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
-            case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
-            case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
-            case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 90); break;
-            case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
-            
-            // 屏幕 - 默认竖直 (90°)
-            case 'Screen': newComp = new Screen(compPos, 150, 90); break;
-            
-            // 透镜类 - 默认竖直 (90°)，构造函数已经是90°
-            case 'ThinLens': newComp = new ThinLens(compPos); break;
-            
-            // 光阑/狭缝 - 默认竖直 (90°)，构造函数已经是90°
-            case 'Aperture': newComp = new Aperture(compPos); break;
-            
-            // 偏振器件 - 默认竖直 (90°)，构造函数已经是90°
-            case 'Polarizer': newComp = new Polarizer(compPos); break;
-            case 'HalfWavePlate': newComp = new HalfWavePlate(compPos); break;
-            case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos); break;
-            
-            // 分束器 - 默认45°
-            case 'BeamSplitter': newComp = new BeamSplitter(compPos); break;
-            
-            // 介质块 - 默认0°（水平放置）
-            case 'DielectricBlock': newComp = new DielectricBlock(compPos); break;
-            
-            // 探测器 - 默认竖直 (90°)
-            case 'Photodiode': newComp = new Photodiode(compPos, 90); break;
-            
-            // 光纤 - 默认0°
-            case 'OpticalFiber': newComp = new OpticalFiber(compPos); break;
-            
-            // 棱镜 - 默认0°
-            case 'Prism': newComp = new Prism(compPos); break;
-            
-            // 衍射光栅 - 默认竖直 (90°)，构造函数已经是90°
-            case 'DiffractionGrating': newComp = new DiffractionGrating(compPos); break;
-            
-            // 声光调制器 - 默认0°
-            case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos); break;
-            
-            // 法拉第器件 - 默认0°
-            case 'FaradayRotator': newComp = new FaradayRotator(compPos); break;
-            case 'FaradayIsolator': newComp = new FaradayIsolator(compPos); break;
-            
-            // 自定义元件 - 默认0°
-            case 'CustomComponent': newComp = new CustomComponent(compPos); break;
-        }
-
-        if (newComp) {
-            components.push(newComp);
-            selectedComponent = newComp;
-            updateInspector();
-            sceneModified = true;
-            markSceneAsModified();
-            needsRetrace = true;
-        }
-    } catch (e) {
-        console.error("Error creating component:", e);
-    }
-
-    componentToAdd = null; // Clear tool selection
-    clearToolbarSelection();
-    canvas.style.cursor = 'default'; // Reset cursor
-    return;
-}
-
-// Handle component selection and dragging
-// Find component under mouse
-let hitComponent = null;
-for (let i = components.length - 1; i >= 0; i--) {
-    const comp = components[i];
-    if (comp.containsPoint && comp.containsPoint(mousePos)) {
-        hitComponent = comp;
-        break;
-    }
-}
-
-if (hitComponent) {
-    selectedComponent = hitComponent;
-    updateInspector();
-    // Start dragging
-    isDragging = true;
-    draggingComponents = [hitComponent];
-    dragStartOffsets = new Map();
-    dragStartOffsets.set(hitComponent.id, hitComponent.pos.subtract(mousePos));
-    dragStartMousePos = mousePos.clone();
-    activeGuides = []; // Clear guides
-    canvas.style.cursor = 'move';
-} else {
-    selectedComponent = null;
-    updateInspector();
-    // Start panning if not over component
-    isPanning = true;
-    lastPanMousePos = { x: event.clientX, y: event.clientY };
-    canvas.style.cursor = 'move';
-}
 }
 
 // --- START REPLACEMENT for the ENTIRE drawOpticalSystemDiagram function (V8 - Ray Path Logic Finalized) ---
@@ -2264,6 +2134,97 @@ function handleMouseDown(event) {
     dragStartMousePos = mousePos.clone();
     ongoingActionState = null;
 
+    // --- 优先处理工具放置：如果选择了工具，直接在点击位置创建元件 ---
+    if (componentToAdd) {
+        let newComp = null;
+        const compPos = mousePos.clone();
+        const currentUserId = window.userManager?.currentUser?.id;
+        try {
+            // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
+            // 光源默认朝右（0°）
+            switch (componentToAdd) {
+                // 光源类 - 默认朝右 (0°)
+                case 'LaserSource': newComp = new LaserSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                case 'FanSource': newComp = new FanSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                case 'LineSource': newComp = new LineSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
+                
+                // 镜子类 - 默认竖直 (90°)
+                case 'Mirror': newComp = new Mirror(compPos, 100, 90, currentUserId); break;
+                case 'SphericalMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
+                case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
+                case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
+                case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 90); break;
+                case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
+                
+                // 屏幕 - 默认竖直 (90°)
+                case 'Screen': newComp = new Screen(compPos, 150, 90); break;
+                
+                // 透镜类 - 默认竖直 (90°)
+                case 'ThinLens': newComp = new ThinLens(compPos, 80, 150, 90, currentUserId); break;
+                
+                // 光阑/狭缝 - 默认竖直 (90°)
+                case 'Aperture': newComp = new Aperture(compPos, 150, 1, 10, 20, 90); break;
+                
+                // 偏振器件 - 默认竖直 (90°)
+                case 'Polarizer': newComp = new Polarizer(compPos, 100, 0, 90); break;
+                case 'HalfWavePlate': newComp = new HalfWavePlate(compPos, 80, 0, 90); break;
+                case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos, 80, 0, 90); break;
+                
+                // 分束器 - 默认45°
+                case 'BeamSplitter': newComp = new BeamSplitter(compPos, 80, 45); break;
+                
+                // 介质块 - 默认0°（水平放置）
+                case 'DielectricBlock': newComp = new DielectricBlock(compPos, 100, 60, 0); break;
+                
+                // 探测器 - 默认竖直 (90°)
+                case 'Photodiode': newComp = new Photodiode(compPos, 90, 20); break;
+                
+                // 光纤 - 默认0°
+                case 'OpticalFiber': newComp = new OpticalFiber(compPos, undefined, 0); break;
+                
+                // 棱镜 - 默认0°
+                case 'Prism': newComp = new Prism(compPos, 100, 60, 0); break;
+                
+                // 衍射光栅 - 默认竖直 (90°)
+                case 'DiffractionGrating': newComp = new DiffractionGrating(compPos, 100, 1.0, 90); break;
+                
+                // 声光调制器 - 默认0°
+                case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos, undefined, undefined, 0); break;
+                
+                // 法拉第器件 - 默认0°
+                case 'FaradayRotator': newComp = new FaradayRotator(compPos, undefined, undefined, 0); break;
+                case 'FaradayIsolator': newComp = new FaradayIsolator(compPos, undefined, undefined, 0); break;
+                
+                // 自定义元件 - 默认0°
+                case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0); break;
+                
+                default: console.warn("Unknown component type:", componentToAdd);
+            }
+        } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
+
+        if (newComp) {
+            const previousSelectionBeforeAdd = [...selectedComponents];
+            selectedComponents.forEach(comp => comp.selected = false);
+            selectedComponents = [newComp];
+            selectedComponent = newComp;
+            newComp.selected = true;
+            components.push(newComp);
+            historyManager.addCommand(new AddComponentCommand(newComp, components));
+            historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents));
+            updateUndoRedoUI();
+            updateInspector();
+            needsRetrace = true;
+            sceneModified = true;
+            markSceneAsModified();
+        }
+        componentToAdd = null;
+        clearToolbarSelection();
+        canvas.style.cursor = 'default';
+        return; // 工具放置完成，直接返回
+    }
+    // --- 工具放置处理结束 ---
+
     const isShiftPressed = event.shiftKey;
     const isCtrlCmdPressed = event.ctrlKey || event.metaKey; // Ctrl on Win/Linux, Cmd on Mac
 
@@ -2353,112 +2314,13 @@ function handleMouseDown(event) {
         }
 
     } else { // Clicked empty space
-        if (componentToAdd) {
-            // --- Place New Component ---
-            let newComp = null;
-            // ... (Existing component creation switch logic - NO CHANGES NEEDED HERE) ...
-            try {
-                const compPos = mousePos.clone();
-                const currentUserId = window.userManager?.currentUser?.id; // Get current user ID for collaboration
-                // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
-                // 光源默认朝右（0°）
-                switch (componentToAdd) { // (Keep list complete)
-                    // 光源类 - 默认朝右 (0°)
-                    case 'LaserSource': newComp = new LaserSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'FanSource': newComp = new FanSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'LineSource': newComp = new LineSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    case 'WhiteLightSource': newComp = new WhiteLightSource(compPos, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    
-                    // 镜子类 - 默认竖直 (90°)
-                    case 'Mirror': newComp = new Mirror(compPos, undefined, 90, currentUserId); break;
-                    case 'SphericalMirror': newComp = new SphericalMirror(compPos, undefined, undefined, 90, currentUserId); break;
-                    case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, undefined, undefined, 90, currentUserId); break;
-                    case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90, currentUserId); break;
-                    case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 90, currentUserId); break;
-                    case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 90, currentUserId); break;
-                    
-                    // 屏幕 - 默认竖直 (90°)
-                    case 'Screen': newComp = new Screen(compPos, undefined, 90, undefined, currentUserId); break;
-                    
-                    // 透镜类 - 默认竖直 (90°)
-                    case 'ThinLens': newComp = new ThinLens(compPos, undefined, undefined, 90, currentUserId); break;
-                    
-                    // 光阑/狭缝 - 默认竖直 (90°)
-                    case 'Aperture': newComp = new Aperture(compPos, undefined, undefined, undefined, undefined, 90, currentUserId); break;
-                    
-                    // 偏振器件 - 默认竖直 (90°)
-                    case 'Polarizer': newComp = new Polarizer(compPos, undefined, undefined, 90, currentUserId); break;
-                    case 'HalfWavePlate': newComp = new HalfWavePlate(compPos, undefined, undefined, 90, currentUserId); break;
-                    case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos, undefined, undefined, 90, currentUserId); break;
-                    
-                    // 分束器 - 默认45°
-                    case 'BeamSplitter': newComp = new BeamSplitter(compPos, undefined, 45, undefined, undefined, undefined, currentUserId); break;
-                    
-                    // 介质块 - 默认0°（水平放置）
-                    case 'DielectricBlock': newComp = new DielectricBlock(compPos, undefined, undefined, 0, undefined, undefined, undefined, currentUserId); break;
-                    
-                    // 探测器 - 默认竖直 (90°)
-                    case 'Photodiode': newComp = new Photodiode(compPos, 90, undefined, currentUserId); break;
-                    
-                    // 光纤 - 默认0°
-                    case 'OpticalFiber': newComp = new OpticalFiber(compPos, undefined, 0, undefined, undefined, undefined, undefined, undefined, undefined, currentUserId); break;
-                    
-                    // 棱镜 - 默认0°
-                    case 'Prism': newComp = new Prism(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
-                    
-                    // 衍射光栅 - 默认竖直 (90°)
-                    case 'DiffractionGrating': newComp = new DiffractionGrating(compPos, undefined, undefined, 90, undefined, currentUserId); break;
-                    
-                    // 声光调制器 - 默认0°
-                    case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos, undefined, undefined, 0, undefined, undefined, currentUserId); break;
-                    
-                    // 法拉第器件 - 默认0°
-                    case 'FaradayRotator': newComp = new FaradayRotator(compPos, undefined, undefined, 0, undefined, currentUserId); break;
-                    case 'FaradayIsolator': newComp = new FaradayIsolator(compPos, undefined, undefined, 0, currentUserId); break;
-                    
-                    // 自定义元件 - 默认0°
-                    case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0, undefined, currentUserId); break;
-                    
-                    default: console.warn("Unknown component type:", componentToAdd);
-                }
-            } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
-
-            // --- Inside handleMouseDown -> if (componentToAdd) -> if (newComp) ---
-            if (newComp) {
-                const previousSelectionBeforeAdd = [...selectedComponents]; // Capture selection *before* modifying it below
-
-                // Deselect others before adding new one
-                selectedComponents.forEach(comp => comp.selected = false);
-                selectedComponents = [newComp]; // New component is the only selection
-                selectedComponent = newComp; // Update primary selected
-                newComp.selected = true; // Mark the component itself
-
-                components.push(newComp); // Add to main array
-
-                // Add command for the ADD action
-                historyManager.addCommand(new AddComponentCommand(newComp, components));
-
-                // Add command for the SELECTION change
-                historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents)); // Command from old selection to new single selection
-
-                updateUndoRedoUI(); // Update UI after adding commands
-                updateInspector();
-                needsRetrace = true;
-                sceneModified = true;
-                markSceneAsModified();
-            }
-            componentToAdd = null; // Reset tool AFTER successful placement and command adding
-            clearToolbarSelection();
-            // --- End modification for new component placement ---
-
-        } else {
-            // --- Clicked Empty Space, No Tool Selected ---
-            if (selectedComponents.length > 0) {
-                selectionChanged = true; // Selection changing from N to 0
-            }
-            selectedComponents.forEach(comp => comp.selected = false);
-            selectedComponents = []; // Clear selection
+        // --- Clicked Empty Space, No Tool Selected ---
+        // (componentToAdd 已在函数开头处理，这里只处理清除选择)
+        if (selectedComponents.length > 0) {
+            selectionChanged = true; // Selection changing from N to 0
         }
+        selectedComponents.forEach(comp => comp.selected = false);
+        selectedComponents = []; // Clear selection
     }
 
     // --- Update Selection Visuals & Inspector ---
