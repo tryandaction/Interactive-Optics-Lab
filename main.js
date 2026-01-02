@@ -879,81 +879,70 @@ function drawPlacementPreview(ctx) {
     let previewComp = null;
     const previewPos = mousePos.clone();
     try {
+        // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
+        // 光源默认朝右（0°）
         switch (componentToAdd) {
+            // 光源类 - 默认朝右 (0°)
             case 'LaserSource': previewComp = new LaserSource(previewPos); break;
             case 'FanSource': previewComp = new FanSource(previewPos); break;
             case 'LineSource': previewComp = new LineSource(previewPos); break;
-            case 'Mirror': previewComp = new Mirror(previewPos); break;
-            case 'SphericalMirror': previewComp = new SphericalMirror(previewPos); break;
-            case 'ParabolicMirror': previewComp = new ParabolicMirror(previewPos); break;
-            case 'Screen': previewComp = new Screen(previewPos); break;
-            case 'ThinLens': // Preview for CONVEX
-                previewComp = new ThinLens(previewPos); // Uses constructor defaults
-                break;
+            case 'WhiteLightSource': previewComp = new WhiteLightSource(previewPos); break;
+            
+            // 镜子类 - 默认竖直 (90°)
+            case 'Mirror': previewComp = new Mirror(previewPos, 100, 90); break;
+            case 'SphericalMirror': previewComp = new SphericalMirror(previewPos, 200, 90, 90); break;
+            case 'ParabolicMirror': previewComp = new ParabolicMirror(previewPos, 100, 100, 90); break;
+            case 'ConcaveMirror': previewComp = new SphericalMirror(previewPos, 200, 90, 90); break;
+            case 'ConvexMirror': previewComp = new SphericalMirror(previewPos, -200, 90, 90); break;
+            case 'ParabolicMirrorToolbar': previewComp = new ParabolicMirror(previewPos, 100, 100, 90); break;
+            
+            // 屏幕 - 默认竖直 (90°)
+            case 'Screen': previewComp = new Screen(previewPos, 150, 90); break;
+            
+            // 透镜类 - 默认竖直 (90°)，构造函数已经是90°
+            case 'ThinLens': previewComp = new ThinLens(previewPos); break;
+            
+            // 光阑/狭缝 - 默认竖直 (90°)，构造函数已经是90°
             case 'Aperture': previewComp = new Aperture(previewPos); break;
+            
+            // 偏振器件 - 默认竖直 (90°)，构造函数已经是90°
             case 'Polarizer': previewComp = new Polarizer(previewPos); break;
+            case 'HalfWavePlate': previewComp = new HalfWavePlate(previewPos); break;
+            case 'QuarterWavePlate': previewComp = new QuarterWavePlate(previewPos); break;
+            
+            // 分束器 - 默认45°
             case 'BeamSplitter': previewComp = new BeamSplitter(previewPos); break;
+            
+            // 介质块 - 默认0°（水平放置）
             case 'DielectricBlock': previewComp = new DielectricBlock(previewPos); break;
-            case 'Photodiode': previewComp = new Photodiode(previewPos); break;
-            case 'OpticalFiber':
-                previewComp = new OpticalFiber(previewPos); // pos is input, output calculated internally
-                break;
-            case 'Prism':
-                previewComp = new Prism(previewPos); // Create a default Prism for preview
-                break;
-            case 'WhiteLightSource':
-                previewComp = new WhiteLightSource(previewPos);
-                break;
-            case 'DiffractionGrating':
-                previewComp = new DiffractionGrating(previewPos);
-                break;
-            case 'HalfWavePlate':
-                previewComp = new HalfWavePlate(previewPos);
-                break;
-            case 'QuarterWavePlate':
-                previewComp = new QuarterWavePlate(previewPos);
-                break;
-            case 'AcoustoOpticModulator':
-                previewComp = new AcoustoOpticModulator(previewPos);
-                break;
+            
+            // 探测器 - 默认竖直 (90°)
+            case 'Photodiode': previewComp = new Photodiode(previewPos, 90); break;
+            
+            // 光纤 - 默认0°
+            case 'OpticalFiber': previewComp = new OpticalFiber(previewPos); break;
+            
+            // 棱镜 - 默认0°
+            case 'Prism': previewComp = new Prism(previewPos); break;
+            
+            // 衍射光栅 - 默认竖直 (90°)，构造函数已经是90°
+            case 'DiffractionGrating': previewComp = new DiffractionGrating(previewPos); break;
+            
+            // 声光调制器 - 默认0°
+            case 'AcoustoOpticModulator': previewComp = new AcoustoOpticModulator(previewPos); break;
+            
+            // 法拉第器件 - 默认0°
             case 'FaradayRotator': previewComp = new FaradayRotator(previewPos); break;
             case 'FaradayIsolator': previewComp = new FaradayIsolator(previewPos); break;
+            
+            // 自定义元件 - 默认0°
             case 'CustomComponent': previewComp = new CustomComponent(previewPos); break;
-            case 'ConcaveMirror':
-                previewComp = new SphericalMirror(previewPos, 200, 90, 0); // Match default creation
-                break;
-            case 'ConvexMirror':
-                previewComp = new SphericalMirror(previewPos, -200, 90, 0); // Match default creation
-                break;
-            case 'ParabolicMirrorToolbar':
-                previewComp = new ParabolicMirror(previewPos, 100, 100, 0); // Match default creation
-                break;
         }
 
         if (previewComp) {
             // Use the component's own draw method for the preview
             previewComp.selected = false; // Ensure it's not drawn as selected
-            
-            // 保存当前状态，绘制元件，然后恢复状态
-            ctx.save();
             previewComp.draw(ctx);
-            ctx.restore();
-            
-            // 绘制虚线边框以指示这是预览
-            ctx.setLineDash([5, 5]);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.lineWidth = 1;
-            
-            const bbox = previewComp.getBoundingBox ? previewComp.getBoundingBox() : null;
-            if (bbox) {
-                const padding = 5;
-                ctx.strokeRect(
-                    bbox.x - padding, 
-                    bbox.y - padding, 
-                    bbox.width + padding * 2, 
-                    bbox.height + padding * 2
-                );
-            }
         }
     } catch (e) { console.error("Error creating preview component:", e); }
     ctx.restore();
@@ -980,33 +969,64 @@ if (componentToAdd) {
     let newComp = null;
     const compPos = mousePos.clone();
     try {
+        // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
+        // 光源默认朝右（0°）
         switch (componentToAdd) {
+            // 光源类 - 默认朝右 (0°)
             case 'LaserSource': newComp = new LaserSource(compPos); break;
             case 'FanSource': newComp = new FanSource(compPos); break;
             case 'LineSource': newComp = new LineSource(compPos); break;
-            case 'Mirror': newComp = new Mirror(compPos); break;
-            case 'SphericalMirror': newComp = new SphericalMirror(compPos); break;
-            case 'ParabolicMirror': newComp = new ParabolicMirror(compPos); break;
-            case 'Screen': newComp = new Screen(compPos); break;
-            case 'ThinLens': newComp = new ThinLens(compPos); break;
-            case 'Aperture': newComp = new Aperture(compPos); break;
-            case 'Polarizer': newComp = new Polarizer(compPos); break;
-            case 'BeamSplitter': newComp = new BeamSplitter(compPos); break;
-            case 'DielectricBlock': newComp = new DielectricBlock(compPos); break;
-            case 'Photodiode': newComp = new Photodiode(compPos); break;
-            case 'OpticalFiber': newComp = new OpticalFiber(compPos); break;
-            case 'Prism': newComp = new Prism(compPos); break;
             case 'WhiteLightSource': newComp = new WhiteLightSource(compPos); break;
-            case 'DiffractionGrating': newComp = new DiffractionGrating(compPos); break;
+            
+            // 镜子类 - 默认竖直 (90°)
+            case 'Mirror': newComp = new Mirror(compPos, 100, 90); break;
+            case 'SphericalMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
+            case 'ParabolicMirror': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
+            case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 90); break;
+            case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 90); break;
+            case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 90); break;
+            
+            // 屏幕 - 默认竖直 (90°)
+            case 'Screen': newComp = new Screen(compPos, 150, 90); break;
+            
+            // 透镜类 - 默认竖直 (90°)，构造函数已经是90°
+            case 'ThinLens': newComp = new ThinLens(compPos); break;
+            
+            // 光阑/狭缝 - 默认竖直 (90°)，构造函数已经是90°
+            case 'Aperture': newComp = new Aperture(compPos); break;
+            
+            // 偏振器件 - 默认竖直 (90°)，构造函数已经是90°
+            case 'Polarizer': newComp = new Polarizer(compPos); break;
             case 'HalfWavePlate': newComp = new HalfWavePlate(compPos); break;
             case 'QuarterWavePlate': newComp = new QuarterWavePlate(compPos); break;
+            
+            // 分束器 - 默认45°
+            case 'BeamSplitter': newComp = new BeamSplitter(compPos); break;
+            
+            // 介质块 - 默认0°（水平放置）
+            case 'DielectricBlock': newComp = new DielectricBlock(compPos); break;
+            
+            // 探测器 - 默认竖直 (90°)
+            case 'Photodiode': newComp = new Photodiode(compPos, 90); break;
+            
+            // 光纤 - 默认0°
+            case 'OpticalFiber': newComp = new OpticalFiber(compPos); break;
+            
+            // 棱镜 - 默认0°
+            case 'Prism': newComp = new Prism(compPos); break;
+            
+            // 衍射光栅 - 默认竖直 (90°)，构造函数已经是90°
+            case 'DiffractionGrating': newComp = new DiffractionGrating(compPos); break;
+            
+            // 声光调制器 - 默认0°
             case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(compPos); break;
+            
+            // 法拉第器件 - 默认0°
             case 'FaradayRotator': newComp = new FaradayRotator(compPos); break;
             case 'FaradayIsolator': newComp = new FaradayIsolator(compPos); break;
+            
+            // 自定义元件 - 默认0°
             case 'CustomComponent': newComp = new CustomComponent(compPos); break;
-            case 'ConcaveMirror': newComp = new SphericalMirror(compPos, 200, 90, 0); break;
-            case 'ConvexMirror': newComp = new SphericalMirror(compPos, -200, 90, 0); break;
-            case 'ParabolicMirrorToolbar': newComp = new ParabolicMirror(compPos, 100, 100, 0); break;
         }
 
         if (newComp) {
