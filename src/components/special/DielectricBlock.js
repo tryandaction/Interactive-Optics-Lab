@@ -10,6 +10,15 @@ import { DEFAULT_WAVELENGTH_NM, N_AIR } from '../../core/constants.js';
 export class DielectricBlock extends OpticalComponent {
     static functionDescription = "介质块内发生折射与反射，可模拟全反射与色散。";
 
+    // Sellmeier coefficients for common optical glasses
+    static SELLMEIER_MATERIALS = {
+        'BK7': { B1: 1.03961212, B2: 0.231792344, B3: 1.01046945, C1: 0.00600069867, C2: 0.0200179144, C3: 103.560653 },
+        'SF11': { B1: 1.73759695, B2: 0.313747346, B3: 1.89878101, C1: 0.013188707, C2: 0.0623068142, C3: 155.23629 },
+        'Fused_Silica': { B1: 0.6961663, B2: 0.4079426, B3: 0.8974794, C1: 0.0046791, C2: 0.0135121, C3: 97.934 },
+        'Sapphire': { B1: 1.4313493, B2: 0.65054713, B3: 5.3414021, C1: 0.0052799261, C2: 0.0142382647, C3: 325.01783 },
+        'Custom': null // Use Cauchy formula
+    };
+
     constructor(pos, width = 100, height = 60, angleDeg = 0, baseRefractiveIndex = 1.5, dispersionCoeffB_nm2 = 5000, absorptionCoeff = 0.001, showEvanescentWave = false) {
         super(pos, angleDeg, "介质块");
         this.width = Math.max(10, width);
@@ -18,6 +27,10 @@ export class DielectricBlock extends OpticalComponent {
         this.dispersionCoeffB_nm2 = dispersionCoeffB_nm2;
         this.absorptionCoeff = Math.max(0.0, absorptionCoeff);
         this.showEvanescentWave = showEvanescentWave;
+        
+        // Sellmeier equation support
+        this.useSellmeier = false;
+        this.sellmeierMaterial = 'BK7';
 
         this._cauchyA = this.baseRefractiveIndex - this.dispersionCoeffB_nm2 / (550 * 550);
 
@@ -38,7 +51,9 @@ export class DielectricBlock extends OpticalComponent {
             baseRefractiveIndex: this.baseRefractiveIndex,
             dispersionCoeffB_nm2: this.dispersionCoeffB_nm2,
             absorptionCoeff: this.absorptionCoeff,
-            showEvanescentWave: this.showEvanescentWave
+            showEvanescentWave: this.showEvanescentWave,
+            useSellmeier: this.useSellmeier,
+            sellmeierMaterial: this.sellmeierMaterial
         };
     }
 
@@ -46,7 +61,33 @@ export class DielectricBlock extends OpticalComponent {
         this._cauchyA = this.baseRefractiveIndex - this.dispersionCoeffB_nm2 / (550 * 550);
     }
 
+    /**
+     * Calculate refractive index using Sellmeier equation
+     * n²(λ) = 1 + B1*λ²/(λ²-C1) + B2*λ²/(λ²-C2) + B3*λ²/(λ²-C3)
+     * where λ is in micrometers
+     */
+    _getSellmeierIndex(wavelengthNm) {
+        const material = DielectricBlock.SELLMEIER_MATERIALS[this.sellmeierMaterial];
+        if (!material) return this.baseRefractiveIndex;
+        
+        const lambda_um = wavelengthNm / 1000; // Convert nm to μm
+        const lambda2 = lambda_um * lambda_um;
+        
+        const n2 = 1 + 
+            (material.B1 * lambda2) / (lambda2 - material.C1) +
+            (material.B2 * lambda2) / (lambda2 - material.C2) +
+            (material.B3 * lambda2) / (lambda2 - material.C3);
+        
+        return Math.sqrt(Math.max(1, n2));
+    }
+
     getRefractiveIndex(wavelengthNm = DEFAULT_WAVELENGTH_NM) {
+        // Use Sellmeier equation if enabled
+        if (this.useSellmeier && DielectricBlock.SELLMEIER_MATERIALS[this.sellmeierMaterial]) {
+            return this._getSellmeierIndex(wavelengthNm);
+        }
+        
+        // Fall back to Cauchy formula
         if (this.dispersionCoeffB_nm2 <= 1e-9 || wavelengthNm <= 0) return this.baseRefractiveIndex;
         const n = this._cauchyA + this.dispersionCoeffB_nm2 / (wavelengthNm * wavelengthNm);
         return Math.max(1.0, n);
@@ -275,6 +316,20 @@ export class DielectricBlock extends OpticalComponent {
             ...baseProps,
             width: { value: this.width.toFixed(1), label: '宽度', type: 'number', min: 10, step: 1 },
             height: { value: this.height.toFixed(1), label: '高度', type: 'number', min: 10, step: 1 },
+            useSellmeier: { value: this.useSellmeier, label: '使用Sellmeier方程', type: 'checkbox', title: '使用更精确的Sellmeier色散方程' },
+            sellmeierMaterial: { 
+                value: this.sellmeierMaterial, 
+                label: '材料类型', 
+                type: 'select',
+                options: [
+                    { value: 'BK7', label: 'BK7玻璃' },
+                    { value: 'SF11', label: 'SF11玻璃' },
+                    { value: 'Fused_Silica', label: '熔融石英' },
+                    { value: 'Sapphire', label: '蓝宝石' },
+                    { value: 'Custom', label: '自定义 (Cauchy)' }
+                ],
+                title: '选择预设材料或使用自定义Cauchy参数'
+            },
             baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '折射率 (n@550nm)', type: 'number', min: 1.0, step: 0.01 },
             dispersionCoeffB_nm2: { value: this.dispersionCoeffB_nm2.toFixed(0), label: '色散 B (nm²)', type: 'number', min: 0, step: 100 },
             absorptionCoeff: { value: this.absorptionCoeff.toFixed(4), label: '吸收系数 (/px)', type: 'number', min: 0.0, step: 0.0001 },
@@ -294,6 +349,17 @@ export class DielectricBlock extends OpticalComponent {
             case 'height':
                 const h = parseFloat(value);
                 if (!isNaN(h) && h >= 10 && Math.abs(h - this.height) > 1e-6) { this.height = h; needsGeomUpdate = true; }
+                break;
+            case 'useSellmeier':
+                const useSell = !!value;
+                if (this.useSellmeier !== useSell) { this.useSellmeier = useSell; needsOpticalUpdate = true; }
+                break;
+            case 'sellmeierMaterial':
+                if (DielectricBlock.SELLMEIER_MATERIALS.hasOwnProperty(value) && this.sellmeierMaterial !== value) {
+                    this.sellmeierMaterial = value;
+                    if (value === 'Custom') this.useSellmeier = false;
+                    needsOpticalUpdate = true;
+                }
                 break;
             case 'baseRefractiveIndex':
                 const n = parseFloat(value);

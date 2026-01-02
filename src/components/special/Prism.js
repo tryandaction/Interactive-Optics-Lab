@@ -10,6 +10,15 @@ import { DEFAULT_WAVELENGTH_NM, N_AIR } from '../../core/constants.js';
 export class Prism extends OpticalComponent {
     static functionDescription = "棱镜使光发生折射与色散，分解白光为彩色光谱。";
 
+    // Sellmeier coefficients for common optical glasses
+    static SELLMEIER_MATERIALS = {
+        'BK7': { B1: 1.03961212, B2: 0.231792344, B3: 1.01046945, C1: 0.00600069867, C2: 0.0200179144, C3: 103.560653 },
+        'SF11': { B1: 1.73759695, B2: 0.313747346, B3: 1.89878101, C1: 0.013188707, C2: 0.0623068142, C3: 155.23629 },
+        'Fused_Silica': { B1: 0.6961663, B2: 0.4079426, B3: 0.8974794, C1: 0.0046791, C2: 0.0135121, C3: 97.934 },
+        'Flint_Glass': { B1: 1.34533359, B2: 0.209073176, B3: 0.937357162, C1: 0.00997743871, C2: 0.0470450767, C3: 111.886764 },
+        'Custom': null // Use Cauchy formula
+    };
+
     constructor(pos, baseLength = 100, apexAngleDeg = 60, angleDeg = 0, refractiveIndex = 1.5, dispersionCoeffB = 5000) {
         super(pos, angleDeg, "棱镜");
 
@@ -17,6 +26,10 @@ export class Prism extends OpticalComponent {
         this.apexAngleRad = Math.max(1 * Math.PI / 180, Math.min(178 * Math.PI / 180, apexAngleDeg * Math.PI / 180));
         this.baseRefractiveIndex = Math.max(1.0, refractiveIndex);
         this.dispersionCoeffB = dispersionCoeffB;
+        
+        // Sellmeier equation support
+        this.useSellmeier = false;
+        this.sellmeierMaterial = 'Flint_Glass';
 
         this.worldVertices = [];
         this.worldNormals = [];
@@ -30,11 +43,39 @@ export class Prism extends OpticalComponent {
             baseLength: this.baseLength,
             apexAngleDeg: this.apexAngleRad * (180 / Math.PI),
             baseRefractiveIndex: this.baseRefractiveIndex,
-            dispersionCoeffB: this.dispersionCoeffB
+            dispersionCoeffB: this.dispersionCoeffB,
+            useSellmeier: this.useSellmeier,
+            sellmeierMaterial: this.sellmeierMaterial
         };
     }
 
+    /**
+     * Calculate refractive index using Sellmeier equation
+     * n²(λ) = 1 + B1*λ²/(λ²-C1) + B2*λ²/(λ²-C2) + B3*λ²/(λ²-C3)
+     * where λ is in micrometers
+     */
+    _getSellmeierIndex(wavelengthNm) {
+        const material = Prism.SELLMEIER_MATERIALS[this.sellmeierMaterial];
+        if (!material) return this.baseRefractiveIndex;
+        
+        const lambda_um = wavelengthNm / 1000; // Convert nm to μm
+        const lambda2 = lambda_um * lambda_um;
+        
+        const n2 = 1 + 
+            (material.B1 * lambda2) / (lambda2 - material.C1) +
+            (material.B2 * lambda2) / (lambda2 - material.C2) +
+            (material.B3 * lambda2) / (lambda2 - material.C3);
+        
+        return Math.sqrt(Math.max(1, n2));
+    }
+
     getRefractiveIndex(wavelengthNm = DEFAULT_WAVELENGTH_NM) {
+        // Use Sellmeier equation if enabled
+        if (this.useSellmeier && Prism.SELLMEIER_MATERIALS[this.sellmeierMaterial]) {
+            return this._getSellmeierIndex(wavelengthNm);
+        }
+        
+        // Fall back to Cauchy formula
         if (wavelengthNm <= 0) return this.baseRefractiveIndex;
         const n0_adjusted = this.baseRefractiveIndex - this.dispersionCoeffB / (550 * 550);
         const n = n0_adjusted + this.dispersionCoeffB / (wavelengthNm * wavelengthNm);
@@ -292,6 +333,20 @@ export class Prism extends OpticalComponent {
             ...baseProps,
             baseLength: { value: this.baseLength.toFixed(1), label: '底边长度', type: 'number', min: 10, step: 1, title: '棱镜底边的长度' },
             apexAngleDeg: { value: (this.apexAngleRad * 180 / Math.PI).toFixed(1), label: '顶角 (α)', type: 'number', min: 1, max: 178, step: 1, title: '棱镜顶部的角度 (1°-178°)' },
+            useSellmeier: { value: this.useSellmeier, label: '使用Sellmeier方程', type: 'checkbox', title: '使用更精确的Sellmeier色散方程' },
+            sellmeierMaterial: { 
+                value: this.sellmeierMaterial, 
+                label: '材料类型', 
+                type: 'select',
+                options: [
+                    { value: 'BK7', label: 'BK7玻璃' },
+                    { value: 'SF11', label: 'SF11玻璃' },
+                    { value: 'Fused_Silica', label: '熔融石英' },
+                    { value: 'Flint_Glass', label: '火石玻璃' },
+                    { value: 'Custom', label: '自定义 (Cauchy)' }
+                ],
+                title: '选择预设材料或使用自定义Cauchy参数'
+            },
             baseRefractiveIndex: { value: this.baseRefractiveIndex.toFixed(3), label: '基准折射率 (n₀@550nm)', type: 'number', min: 1.0, step: 0.01, title: '在 550nm 波长下的折射率' },
             dispersionCoeffB: { value: this.dispersionCoeffB.toFixed(0), label: '色散系数 (B)', type: 'number', min: 0, step: 100, title: '柯西色散公式 B 项 (nm²)，控制色散强度' }
         };
@@ -313,6 +368,17 @@ export class Prism extends OpticalComponent {
                 if (!isNaN(a)) {
                     const r = Math.max(1 * Math.PI / 180, Math.min(178 * Math.PI / 180, a * Math.PI / 180));
                     if (Math.abs(r - this.apexAngleRad) > 1e-9) { this.apexAngleRad = r; needsGeomUpdate = true; }
+                }
+                break;
+            case 'useSellmeier':
+                const useSell = !!value;
+                if (this.useSellmeier !== useSell) { this.useSellmeier = useSell; needsRetraceUpdate = true; }
+                break;
+            case 'sellmeierMaterial':
+                if (Prism.SELLMEIER_MATERIALS.hasOwnProperty(value) && this.sellmeierMaterial !== value) {
+                    this.sellmeierMaterial = value;
+                    if (value === 'Custom') this.useSellmeier = false;
+                    needsRetraceUpdate = true;
                 }
                 break;
             case 'baseRefractiveIndex':

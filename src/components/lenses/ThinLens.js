@@ -574,6 +574,87 @@ export class ThinLens extends OpticalComponent {
         return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
     }
 
+    /**
+     * ABCD Matrix for thin lens transformation
+     * For a thin lens: A=1, B=0, C=-1/f, D=1
+     * @returns {Object} ABCD matrix elements {A, B, C, D}
+     */
+    getABCDMatrix() {
+        const f = this.isThickLens ? this.effectiveFocalLength : this.focalLength;
+        if (Math.abs(f) === Infinity) {
+            return { A: 1, B: 0, C: 0, D: 1 }; // Identity matrix for flat lens
+        }
+        return { A: 1, B: 0, C: -1 / f, D: 1 };
+    }
+
+    /**
+     * Transform Gaussian beam q-parameter through the lens
+     * q' = (A*q + B) / (C*q + D)
+     * where q = z + i*z_R (z is distance from waist, z_R is Rayleigh range)
+     * @param {Object} qParam - Complex q parameter {re: real, im: imaginary}
+     * @returns {Object} Transformed q parameter {re, im}
+     */
+    transformGaussianBeam(qParam) {
+        const { A, B, C, D } = this.getABCDMatrix();
+        
+        // q' = (A*q + B) / (C*q + D)
+        // For complex division: (a+bi)/(c+di) = ((ac+bd) + (bc-ad)i) / (c²+d²)
+        const numerator = {
+            re: A * qParam.re + B,
+            im: A * qParam.im
+        };
+        const denominator = {
+            re: C * qParam.re + D,
+            im: C * qParam.im
+        };
+        
+        const denomMag2 = denominator.re * denominator.re + denominator.im * denominator.im;
+        if (denomMag2 < 1e-12) {
+            return qParam; // Return unchanged if denominator is too small
+        }
+        
+        return {
+            re: (numerator.re * denominator.re + numerator.im * denominator.im) / denomMag2,
+            im: (numerator.im * denominator.re - numerator.re * denominator.im) / denomMag2
+        };
+    }
+
+    /**
+     * Calculate output beam parameters from input Gaussian beam
+     * @param {number} w0_in - Input beam waist radius
+     * @param {number} z_in - Distance from input waist to lens
+     * @param {number} wavelengthNm - Wavelength in nm
+     * @returns {Object} Output beam parameters {w0_out, z_out, w_at_lens}
+     */
+    transformBeamParameters(w0_in, z_in, wavelengthNm = DEFAULT_WAVELENGTH_NM) {
+        const lambda = wavelengthNm * 1e-9; // Convert to meters (assuming pixel = 1mm scale)
+        const z_R_in = Math.PI * w0_in * w0_in / (lambda * 1e6); // Rayleigh range in pixels
+        
+        // Input q parameter at lens position
+        const q_in = { re: z_in, im: z_R_in };
+        
+        // Transform through lens
+        const q_out = this.transformGaussianBeam(q_in);
+        
+        // Extract output parameters
+        // q = z + i*z_R, so z_R_out = Im(q_out), z_out = Re(q_out)
+        const z_R_out = q_out.im;
+        const z_out = q_out.re;
+        
+        // Output waist: w0² = z_R * λ / π
+        const w0_out = Math.sqrt(Math.abs(z_R_out) * lambda * 1e6 / Math.PI);
+        
+        // Beam radius at lens
+        const w_at_lens = w0_in * Math.sqrt(1 + (z_in / z_R_in) ** 2);
+        
+        return {
+            w0_out: w0_out,
+            z_out: z_out,
+            w_at_lens: w_at_lens,
+            z_R_out: z_R_out
+        };
+    }
+
     getProperties() {
         const baseProps = super.getProperties();
 
