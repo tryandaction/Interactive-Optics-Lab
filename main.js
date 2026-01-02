@@ -893,6 +893,43 @@ function drawPlacementPreview(ctx) {
             
             // 自定义元件 - 默认0°
             case 'CustomComponent': previewComp = new CustomComponent(previewPos, undefined, undefined, 0); break;
+            
+            // === 新增元件 ===
+            // 新光源
+            case 'PointSource': previewComp = new PointSource(previewPos, 0); break;
+            case 'LEDSource': previewComp = new LEDSource(previewPos, 0); break;
+            case 'PulsedLaserSource': previewComp = new PulsedLaserSource(previewPos, 0); break;
+            
+            // 新反射镜
+            case 'DichroicMirror': previewComp = new DichroicMirror(previewPos, 100, 90); break;
+            case 'MetallicMirror': previewComp = new MetallicMirror(previewPos, 100, 90); break;
+            case 'RingMirror': previewComp = new RingMirror(previewPos, 60, 30, 90); break;
+            
+            // 新透镜
+            case 'CylindricalLens': previewComp = new CylindricalLens(previewPos, 80, 150, 90); break;
+            case 'AsphericLens': previewComp = new AsphericLens(previewPos, 80, 150, 90); break;
+            case 'GRINLens': previewComp = new GRINLens(previewPos, 60, 40, 90); break;
+            
+            // 新偏振器件
+            case 'WollastonPrism': previewComp = new WollastonPrism(previewPos, 60, 40, 0); break;
+            
+            // 新探测器
+            case 'CCDCamera': previewComp = new CCDCamera(previewPos, 80, 60, 90); break;
+            case 'Spectrometer': previewComp = new Spectrometer(previewPos, 80, 50, 90); break;
+            case 'PowerMeter': previewComp = new PowerMeter(previewPos, 40, 90); break;
+            case 'PolarizationAnalyzer': previewComp = new PolarizationAnalyzer(previewPos, 60, 50, 90); break;
+            
+            // 调制器
+            case 'ElectroOpticModulator': previewComp = new ElectroOpticModulator(previewPos, 60, 30, 0); break;
+            case 'VariableAttenuator': previewComp = new VariableAttenuator(previewPos, 50, 90); break;
+            case 'OpticalChopper': previewComp = new OpticalChopper(previewPos, 50, 90); break;
+            
+            // 原子物理
+            case 'AtomicCell': previewComp = new AtomicCell(previewPos, 80, 50, 0); break;
+            case 'MagneticCoil': previewComp = new MagneticCoil(previewPos, 60, 0); break;
+            
+            // 干涉仪
+            case 'FabryPerotCavity': previewComp = new FabryPerotCavity(previewPos, 100, 0); break;
         }
 
         if (previewComp) {
@@ -2017,6 +2054,43 @@ function handleMouseDown(event) {
                 // 自定义元件 - 默认0°
                 case 'CustomComponent': newComp = new CustomComponent(compPos, undefined, undefined, 0); break;
                 
+                // === 新增元件 ===
+                // 新光源
+                case 'PointSource': newComp = new PointSource(compPos, 0); break;
+                case 'LEDSource': newComp = new LEDSource(compPos, 0); break;
+                case 'PulsedLaserSource': newComp = new PulsedLaserSource(compPos, 0); break;
+                
+                // 新反射镜
+                case 'DichroicMirror': newComp = new DichroicMirror(compPos, 100, 90); break;
+                case 'MetallicMirror': newComp = new MetallicMirror(compPos, 100, 90); break;
+                case 'RingMirror': newComp = new RingMirror(compPos, 60, 30, 90); break;
+                
+                // 新透镜
+                case 'CylindricalLens': newComp = new CylindricalLens(compPos, 80, 150, 90); break;
+                case 'AsphericLens': newComp = new AsphericLens(compPos, 80, 150, 90); break;
+                case 'GRINLens': newComp = new GRINLens(compPos, 60, 40, 90); break;
+                
+                // 新偏振器件
+                case 'WollastonPrism': newComp = new WollastonPrism(compPos, 60, 40, 0); break;
+                
+                // 新探测器
+                case 'CCDCamera': newComp = new CCDCamera(compPos, 80, 60, 90); break;
+                case 'Spectrometer': newComp = new Spectrometer(compPos, 80, 50, 90); break;
+                case 'PowerMeter': newComp = new PowerMeter(compPos, 40, 90); break;
+                case 'PolarizationAnalyzer': newComp = new PolarizationAnalyzer(compPos, 60, 50, 90); break;
+                
+                // 调制器
+                case 'ElectroOpticModulator': newComp = new ElectroOpticModulator(compPos, 60, 30, 0); break;
+                case 'VariableAttenuator': newComp = new VariableAttenuator(compPos, 50, 90); break;
+                case 'OpticalChopper': newComp = new OpticalChopper(compPos, 50, 90); break;
+                
+                // 原子物理
+                case 'AtomicCell': newComp = new AtomicCell(compPos, 80, 50, 0); break;
+                case 'MagneticCoil': newComp = new MagneticCoil(compPos, 60, 0); break;
+                
+                // 干涉仪
+                case 'FabryPerotCavity': newComp = new FabryPerotCavity(compPos, 100, 0); break;
+                
                 default: console.warn("Unknown component type:", componentToAdd);
             }
         } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
@@ -2888,6 +2962,46 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'HalfWavePlate': newComp = new HalfWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
                 case 'QuarterWavePlate': newComp = new QuarterWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
                 case 'AcoustoOpticModulator': newComp = new AcoustoOpticModulator(pos, compData.width, compData.height, angleDeg, compData.rfFrequencyMHz, compData.rfPower); break;
+                
+                // === 新增元件 ===
+                // 新光源
+                case 'PointSource': newComp = new PointSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.enabled); break;
+                case 'LEDSource': newComp = new LEDSource(pos, angleDeg, compData.centerWavelength, compData.fwhm, compData.intensity, compData.rayCount, compData.spreadDeg, compData.enabled); break;
+                case 'PulsedLaserSource': newComp = new PulsedLaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled); break;
+                
+                // 新反射镜
+                case 'DichroicMirror': newComp = new DichroicMirror(pos, compData.length, angleDeg, compData.cutoffWavelength, compData.transitionWidth); break;
+                case 'MetallicMirror': newComp = new MetallicMirror(pos, compData.length, angleDeg, compData.metalType); break;
+                case 'RingMirror': newComp = new RingMirror(pos, compData.outerRadius, compData.innerRadius, angleDeg); break;
+                
+                // 新透镜
+                case 'CylindricalLens': newComp = new CylindricalLens(pos, compData.diameter, compData.focalLength, angleDeg, compData.cylinderAxis); break;
+                case 'AsphericLens': newComp = new AsphericLens(pos, compData.diameter, compData.focalLength, angleDeg); break;
+                case 'GRINLens': newComp = new GRINLens(pos, compData.diameter, compData.length, angleDeg); break;
+                
+                // 新偏振器件
+                case 'WollastonPrism': newComp = new WollastonPrism(pos, compData.width, compData.height, angleDeg, compData.separationAngleDeg); break;
+                case 'FaradayRotator': newComp = new FaradayRotator(pos, compData.width, compData.height, angleDeg, compData.rotationAngleDeg); break;
+                case 'FaradayIsolator': newComp = new FaradayIsolator(pos, compData.width, compData.height, angleDeg); break;
+                
+                // 新探测器
+                case 'CCDCamera': newComp = new CCDCamera(pos, compData.width, compData.height, angleDeg, compData.pixelCountX, compData.pixelCountY, compData.quantumEfficiency); break;
+                case 'Spectrometer': newComp = new Spectrometer(pos, compData.width, compData.height, angleDeg, compData.wavelengthMin, compData.wavelengthMax, compData.resolution); break;
+                case 'PowerMeter': newComp = new PowerMeter(pos, compData.diameter, angleDeg); break;
+                case 'PolarizationAnalyzer': newComp = new PolarizationAnalyzer(pos, compData.width, compData.height, angleDeg); break;
+                
+                // 调制器
+                case 'ElectroOpticModulator': newComp = new ElectroOpticModulator(pos, compData.width, compData.height, angleDeg, compData.vPi, compData.appliedVoltage, compData.modulationMode); break;
+                case 'VariableAttenuator': newComp = new VariableAttenuator(pos, compData.diameter, angleDeg, compData.attenuation); break;
+                case 'OpticalChopper': newComp = new OpticalChopper(pos, compData.diameter, angleDeg, compData.frequency, compData.dutyCycle, compData.bladeCount); break;
+                
+                // 原子物理
+                case 'AtomicCell': newComp = new AtomicCell(pos, compData.width, compData.height, angleDeg, compData.atomType, compData.temperature, compData.numberDensity); break;
+                case 'MagneticCoil': newComp = new MagneticCoil(pos, compData.diameter, angleDeg, compData.coilType, compData.fieldStrength); break;
+                
+                // 干涉仪
+                case 'FabryPerotCavity': newComp = new FabryPerotCavity(pos, compData.cavityLength, angleDeg, compData.mirrorReflectivity, compData.finesse); break;
+                
                 default: console.warn(`Unknown component type during preset load: ${compType}`);
             }
             // --- End Component Creation Switch ---

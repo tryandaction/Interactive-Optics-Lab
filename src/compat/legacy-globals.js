@@ -14,25 +14,31 @@ import * as constants from '../core/constants.js';
 
 // 光源
 import { 
-    LaserSource, FanSource, LineSource, WhiteLightSource 
+    LaserSource, FanSource, LineSource, WhiteLightSource,
+    PointSource, LEDSource, PulsedLaserSource
 } from '../components/sources/index.js';
 
 // 反射镜
 import { 
-    Mirror, SphericalMirror, ParabolicMirror 
+    Mirror, SphericalMirror, ParabolicMirror,
+    DichroicMirror, MetallicMirror, RingMirror
 } from '../components/mirrors/index.js';
 
 // 透镜
-import { ThinLens } from '../components/lenses/index.js';
+import { 
+    ThinLens, CylindricalLens, AsphericLens, GRINLens 
+} from '../components/lenses/index.js';
 
 // 偏振器件
 import { 
     Polarizer, BeamSplitter, WavePlate, HalfWavePlate, 
-    QuarterWavePlate, FaradayRotator, FaradayIsolator 
+    QuarterWavePlate, FaradayRotator, FaradayIsolator, WollastonPrism
 } from '../components/polarizers/index.js';
 
 // 探测器
-import { Screen, Photodiode } from '../components/detectors/index.js';
+import { 
+    Screen, Photodiode, CCDCamera, Spectrometer, PowerMeter, PolarizationAnalyzer 
+} from '../components/detectors/index.js';
 
 // 特殊元件
 import { 
@@ -42,6 +48,17 @@ import {
 
 // 辅助元件
 import { CustomComponent } from '../components/misc/index.js';
+
+// 调制器
+import { 
+    ElectroOpticModulator, VariableAttenuator, OpticalChopper 
+} from '../components/modulators/index.js';
+
+// 原子物理
+import { AtomicCell, MagneticCoil } from '../components/atomic/index.js';
+
+// 干涉仪
+import { FabryPerotCavity } from '../components/interferometers/index.js';
 
 // 渲染器
 import { 
@@ -99,14 +116,23 @@ if (typeof window !== 'undefined') {
     window.FanSource = FanSource;
     window.LineSource = LineSource;
     window.WhiteLightSource = WhiteLightSource;
+    window.PointSource = PointSource;
+    window.LEDSource = LEDSource;
+    window.PulsedLaserSource = PulsedLaserSource;
 
     // 反射镜
     window.Mirror = Mirror;
     window.SphericalMirror = SphericalMirror;
     window.ParabolicMirror = ParabolicMirror;
+    window.DichroicMirror = DichroicMirror;
+    window.MetallicMirror = MetallicMirror;
+    window.RingMirror = RingMirror;
 
     // 透镜
     window.ThinLens = ThinLens;
+    window.CylindricalLens = CylindricalLens;
+    window.AsphericLens = AsphericLens;
+    window.GRINLens = GRINLens;
 
     // 偏振器件
     window.Polarizer = Polarizer;
@@ -116,10 +142,15 @@ if (typeof window !== 'undefined') {
     window.QuarterWavePlate = QuarterWavePlate;
     window.FaradayRotator = FaradayRotator;
     window.FaradayIsolator = FaradayIsolator;
+    window.WollastonPrism = WollastonPrism;
 
     // 探测器
     window.Screen = Screen;
     window.Photodiode = Photodiode;
+    window.CCDCamera = CCDCamera;
+    window.Spectrometer = Spectrometer;
+    window.PowerMeter = PowerMeter;
+    window.PolarizationAnalyzer = PolarizationAnalyzer;
 
     // 特殊元件
     window.Prism = Prism;
@@ -131,6 +162,18 @@ if (typeof window !== 'undefined') {
 
     // 辅助元件
     window.CustomComponent = CustomComponent;
+
+    // 调制器
+    window.ElectroOpticModulator = ElectroOpticModulator;
+    window.VariableAttenuator = VariableAttenuator;
+    window.OpticalChopper = OpticalChopper;
+
+    // 原子物理
+    window.AtomicCell = AtomicCell;
+    window.MagneticCoil = MagneticCoil;
+
+    // 干涉仪
+    window.FabryPerotCavity = FabryPerotCavity;
 
     // 渲染器
     window.RayRenderer = RayRenderer;
