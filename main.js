@@ -164,15 +164,16 @@ function hasUnsavedChanges() {
 /**
  * 保存当前场景到项目
  * 通过 Ctrl+S 触发
+ * - 如果有打开的项目场景：直接保存
+ * - 如果没有打开的项目场景：弹出"另存为"对话框，让用户选择保存位置
  */
 async function saveCurrentSceneToProject() {
     console.log('[Save] Ctrl+S triggered - saving current scene...');
     
     // 检查是否有打开的项目和场景
     if (!window.unifiedProjectPanel) {
-        console.log('[Save] No project panel available, falling back to localStorage save');
-        saveSceneToLocalStorage();
-        showTemporaryMessage('场景已暂存到浏览器（未打开项目）', 'info');
+        console.log('[Save] No project panel available, using export as save');
+        await exportSceneAsFile();
         return;
     }
     
@@ -180,10 +181,10 @@ async function saveCurrentSceneToProject() {
     const currentProject = projectManager.getCurrentProject();
     const currentScene = projectManager.getCurrentScene();
     
+    // 如果没有打开的项目或场景，使用"另存为"功能
     if (!currentProject || !currentScene) {
-        console.log('[Save] No project/scene open, falling back to localStorage save');
-        saveSceneToLocalStorage();
-        showTemporaryMessage('场景已暂存到浏览器（请先打开项目场景）', 'info');
+        console.log('[Save] No project/scene open, using export as save');
+        await exportSceneAsFile();
         return;
     }
     
@@ -4661,6 +4662,78 @@ function exportScene() {
     // Note: Exporting does not change sceneModified state
 }
 // --- END OF REPLACEMENT ---
+
+/**
+ * 导出场景为文件（另存为功能）
+ * 使用 File System Access API 让用户选择保存位置和文件名
+ * 如果浏览器不支持，则回退到传统下载方式
+ */
+async function exportSceneAsFile() {
+    console.log('[ExportAs] Exporting scene as file...');
+    
+    const sceneData = generateSceneDataObject();
+    if (!sceneData) {
+        showTemporaryMessage('无法生成场景数据', 'error');
+        return;
+    }
+    
+    const jsonString = JSON.stringify(sceneData, null, 2);
+    const suggestedName = `场景_${new Date().toISOString().slice(0, 10)}.scene.json`;
+    
+    // 检查是否支持 File System Access API
+    if ('showSaveFilePicker' in window) {
+        try {
+            const fileHandle = await window.showSaveFilePicker({
+                suggestedName: suggestedName,
+                types: [{
+                    description: '光学场景文件',
+                    accept: {
+                        'application/json': ['.scene.json', '.json']
+                    }
+                }]
+            });
+            
+            // 写入文件
+            const writable = await fileHandle.createWritable();
+            await writable.write(jsonString);
+            await writable.close();
+            
+            // 标记为已保存
+            markSceneAsSaved();
+            
+            showTemporaryMessage(`场景已保存为 "${fileHandle.name}"`, 'success');
+            console.log('[ExportAs] Scene saved to:', fileHandle.name);
+            
+        } catch (err) {
+            // 用户取消选择
+            if (err.name === 'AbortError') {
+                console.log('[ExportAs] User cancelled file save');
+                return;
+            }
+            console.error('[ExportAs] Failed to save file:', err);
+            showTemporaryMessage(`保存失败: ${err.message}`, 'error');
+        }
+    } else {
+        // 回退到传统下载方式
+        console.log('[ExportAs] File System Access API not supported, using download');
+        
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // 标记为已保存
+        markSceneAsSaved();
+        
+        showTemporaryMessage('场景已下载', 'success');
+        console.log('[ExportAs] Scene download triggered');
+    }
+}
 
 
 // --- REPLACEMENT for importScene (Uses loadSceneFromData) ---
