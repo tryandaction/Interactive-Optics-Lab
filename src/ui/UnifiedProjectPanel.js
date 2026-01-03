@@ -54,18 +54,28 @@ export class UnifiedProjectPanel {
             <div class="unified-project-panel">
                 <!-- 工具栏 -->
                 <div class="project-panel-toolbar">
-                    <button class="btn-icon" id="btn-new-project" title="新建项目">
-                        <span>📁+</span>
+                    <button class="btn-icon with-badge" id="btn-new-project" title="新建项目">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                        </svg>
+                        <span class="badge-plus">+</span>
                     </button>
                     <button class="btn-icon" id="btn-open-project" title="打开项目">
-                        <span>📂</span>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
                     </button>
-                    <button class="btn-icon" id="btn-new-scene" title="新建场景" disabled>
-                        <span>📄+</span>
+                    <button class="btn-icon with-badge" id="btn-new-scene" title="新建场景" disabled>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                        </svg>
+                        <span class="badge-plus">+</span>
                     </button>
                     <div class="toolbar-spacer"></div>
                     <button class="btn-icon" id="btn-sync" title="同步到 GitHub" style="display: none;">
-                        <span>🔄</span>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                        </svg>
                     </button>
                 </div>
 
