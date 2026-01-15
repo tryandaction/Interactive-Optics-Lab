@@ -5459,6 +5459,97 @@ function loadInitialTheme() {
     applyCombinedTheme(savedTheme);
 }
 
+// --- 模式切换器初始化 ---
+let modeSwitcherInstance = null;
+
+/**
+ * 初始化模式切换器
+ * 创建ModeSwitcher实例并设置模式切换事件处理
+ */
+function initializeModeSwitcher() {
+    const container = document.getElementById('mode-switcher-container');
+    if (!container) {
+        console.warn('模式切换器容器未找到，跳过初始化');
+        return;
+    }
+
+    // 检查ModeSwitcher是否可用
+    if (typeof window.createModeSwitcher === 'function') {
+        modeSwitcherInstance = window.createModeSwitcher(container, {
+            showLabels: true,
+            showIcons: true,
+            compact: false
+        });
+        console.log('模式切换器已初始化');
+    } else if (typeof createModeSwitcher === 'function') {
+        modeSwitcherInstance = createModeSwitcher(container, {
+            showLabels: true,
+            showIcons: true,
+            compact: false
+        });
+        console.log('模式切换器已初始化');
+    } else {
+        // 延迟初始化，等待模块加载
+        setTimeout(() => {
+            if (typeof window.createModeSwitcher === 'function') {
+                modeSwitcherInstance = window.createModeSwitcher(container, {
+                    showLabels: true,
+                    showIcons: true,
+                    compact: false
+                });
+                console.log('模式切换器已延迟初始化');
+            } else {
+                console.warn('ModeSwitcher模块未加载，模式切换功能不可用');
+            }
+        }, 500);
+    }
+
+    // 监听模式切换事件
+    document.addEventListener('app-mode-change', (event) => {
+        const { mode, config } = event.detail;
+        handleModeChange(mode, config);
+    });
+}
+
+/**
+ * 处理模式切换
+ * @param {string} mode - 新模式 ('simulation' | 'diagram')
+ * @param {Object} config - 模式UI配置
+ */
+function handleModeChange(mode, config) {
+    console.log(`模式已切换到: ${mode}`);
+    
+    // 更新UI显示
+    updateModeSpecificUI(mode);
+    
+    // 触发重绘
+    needsRetrace = true;
+}
+
+/**
+ * 更新模式特定的UI元素
+ * @param {string} mode - 当前模式
+ */
+function updateModeSpecificUI(mode) {
+    // 显示/隐藏模式特定的工具栏和面板
+    const simulationOnlyElements = document.querySelectorAll('.simulation-only');
+    const diagramOnlyElements = document.querySelectorAll('.diagram-only');
+    
+    if (mode === 'simulation') {
+        simulationOnlyElements.forEach(el => el.style.display = '');
+        diagramOnlyElements.forEach(el => el.style.display = 'none');
+    } else if (mode === 'diagram') {
+        simulationOnlyElements.forEach(el => el.style.display = 'none');
+        diagramOnlyElements.forEach(el => el.style.display = '');
+    }
+    
+    // 更新模式提示
+    if (modeHintElement) {
+        const modeText = mode === 'simulation' ? '模拟模式' : '绘图模式';
+        // 可以在这里显示模式提示，但不覆盖现有的操作提示
+    }
+}
+
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
     // --- Prevent multiple initializations ---
@@ -5532,6 +5623,9 @@ function initialize() {
     setupEventListeners();   // Setup ALL event listeners, including tabs and modals
     activateTab('properties-tab'); // Activate properties tab by default
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
+
+    // --- 初始化模式切换器 ---
+    initializeModeSwitcher();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace

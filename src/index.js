@@ -30,4 +30,7 @@ export * from './managers/index.js';
 // --- 应用 ---
 export * from './app/index.js';
 
+// --- 专业绘图模式 ---
+export * from './diagram/index.js';
+
 console.log("光学模拟器模块化版本已加载");
