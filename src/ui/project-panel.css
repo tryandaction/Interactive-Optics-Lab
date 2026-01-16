@@ -41,8 +41,20 @@ body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon {
 }
 
 .project-panel-toolbar .btn-icon svg {
-    width: 18px;
-    height: 18px;
+    width: 18px !important;
+    height: 18px !important;
+    display: block;
+    flex-shrink: 0;
+}
+
+.project-panel-toolbar .btn-icon svg,
+.project-panel-toolbar .btn-icon svg path {
+    fill: var(--text-color, #333) !important;
+}
+
+body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon svg,
+body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon svg path {
+    fill: var(--text-color, #dee2e6) !important;
 }
 
 .project-panel-toolbar .btn-icon:hover:not(:disabled) {

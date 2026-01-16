@@ -100,6 +100,14 @@ import { SyncService } from '../managers/SyncService.js';
 // 应用
 import { SimulationApp } from '../app/SimulationApp.js';
 
+// 专业绘图模式
+import { 
+    ModeManager, APP_MODES, getModeManager, resetModeManager,
+    ModeSwitcher, createModeSwitcher,
+    DiagramModeIntegration, getDiagramModeIntegration, initializeDiagramMode, resetDiagramModeIntegration,
+    openExportDialog, getExportDialog
+} from '../diagram/index.js';
+
 // 导出到全局
 if (typeof window !== 'undefined') {
     // 核心类
@@ -230,6 +238,20 @@ if (typeof window !== 'undefined') {
 
     // 应用
     window.SimulationApp = SimulationApp;
+
+    // 专业绘图模式
+    window.ModeManager = ModeManager;
+    window.APP_MODES = APP_MODES;
+    window.getModeManager = getModeManager;
+    window.resetModeManager = resetModeManager;
+    window.ModeSwitcher = ModeSwitcher;
+    window.createModeSwitcher = createModeSwitcher;
+    window.DiagramModeIntegration = DiagramModeIntegration;
+    window.getDiagramModeIntegration = getDiagramModeIntegration;
+    window.initializeDiagramMode = initializeDiagramMode;
+    window.resetDiagramModeIntegration = resetDiagramModeIntegration;
+    window.openExportDialog = openExportDialog;
+    window.getExportDialog = getExportDialog;
 
     console.log("Legacy globals loaded for backward compatibility");
 }

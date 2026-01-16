@@ -70,29 +70,4 @@ export {
     resetDiagramModeIntegration 
 } from './DiagramModeIntegration.js';
 
-// 兼容旧代码的全局导出
-if (typeof window !== 'undefined') {
-    import('./ModeManager.js').then(module => {
-        window.ModeManager = module.ModeManager;
-        window.APP_MODES = module.APP_MODES;
-        window.getModeManager = module.getModeManager;
-    });
-    import('./ModeSwitcher.js').then(module => {
-        window.ModeSwitcher = module.ModeSwitcher;
-        window.createModeSwitcher = module.createModeSwitcher;
-    });
-    import('./SymbolLibrary.js').then(module => {
-        window.SymbolLibrary = module.SymbolLibrary;
-        window.getSymbolLibrary = module.getSymbolLibrary;
-    });
-    import('./DiagramModeIntegration.js').then(module => {
-        window.DiagramModeIntegration = module.DiagramModeIntegration;
-        window.getDiagramModeIntegration = module.getDiagramModeIntegration;
-        window.initializeDiagramMode = module.initializeDiagramMode;
-        window.resetDiagramModeIntegration = module.resetDiagramModeIntegration;
-    });
-    import('./ExportUI.js').then(module => {
-        window.openExportDialog = module.openExportDialog;
-        window.getExportDialog = module.getExportDialog;
-    });
-}
+// 兼容旧代码的全局导出已移至 src/compat/legacy-globals.js

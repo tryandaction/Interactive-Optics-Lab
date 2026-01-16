@@ -4469,15 +4469,35 @@ function setupEventListeners() {
     document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
         e.preventDefault(); 
         // 切换到专业绘图模式
-        if (typeof window.getModeManager === 'function') {
-            const modeManager = window.getModeManager();
-            modeManager.switchMode('diagram');
-        } else if (typeof window.getDiagramModeIntegration === 'function') {
-            const integration = window.getDiagramModeIntegration();
-            integration.switchToDiagramMode();
-        } else {
-            console.warn('专业绘图模式模块未加载');
+        const trySwitch = () => {
+            if (typeof window.getModeManager === 'function') {
+                const modeManager = window.getModeManager();
+                modeManager.switchMode('diagram');
+                return true;
+            } else if (typeof window.getDiagramModeIntegration === 'function') {
+                const integration = window.getDiagramModeIntegration();
+                integration.switchToDiagramMode();
+                return true;
+            }
+            return false;
+        };
+        
+        if (!trySwitch()) {
+            // 模块可能还在加载中，显示提示并重试
             showTemporaryMessage('专业绘图模式正在加载中...', 'info');
+            let retryCount = 0;
+            const maxRetries = 20; // 最多重试20次，每次100ms
+            const retryInterval = setInterval(() => {
+                retryCount++;
+                if (trySwitch()) {
+                    clearInterval(retryInterval);
+                    showTemporaryMessage('已切换到专业绘图模式', 'success');
+                } else if (retryCount >= maxRetries) {
+                    clearInterval(retryInterval);
+                    console.error('专业绘图模式模块加载失败');
+                    showTemporaryMessage('专业绘图模式加载失败，请刷新页面重试', 'error');
+                }
+            }, 100);
         }
     });
     document.getElementById('menu-open-settings')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('settings-tab'); });
@@ -5482,54 +5502,57 @@ let diagramModeIntegration = null;
  * 创建DiagramModeIntegration实例并设置相关功能
  */
 function initializeDiagramModeIntegration() {
-    // 检查DiagramModeIntegration是否可用
-    if (typeof window.initializeDiagramMode === 'function') {
-        try {
-            diagramModeIntegration = window.initializeDiagramMode({
-                components: components,
-                cameraState: {
-                    scale: cameraScale,
-                    offset: cameraOffset
-                }
-            });
-            console.log('专业绘图模式集成已初始化');
-        } catch (error) {
-            console.error('初始化专业绘图模式失败:', error);
-        }
-    } else if (typeof window.getDiagramModeIntegration === 'function') {
-        try {
-            diagramModeIntegration = window.getDiagramModeIntegration();
-            diagramModeIntegration.initialize({
-                components: components,
-                cameraState: {
-                    scale: cameraScale,
-                    offset: cameraOffset
-                }
-            });
-            console.log('专业绘图模式集成已初始化');
-        } catch (error) {
-            console.error('初始化专业绘图模式失败:', error);
-        }
-    } else {
-        // 延迟初始化，等待模块加载
-        setTimeout(() => {
-            if (typeof window.initializeDiagramMode === 'function') {
-                try {
-                    diagramModeIntegration = window.initializeDiagramMode({
-                        components: components,
-                        cameraState: {
-                            scale: cameraScale,
-                            offset: cameraOffset
-                        }
-                    });
-                    console.log('专业绘图模式集成已延迟初始化');
-                } catch (error) {
-                    console.error('延迟初始化专业绘图模式失败:', error);
-                }
-            } else {
-                console.warn('DiagramModeIntegration模块未加载，专业绘图功能不可用');
+    const doInit = () => {
+        if (typeof window.initializeDiagramMode === 'function') {
+            try {
+                diagramModeIntegration = window.initializeDiagramMode({
+                    components: components,
+                    cameraState: {
+                        scale: cameraScale,
+                        offset: cameraOffset
+                    }
+                });
+                console.log('专业绘图模式集成已初始化');
+                return true;
+            } catch (error) {
+                console.error('初始化专业绘图模式失败:', error);
+                return false;
             }
-        }, 1000);
+        } else if (typeof window.getDiagramModeIntegration === 'function') {
+            try {
+                diagramModeIntegration = window.getDiagramModeIntegration();
+                diagramModeIntegration.initialize({
+                    components: components,
+                    cameraState: {
+                        scale: cameraScale,
+                        offset: cameraOffset
+                    }
+                });
+                console.log('专业绘图模式集成已初始化');
+                return true;
+            } catch (error) {
+                console.error('初始化专业绘图模式失败:', error);
+                return false;
+            }
+        }
+        return false;
+    };
+
+    // 尝试立即初始化
+    if (!doInit()) {
+        // 延迟初始化，等待模块加载
+        let retryCount = 0;
+        const maxRetries = 30; // 最多重试30次，每次100ms
+        const retryInterval = setInterval(() => {
+            retryCount++;
+            if (doInit()) {
+                clearInterval(retryInterval);
+                console.log('专业绘图模式集成已延迟初始化');
+            } else if (retryCount >= maxRetries) {
+                clearInterval(retryInterval);
+                console.warn('DiagramModeIntegration模块加载超时，专业绘图功能可能不可用');
+            }
+        }, 100);
     }
 }
 
