@@ -552,14 +552,26 @@ function draw() {
     drawPlacementPreview(ctx);
 
     // Draw all components with user content filtering
+    // 检查是否为绘图模式
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+    
     components.forEach(comp => {
         try {
-            comp.draw(ctx); // Draw the component itself
+            // 在绘图模式下，尝试使用专业图标渲染
+            let drawnWithProfessionalIcon = false;
+            if (isDiagramModeActive && diagramModeIntegration) {
+                drawnWithProfessionalIcon = diagramModeIntegration.renderComponentWithProfessionalIcon(ctx, comp);
+            }
+            
+            // 如果没有使用专业图标，使用默认渲染
+            if (!drawnWithProfessionalIcon) {
+                comp.draw(ctx); // Draw the component itself
+            }
 
             // Draw selection highlight (which includes angle handle)
             // The base GameObject.drawSelection handles the angle handle part.
             // Subclasses might override drawSelection to add more highlights.
-            if (comp === selectedComponent) {
+            if (comp === selectedComponent || selectedComponents.includes(comp)) {
                 comp.drawSelection(ctx);
             }
 
@@ -567,6 +579,24 @@ function draw() {
             console.error(`Error drawing component ${comp?.label}:`, e, comp);
         }
     }); // End drawing components loop
+    
+    // --- 绘图模式专业元素渲染 ---
+    if (isDiagramModeActive && diagramModeIntegration) {
+        const dpr = window.devicePixelRatio || 1;
+        const logicalWidth = canvas.width / dpr;
+        const logicalHeight = canvas.height / dpr;
+        diagramModeIntegration.renderProfessionalDiagram(ctx, components, logicalWidth, logicalHeight);
+        
+        // 更新小地图
+        diagramModeIntegration.updateMinimap(components, [], {
+            x: -cameraOffset.x / cameraScale,
+            y: -cameraOffset.y / cameraScale,
+            width: logicalWidth / cameraScale,
+            height: logicalHeight / cameraScale,
+            scale: cameraScale
+        });
+    }
+    // --- End 绘图模式专业元素渲染 ---
 
 
 
@@ -935,7 +965,18 @@ function drawPlacementPreview(ctx) {
         if (previewComp) {
             // Use the component's own draw method for the preview
             previewComp.selected = false; // Ensure it's not drawn as selected
-            previewComp.draw(ctx);
+            
+            // 在绘图模式下，尝试使用专业图标渲染预览
+            const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+            let drawnWithProfessionalIcon = false;
+            if (isDiagramModeActive && diagramModeIntegration) {
+                drawnWithProfessionalIcon = diagramModeIntegration.renderComponentWithProfessionalIcon(ctx, previewComp);
+            }
+            
+            // 如果没有使用专业图标，使用默认渲染
+            if (!drawnWithProfessionalIcon) {
+                previewComp.draw(ctx);
+            }
         }
     } catch (e) { console.error("Error creating preview component:", e); }
     ctx.restore();
@@ -1990,6 +2031,39 @@ function handleMouseDown(event) {
     dragStartMousePos = mousePos.clone();
     ongoingActionState = null;
 
+    // --- 绘图模式下的光线链接创建处理 ---
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagramModeActive && diagramModeIntegration) {
+        const rayLinkManager = diagramModeIntegration.getModule('rayLinkManager');
+        const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
+        
+        // 检查是否点击了连接点（用于开始创建光线链接）
+        if (connectionPointManager && rayLinkManager) {
+            const clickedPoint = connectionPointManager.findPointAtPosition(mousePos, 15);
+            if (clickedPoint) {
+                // 如果正在创建链接，尝试完成
+                if (rayLinkManager.editingLink) {
+                    const link = rayLinkManager.finishLinkCreation();
+                    if (link) {
+                        console.log('光线链接创建完成:', link.id);
+                        needsRetrace = true;
+                        return;
+                    }
+                } else {
+                    // 开始创建新链接
+                    rayLinkManager.startLinkCreation(clickedPoint.componentId, clickedPoint.pointId);
+                    console.log('开始创建光线链接:', clickedPoint.componentId, clickedPoint.pointId);
+                    return;
+                }
+            } else if (rayLinkManager.editingLink) {
+                // 点击空白处取消链接创建
+                rayLinkManager.cancelLinkCreation();
+                console.log('取消光线链接创建');
+            }
+        }
+    }
+    // --- End 绘图模式下的光线链接创建处理 ---
+
     // --- 优先处理工具放置：如果选择了工具，直接在点击位置创建元件 ---
     if (componentToAdd) {
         let newComp = null;
@@ -2109,6 +2183,14 @@ function handleMouseDown(event) {
             needsRetrace = true;
             sceneModified = true;
             markSceneAsModified();
+            
+            // 在绘图模式下，初始化新组件的连接点
+            if (diagramModeIntegration?.isDiagramMode?.()) {
+                const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
+                if (connectionPointManager) {
+                    connectionPointManager.initializeComponentPoints(newComp);
+                }
+            }
         }
         componentToAdd = null;
         clearToolbarSelection();
@@ -2284,6 +2366,30 @@ function handleMouseDown(event) {
 function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
+
+    // --- 绘图模式下的光线链接更新 ---
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagramModeActive && diagramModeIntegration) {
+        const rayLinkManager = diagramModeIntegration.getModule('rayLinkManager');
+        const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
+        
+        // 更新正在创建的链接
+        if (rayLinkManager?.editingLink) {
+            rayLinkManager.updateLinkCreation(currentMousePos);
+            needsRetrace = true;
+        }
+        
+        // 更新连接点悬停状态
+        if (connectionPointManager) {
+            connectionPointManager.handleMouseMove(currentMousePos);
+        }
+        
+        // 更新光线链接悬停状态
+        if (rayLinkManager) {
+            rayLinkManager.handleMouseMove(currentMousePos);
+        }
+    }
+    // --- End 绘图模式下的光线链接更新 ---
 
     // --- Panning Logic ---
     if (isPanning) {

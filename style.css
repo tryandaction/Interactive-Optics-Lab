@@ -211,7 +211,7 @@ body {
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
-    z-index: 100;
+    z-index: 10050;
 }
 
 .menu-left {
@@ -270,7 +270,7 @@ body {
     border: 1px solid var(--dropdown-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-dropdown);
-    z-index: 101;
+    z-index: 10100;
     overflow: hidden;
 }
 
@@ -592,6 +592,39 @@ body[data-ui-theme="dark"] #toolbar button.selected-tool {
 
 body[data-ui-theme="dark"] #toolbar button.selected-tool svg {
     color: var(--button-selected-text);
+}
+
+/* 专业图标模式样式 */
+#toolbar button.icon-button .professional-icon-preview {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    display: none;
+    image-rendering: crisp-edges;
+}
+
+#toolbar button.icon-button.professional-icon .professional-icon-preview {
+    display: block;
+}
+
+#toolbar button.icon-button.professional-icon svg {
+    display: none !important;
+}
+
+/* 绘图模式下的工具栏样式 */
+body[data-app-mode="diagram"] #toolbar button.icon-button {
+    border-color: var(--primary-color-light, #4a90d9);
+}
+
+body[data-app-mode="diagram"] #toolbar button.icon-button:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 4px rgba(0, 120, 212, 0.3);
+}
+
+body[data-app-mode="diagram"] #toolbar button.selected-tool {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 /* 工具栏分隔线 */

@@ -211,6 +211,9 @@ export class DiagramModeIntegration {
                 // 更新UI可见性
                 this._updateUIVisibility(newMode);
                 
+                // 更新左侧栏图标
+                this._updateToolbarIcons(newMode);
+                
                 // 触发自定义事件
                 if (typeof document !== 'undefined') {
                     document.dispatchEvent(new CustomEvent('diagram-mode-change', {
@@ -221,6 +224,68 @@ export class DiagramModeIntegration {
         });
         
         this.cleanupFunctions.push(unsubscribe);
+    }
+    
+    /**
+     * 更新左侧工具栏图标
+     * 在绘图模式下使用专业图标，在模拟模式下使用原始图标
+     * @private
+     */
+    _updateToolbarIcons(mode) {
+        if (typeof document === 'undefined') return;
+        
+        const toolbar = document.getElementById('toolbar');
+        if (!toolbar) return;
+        
+        const isDiagramMode = mode === APP_MODES.DIAGRAM;
+        const buttons = toolbar.querySelectorAll('button[data-type]');
+        
+        buttons.forEach(btn => {
+            const componentType = btn.dataset.type;
+            const iconContainer = btn.querySelector('svg');
+            
+            if (isDiagramMode) {
+                // 绘图模式：尝试使用专业图标
+                btn.classList.add('professional-icon');
+                
+                // 检查是否有专业图标
+                const hasIcon = this.modules.professionalIconManager?.hasIcon(componentType);
+                
+                // 创建或更新专业图标预览
+                let preview = btn.querySelector('.professional-icon-preview');
+                if (!preview) {
+                    preview = document.createElement('canvas');
+                    preview.className = 'professional-icon-preview';
+                    preview.width = 48;  // 更高分辨率
+                    preview.height = 48;
+                    btn.insertBefore(preview, btn.firstChild);
+                }
+                
+                // 渲染专业图标到canvas
+                if (hasIcon) {
+                    const ctx = preview.getContext('2d');
+                    ctx.clearRect(0, 0, 48, 48);
+                    const icon = this.modules.professionalIconManager.getIconDefinition(componentType);
+                    const scale = Math.min(40 / (icon?.width || 60), 40 / (icon?.height || 60));
+                    this.modules.professionalIconManager.renderIcon(ctx, componentType, 24, 24, 0, scale);
+                    preview.style.display = 'block';
+                    if (iconContainer) iconContainer.style.display = 'none';
+                } else {
+                    // 没有专业图标，使用原始SVG但添加绘图模式样式
+                    preview.style.display = 'none';
+                    if (iconContainer) iconContainer.style.display = '';
+                }
+            } else {
+                // 模拟模式：使用原始图标
+                btn.classList.remove('professional-icon');
+                
+                const professionalPreview = btn.querySelector('.professional-icon-preview');
+                if (professionalPreview) professionalPreview.style.display = 'none';
+                if (iconContainer) iconContainer.style.display = '';
+            }
+        });
+        
+        console.log(`DiagramModeIntegration: Toolbar icons updated for ${isDiagramMode ? 'diagram' : 'simulation'} mode`);
     }
 
     /**
@@ -776,7 +841,7 @@ export class DiagramModeIntegration {
         menu.style.position = 'fixed';
         menu.style.top = `${rect.bottom + 5}px`;
         menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '10001';
+        menu.style.zIndex = '9000';
 
         document.body.appendChild(menu);
 
@@ -944,7 +1009,7 @@ export class DiagramModeIntegration {
             position: fixed;
             left: ${canvasRect.left + x}px;
             top: ${canvasRect.top + y}px;
-            z-index: 10002;
+            z-index: 9000;
             background: var(--dropdown-bg, #2d2d2d);
             border: 1px solid var(--border-color, #444);
             border-radius: 4px;
@@ -1049,7 +1114,7 @@ export class DiagramModeIntegration {
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 10000;
+            z-index: 9500;
         `;
         
         const panel = document.createElement('div');
@@ -1241,6 +1306,21 @@ export class DiagramModeIntegration {
         if (this.modules.minimap) {
             this.modules.minimap.show();
         }
+        
+        // 更新左侧栏图标为专业图标
+        this._updateToolbarIcons(APP_MODES.DIAGRAM);
+        
+        // 初始化组件的连接点
+        if (typeof window !== 'undefined' && window.components) {
+            window.components.forEach(comp => {
+                const componentId = comp.id || comp.uuid;
+                if (!this.modules.connectionPointManager.componentPoints.has(componentId)) {
+                    this.modules.connectionPointManager.initializeComponentPoints(comp);
+                }
+            });
+        }
+        
+        console.log('DiagramModeIntegration: Entered diagram mode');
     }
 
     /**
@@ -1267,6 +1347,11 @@ export class DiagramModeIntegration {
         if (this.modules.minimap) {
             this.modules.minimap.hide();
         }
+        
+        // 恢复左侧栏为原始图标
+        this._updateToolbarIcons(APP_MODES.SIMULATION);
+        
+        console.log('DiagramModeIntegration: Exited diagram mode');
     }
 
     /**
@@ -1388,7 +1473,7 @@ export class DiagramModeIntegration {
         menu.style.position = 'fixed';
         menu.style.top = `${rect.bottom + 5}px`;
         menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '10001';
+        menu.style.zIndex = '9000';
         
         document.body.appendChild(menu);
         
@@ -1536,6 +1621,17 @@ export class DiagramModeIntegration {
     _handleIconSelect(iconType) {
         console.log(`DiagramModeIntegration: Icon selected - ${iconType}`);
         
+        // 设置全局componentToAdd变量，让主应用处理组件添加
+        if (typeof window !== 'undefined') {
+            window.componentToAdd = iconType;
+            
+            // 更新光标
+            const canvas = document.getElementById('opticsCanvas');
+            if (canvas) {
+                canvas.style.cursor = 'crosshair';
+            }
+        }
+        
         // 触发自定义事件，让主应用处理组件添加
         if (typeof document !== 'undefined') {
             document.dispatchEvent(new CustomEvent('diagram-icon-selected', {
@@ -1603,7 +1699,7 @@ export class DiagramModeIntegration {
             border: 1px solid var(--border-color, #333);
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-            z-index: 10003;
+            z-index: 9500;
             overflow: hidden;
         `;
         
@@ -1867,7 +1963,7 @@ export class DiagramModeIntegration {
             border: 1px solid var(--border-color, #444);
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 10004;
+            z-index: 9000;
         `;
         
         selector.innerHTML = templates.map(t => `

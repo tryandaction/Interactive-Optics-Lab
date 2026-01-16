@@ -244,7 +244,7 @@ export class Minimap {
     _positionContainer() {
         const style = this.container.style;
         style.position = 'fixed';
-        style.zIndex = '9999';
+        style.zIndex = '8000';
         
         switch (this.position) {
             case 'bottom-right':

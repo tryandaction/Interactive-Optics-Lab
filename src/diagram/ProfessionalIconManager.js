@@ -943,6 +943,566 @@ export class ProfessionalIconManager {
             ctx.strokeRect(-w/2, h * 0.15, w, h * 0.35);
         };
         this._builtinDrawFunctions['Iris'] = this._builtinDrawFunctions['Aperture'];
+
+        // ========== 更多光源 ==========
+        this.registerIcon('FanSource', {
+            name: '扇形光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 60, height: 40,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['FanSource'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#ffcc00';
+            ctx.beginPath();
+            ctx.arc(-w/3, 0, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ff6600';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-w/3, 0);
+            ctx.lineTo(w/2, -h/2);
+            ctx.moveTo(-w/3, 0);
+            ctx.lineTo(w/2, 0);
+            ctx.moveTo(-w/3, 0);
+            ctx.lineTo(w/2, h/2);
+            ctx.stroke();
+        };
+
+        this.registerIcon('LineSource', {
+            name: '线光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 60, height: 40,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['LineSource'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(-w/3, -h/3);
+            ctx.lineTo(-w/3, h/3);
+            ctx.stroke();
+            ctx.strokeStyle = '#ff6600';
+            ctx.lineWidth = 1.5;
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-w/3, i * h/6);
+                ctx.lineTo(w/2, i * h/6);
+                ctx.stroke();
+            }
+        };
+
+        this.registerIcon('WhiteLightSource', {
+            name: '白光光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 60, height: 40,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['WhiteLightSource'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#888888';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(-w/4, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            const colors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#8800ff'];
+            colors.forEach((color, i) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-w/4 + 8, 0);
+                ctx.lineTo(w/2, -h/3 + i * h/5);
+                ctx.stroke();
+            });
+        };
+
+        this.registerIcon('PointSource', {
+            name: '点光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 50, height: 50,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 0.5, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['PointSource'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            ctx.fillStyle = '#ffcc00';
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ff6600';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 8; i++) {
+                const angle = i * Math.PI / 4;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(angle) * 8, Math.sin(angle) * 8);
+                ctx.lineTo(Math.cos(angle) * s/2.5, Math.sin(angle) * s/2.5);
+                ctx.stroke();
+            }
+        };
+
+        this.registerIcon('LEDSource', {
+            name: 'LED光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 50, height: 40,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['LEDSource'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#88ff88';
+            ctx.beginPath();
+            ctx.ellipse(-w/6, 0, w/4, h/3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#44aa44';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-w/6, h/3);
+            ctx.lineTo(-w/6, h/2);
+            ctx.moveTo(-w/6 - 5, h/3);
+            ctx.lineTo(-w/6 - 5, h/2);
+            ctx.stroke();
+        };
+
+        this.registerIcon('PulsedLaserSource', {
+            name: '脉冲激光源',
+            category: ICON_CATEGORIES.SOURCES,
+            width: 80, height: 40,
+            connectionPoints: [
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['PulsedLaserSource'] = this._builtinDrawFunctions['LaserSource'];
+
+        // ========== 更多透镜 ==========
+        this.registerIcon('CylindricalLens', {
+            name: '柱面透镜',
+            category: ICON_CATEGORIES.LENSES,
+            width: 25, height: 60,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['CylindricalLens'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+            grad.addColorStop(0, 'rgba(100, 180, 255, 0.3)');
+            grad.addColorStop(0.5, 'rgba(200, 230, 255, 0.5)');
+            grad.addColorStop(1, 'rgba(100, 180, 255, 0.3)');
+            ctx.fillStyle = grad;
+            // 使用兼容性更好的圆角矩形绘制
+            const r = w/2;
+            ctx.beginPath();
+            ctx.moveTo(-w/2 + r, -h/2);
+            ctx.lineTo(w/2 - r, -h/2);
+            ctx.arcTo(w/2, -h/2, w/2, -h/2 + r, r);
+            ctx.lineTo(w/2, h/2 - r);
+            ctx.arcTo(w/2, h/2, w/2 - r, h/2, r);
+            ctx.lineTo(-w/2 + r, h/2);
+            ctx.arcTo(-w/2, h/2, -w/2, h/2 - r, r);
+            ctx.lineTo(-w/2, -h/2 + r);
+            ctx.arcTo(-w/2, -h/2, -w/2 + r, -h/2, r);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#3366aa';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        };
+
+        this.registerIcon('AsphericLens', {
+            name: '非球面透镜',
+            category: ICON_CATEGORIES.LENSES,
+            width: 25, height: 60,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['AsphericLens'] = this._builtinDrawFunctions['ConvexLens'];
+
+        this.registerIcon('GRINLens', {
+            name: 'GRIN透镜',
+            category: ICON_CATEGORIES.LENSES,
+            width: 30, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['GRINLens'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            const grad = ctx.createLinearGradient(0, -h/2, 0, h/2);
+            grad.addColorStop(0, 'rgba(100, 180, 255, 0.2)');
+            grad.addColorStop(0.5, 'rgba(100, 180, 255, 0.6)');
+            grad.addColorStop(1, 'rgba(100, 180, 255, 0.2)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#3366aa';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+        };
+
+        // ========== 更多反射镜 ==========
+        this.registerIcon('MetallicMirror', {
+            name: '金属镜',
+            category: ICON_CATEGORIES.MIRRORS,
+            width: 12, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0.5, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 0.5, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['MetallicMirror'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+            grad.addColorStop(0, '#888888');
+            grad.addColorStop(0.5, '#cccccc');
+            grad.addColorStop(1, '#666666');
+            ctx.fillStyle = grad;
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+        };
+
+        this.registerIcon('RingMirror', {
+            name: '环形镜',
+            category: ICON_CATEGORIES.MIRRORS,
+            width: 50, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['RingMirror'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            ctx.strokeStyle = '#aaccff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5 - 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5 + 2, 0, Math.PI * 2);
+            ctx.stroke();
+        };
+
+        // ========== 更多探测器 ==========
+        this.registerIcon('CCDCamera', {
+            name: 'CCD相机',
+            category: ICON_CATEGORIES.DETECTORS,
+            width: 50, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT }
+            ]
+        });
+        this._builtinDrawFunctions['CCDCamera'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+            ctx.fillStyle = '#224488';
+            ctx.fillRect(-w/3, -h/3, w * 0.5, h * 0.6);
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-w/3 + i * w/8, -h/3);
+                ctx.lineTo(-w/3 + i * w/8, h/3 - h * 0.1);
+                ctx.stroke();
+            }
+        };
+
+        this.registerIcon('Spectrometer', {
+            name: '光谱仪',
+            category: ICON_CATEGORIES.DETECTORS,
+            width: 60, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT }
+            ]
+        });
+        this._builtinDrawFunctions['Spectrometer'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+            const colors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#8800ff'];
+            colors.forEach((color, i) => {
+                ctx.fillStyle = color;
+                ctx.fillRect(-w/3 + i * w/10, -h/4, w/12, h/2);
+            });
+        };
+
+        this.registerIcon('PowerMeter', {
+            name: '功率计',
+            category: ICON_CATEGORIES.DETECTORS,
+            width: 40, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT }
+            ]
+        });
+        this._builtinDrawFunctions['PowerMeter'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            ctx.fillStyle = '#444444';
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('W', 0, 0);
+        };
+
+        this.registerIcon('PolarizationAnalyzer', {
+            name: '偏振分析仪',
+            category: ICON_CATEGORIES.DETECTORS,
+            width: 50, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT }
+            ]
+        });
+        this._builtinDrawFunctions['PolarizationAnalyzer'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#222222';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, w/4, h/4, Math.PI/4, 0, Math.PI * 2);
+            ctx.stroke();
+        };
+
+        // ========== 更多元件 ==========
+        this.registerIcon('OpticalFiber', {
+            name: '光纤',
+            category: ICON_CATEGORIES.FIBERS,
+            width: 80, height: 30,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['OpticalFiber'] = this._builtinDrawFunctions['Fiber'];
+
+        this.registerIcon('Prism', {
+            name: '棱镜',
+            category: ICON_CATEGORIES.MISC,
+            width: 50, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['Prism'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            const grad = ctx.createLinearGradient(-s/2, 0, s/2, 0);
+            grad.addColorStop(0, 'rgba(200, 220, 255, 0.4)');
+            grad.addColorStop(0.5, 'rgba(230, 240, 255, 0.6)');
+            grad.addColorStop(1, 'rgba(200, 220, 255, 0.4)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(0, -s/2.2);
+            ctx.lineTo(-s/2.2, s/2.5);
+            ctx.lineTo(s/2.2, s/2.5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#6688aa';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        };
+
+        this.registerIcon('DiffractionGrating', {
+            name: '衍射光栅',
+            category: ICON_CATEGORIES.MISC,
+            width: 15, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0.5, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 0.5, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['DiffractionGrating'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 1;
+            const spacing = h / 12;
+            for (let i = 0; i < 12; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-w/2, -h/2 + i * spacing);
+                ctx.lineTo(w/2, -h/2 + i * spacing);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+        };
+
+        this.registerIcon('DielectricBlock', {
+            name: '介质块',
+            category: ICON_CATEGORIES.MISC,
+            width: 60, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['DielectricBlock'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            const grad = ctx.createLinearGradient(-w/2, -h/2, -w/2, h/2);
+            grad.addColorStop(0, 'rgba(170, 221, 170, 0.3)');
+            grad.addColorStop(0.5, 'rgba(200, 240, 200, 0.5)');
+            grad.addColorStop(1, 'rgba(170, 221, 170, 0.3)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#66aa66';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+        };
+
+        this.registerIcon('WollastonPrism', {
+            name: 'Wollaston棱镜',
+            category: ICON_CATEGORIES.POLARIZERS,
+            width: 50, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output1', label: 'o', position: { x: 1, y: 0.3 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT },
+                { id: 'output2', label: 'e', position: { x: 1, y: 0.7 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['WollastonPrism'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.4)';
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#6688aa';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+            ctx.beginPath();
+            ctx.moveTo(0, -h/2);
+            ctx.lineTo(0, h/2);
+            ctx.stroke();
+        };
+
+        this.registerIcon('ElectroOpticModulator', {
+            name: '电光调制器',
+            category: ICON_CATEGORIES.MODULATORS,
+            width: 50, height: 30,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['ElectroOpticModulator'] = this._builtinDrawFunctions['EOM'];
+
+        this.registerIcon('VariableAttenuator', {
+            name: '可变衰减器',
+            category: ICON_CATEGORIES.MODULATORS,
+            width: 40, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['VariableAttenuator'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-s/4, s/4);
+            ctx.lineTo(s/4, -s/4);
+            ctx.stroke();
+        };
+
+        this.registerIcon('OpticalChopper', {
+            name: '光学斩波器',
+            category: ICON_CATEGORIES.MODULATORS,
+            width: 50, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['OpticalChopper'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, s/2.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = '#333333';
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, s/2.5, i * Math.PI/2, i * Math.PI/2 + Math.PI/4);
+                ctx.closePath();
+                ctx.fill();
+            }
+        };
+
+        this.registerIcon('FabryPerotCavity', {
+            name: 'F-P腔',
+            category: ICON_CATEGORIES.MISC,
+            width: 80, height: 30,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['FabryPerotCavity'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            ctx.strokeStyle = '#aaccff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-w/2 + 5, -h/2);
+            ctx.lineTo(-w/2 + 5, h/2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(w/2 - 5, -h/2);
+            ctx.lineTo(w/2 - 5, h/2);
+            ctx.stroke();
+            ctx.strokeStyle = '#ff6600';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(-w/2 + 8, 0);
+            ctx.lineTo(w/2 - 8, 0);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        };
     }
 }
 

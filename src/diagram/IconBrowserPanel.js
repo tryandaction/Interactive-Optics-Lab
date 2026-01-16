@@ -401,7 +401,7 @@ export class IconBrowserPanel {
                 border: 1px solid var(--border-color, #333);
                 border-radius: 8px;
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-                z-index: 10002;
+                z-index: 9000;
                 display: none;
                 flex-direction: column;
                 overflow: hidden;
