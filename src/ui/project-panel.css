@@ -1,5 +1,6 @@
 /**
- * project-panel.css - 统一项目面板样式
+ * project-panel.css - 统一项目面板样式 v2.0
+ * 与主题系统完全集成
  */
 
 /* ============ 面板容器 ============ */
@@ -7,17 +8,17 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 8px;
+    padding: var(--spacing-sm, 8px);
     box-sizing: border-box;
 }
 
 /* ============ 工具栏 ============ */
 .project-panel-toolbar {
     display: flex;
-    gap: 4px;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--border-color, #ddd);
-    margin-bottom: 8px;
+    gap: var(--spacing-xs, 4px);
+    padding: var(--spacing-xs, 4px) 0;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    margin-bottom: var(--spacing-sm, 8px);
 }
 
 .project-panel-toolbar .btn-icon {
@@ -26,18 +27,14 @@
     height: 28px;
     border: none;
     background: transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-sm, 4px);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    transition: background-color 0.2s;
-    color: var(--text-color, #333);
-}
-
-body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon {
-    color: var(--text-color, #dee2e6);
+    font-size: var(--font-lg, 14px);
+    transition: background-color var(--transition-fast, 0.15s ease);
+    color: var(--text-color, #212529);
 }
 
 .project-panel-toolbar .btn-icon svg {
@@ -49,20 +46,11 @@ body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon {
 
 .project-panel-toolbar .btn-icon svg,
 .project-panel-toolbar .btn-icon svg path {
-    fill: var(--text-color, #333) !important;
-}
-
-body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon svg,
-body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon svg path {
-    fill: var(--text-color, #dee2e6) !important;
+    fill: var(--text-color, #212529) !important;
 }
 
 .project-panel-toolbar .btn-icon:hover:not(:disabled) {
-    background-color: var(--hover-bg, rgba(0, 0, 0, 0.1));
-}
-
-body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon:hover:not(:disabled) {
-    background-color: var(--hover-bg, rgba(255, 255, 255, 0.1));
+    background-color: var(--hover-bg, #e9ecef);
 }
 
 .project-panel-toolbar .btn-icon:disabled {
@@ -77,17 +65,13 @@ body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon:hover:not(:disabled)
     right: 2px;
     width: 12px;
     height: 12px;
-    background: var(--primary-color, #0078d4);
+    background: var(--primary-color, #0d6efd);
     color: #fff;
     border-radius: 50%;
     font-size: 10px;
     font-weight: bold;
     line-height: 12px;
     text-align: center;
-}
-
-body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon.with-badge .badge-plus {
-    background: var(--primary-color, #0d6efd);
 }
 
 .project-panel-toolbar .toolbar-spacer {
@@ -102,50 +86,36 @@ body[data-ui-theme="dark"] .project-panel-toolbar .btn-icon.with-badge .badge-pl
 }
 
 .project-tree {
-    font-size: 13px;
+    font-size: var(--font-md, 13px);
 }
 
 .tree-node {
     display: flex;
     align-items: center;
-    padding: 4px 8px;
+    padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm, 4px);
     user-select: none;
-    transition: background-color 0.15s;
-    color: var(--text-color, #333);
-}
-
-body[data-ui-theme="dark"] .tree-node {
-    color: var(--text-color, #dee2e6);
+    transition: background-color var(--transition-fast, 0.15s ease);
+    color: var(--text-color, #212529);
 }
 
 .tree-node:hover {
-    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
-}
-
-body[data-ui-theme="dark"] .tree-node:hover {
-    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
+    background-color: var(--hover-bg, #e9ecef);
 }
 
 .tree-node.active {
-    background-color: var(--active-bg, rgba(0, 120, 212, 0.1));
-    color: var(--active-color, #0078d4);
+    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--primary-color, #0d6efd);
 }
 
-/* 暗色主题下的活动节点 */
 body[data-ui-theme="dark"] .tree-node.active {
-    background-color: var(--active-bg, rgba(13, 110, 253, 0.2));
-    color: var(--active-color, #6ea8fe);
+    background-color: rgba(61, 139, 253, 0.15);
+    color: var(--primary-color, #3d8bfd);
 }
 
-/* 选中但非活动的节点 */
 .tree-node.selected {
-    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
-}
-
-body[data-ui-theme="dark"] .tree-node.selected {
-    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
+    background-color: var(--hover-bg, #e9ecef);
 }
 
 .tree-node.dragging {
@@ -155,12 +125,12 @@ body[data-ui-theme="dark"] .tree-node.selected {
 .tree-node .node-toggle {
     width: 16px;
     font-size: 10px;
-    color: var(--text-color-light, #666);
+    color: var(--text-color-light, #868e96);
 }
 
 .tree-node .node-icon {
     margin-right: 6px;
-    font-size: 14px;
+    font-size: var(--font-lg, 14px);
 }
 
 .tree-node .node-name {
@@ -171,13 +141,13 @@ body[data-ui-theme="dark"] .tree-node.selected {
 }
 
 .tree-node .node-name.placeholder {
-    color: var(--text-color-light, #999);
+    color: var(--text-color-light, #868e96);
     font-style: italic;
 }
 
 .tree-node .sync-indicator {
-    margin-left: 4px;
-    font-size: 12px;
+    margin-left: var(--spacing-xs, 4px);
+    font-size: var(--font-sm, 12px);
 }
 
 .tree-children {
@@ -196,115 +166,81 @@ body[data-ui-theme="dark"] .tree-node.selected {
 .project-tree-empty {
     text-align: center;
     padding: 30px 20px;
-    color: var(--text-color-light, #666);
+    color: var(--text-color-light, #868e96);
 }
 
 .project-tree-empty .empty-icon {
     font-size: 48px;
-    margin-bottom: 12px;
+    margin-bottom: var(--spacing-md, 12px);
 }
 
 .project-tree-empty p {
-    margin: 0 0 16px 0;
+    margin: 0 0 var(--spacing-lg, 16px) 0;
 }
 
 .project-tree-empty .empty-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--spacing-sm, 8px);
     justify-content: center;
 }
 
 .project-tree-empty button {
-    padding: 6px 12px;
-    border: 1px solid var(--border-color, #ddd);
-    background: var(--panel-bg, #fff);
-    color: var(--text-color, #333);
-    border-radius: 4px;
+    padding: 6px var(--spacing-md, 12px);
+    border: 1px solid var(--border-color, #dee2e6);
+    background: var(--panel-bg, #ffffff);
+    color: var(--text-color, #212529);
+    border-radius: var(--radius-sm, 4px);
     cursor: pointer;
-    font-size: 12px;
-    transition: background-color 0.15s, border-color 0.15s;
+    font-size: var(--font-sm, 12px);
+    transition: background-color var(--transition-fast, 0.15s ease), border-color var(--transition-fast, 0.15s ease);
 }
 
 .project-tree-empty button:hover {
-    background: var(--hover-bg, #f5f5f5);
-    border-color: var(--primary-color, #0078d4);
-}
-
-body[data-ui-theme="dark"] .project-tree-empty button {
-    background: var(--input-bg, #495057);
-    border-color: var(--border-color, #6c757d);
-    color: var(--text-color, #dee2e6);
-}
-
-body[data-ui-theme="dark"] .project-tree-empty button:hover {
-    background: var(--hover-bg, #5a6268);
+    background: var(--hover-bg, #e9ecef);
     border-color: var(--primary-color, #0d6efd);
 }
 
 /* ============ 右键菜单 ============ */
 .project-tree-context-menu {
     position: fixed;
-    background: var(--panel-bg, #fff);
-    border: 1px solid var(--border-color, #ddd);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--panel-bg, #ffffff);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: var(--shadow-dropdown, 0 6px 16px rgba(0, 0, 0, 0.12));
     min-width: 160px;
     z-index: 10000;
-    padding: 4px 0;
-    color: var(--text-color, #333);
-}
-
-/* 暗色主题下的右键菜单 */
-body[data-ui-theme="dark"] .project-tree-context-menu {
-    background: var(--panel-bg, #343a40);
-    border-color: var(--border-color, #495057);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    color: var(--text-color, #dee2e6);
+    padding: var(--spacing-xs, 4px) 0;
+    color: var(--text-color, #212529);
 }
 
 .project-tree-context-menu hr {
-    margin: 4px 0;
+    margin: var(--spacing-xs, 4px) 0;
     border: none;
-    border-top: 1px solid var(--border-color, #eee);
-}
-
-body[data-ui-theme="dark"] .project-tree-context-menu hr {
-    border-top-color: var(--border-color, #495057);
+    border-top: 1px solid var(--border-color-light, #e9ecef);
 }
 
 .context-menu-item {
-    padding: 8px 16px;
+    padding: var(--spacing-sm, 8px) var(--spacing-lg, 16px);
     cursor: pointer;
-    font-size: 13px;
-    transition: background-color 0.15s, color 0.15s;
-    color: var(--text-color, #333);
-}
-
-body[data-ui-theme="dark"] .context-menu-item {
-    color: var(--text-color, #dee2e6);
+    font-size: var(--font-md, 13px);
+    transition: background-color var(--transition-fast, 0.15s ease), color var(--transition-fast, 0.15s ease);
+    color: var(--text-color, #212529);
 }
 
 .context-menu-item:hover {
-    background-color: var(--primary-color, #0078d4);
-    color: #fff;
-}
-
-body[data-ui-theme="dark"] .context-menu-item:hover {
     background-color: var(--primary-color, #0d6efd);
     color: #fff;
 }
 
-/* 危险操作项（如删除） */
 .context-menu-item.danger {
-    color: #dc3545;
+    color: var(--error-color, #dc3545);
 }
 
 .context-menu-item.danger:hover {
-    background-color: #dc3545;
+    background-color: var(--error-color, #dc3545);
     color: #fff;
 }
 
-/* 禁用项 */
 .context-menu-item.disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -314,55 +250,49 @@ body[data-ui-theme="dark"] .context-menu-item:hover {
 /* 内联重命名输入框 */
 .inline-rename-input {
     width: 100%;
-    padding: 2px 4px;
+    padding: 2px var(--spacing-xs, 4px);
     font-size: inherit;
     font-family: inherit;
-    border: 1px solid var(--primary-color, #0078d4);
+    border: 1px solid var(--primary-color, #0d6efd);
     border-radius: 3px;
     outline: none;
-    background: var(--input-bg, #fff);
-    color: var(--input-text, #333);
+    background: var(--input-bg, #ffffff);
+    color: var(--input-text, #212529);
     box-sizing: border-box;
-}
-
-body[data-ui-theme="dark"] .inline-rename-input {
-    background: var(--input-bg, #495057);
-    color: var(--input-text, #f8f9fa);
-    border-color: var(--primary-color, #0d6efd);
 }
 
 /* ============ 同步状态栏 ============ */
 .sync-status-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--info-bg, #e7f3ff);
-    border-radius: 4px;
-    margin: 8px 0;
-    font-size: 12px;
+    gap: var(--spacing-sm, 8px);
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+    background: rgba(13, 110, 253, 0.08);
+    border-radius: var(--radius-sm, 4px);
+    margin: var(--spacing-sm, 8px) 0;
+    font-size: var(--font-sm, 12px);
+}
+
+body[data-ui-theme="dark"] .sync-status-bar {
+    background: rgba(61, 139, 253, 0.12);
 }
 
 .sync-status-bar .sync-status-icon {
-    font-size: 14px;
+    font-size: var(--font-lg, 14px);
 }
 
 /* ============ 最近项目 ============ */
 .recent-projects-section {
-    border-top: 1px solid var(--border-color, #ddd);
-    padding-top: 8px;
-    margin-top: 8px;
+    border-top: 1px solid var(--border-color, #dee2e6);
+    padding-top: var(--spacing-sm, 8px);
+    margin-top: var(--spacing-sm, 8px);
 }
 
 .recent-projects-section h5 {
-    margin: 0 0 8px 0;
-    font-size: 12px;
-    color: var(--text-color-light, #666);
+    margin: 0 0 var(--spacing-sm, 8px) 0;
+    font-size: var(--font-sm, 12px);
+    color: var(--text-color-light, #868e96);
     font-weight: 500;
-}
-
-body[data-ui-theme="dark"] .recent-projects-section h5 {
-    color: var(--text-color-secondary, #adb5bd);
 }
 
 .recent-projects-list {
@@ -373,29 +303,21 @@ body[data-ui-theme="dark"] .recent-projects-section h5 {
 .recent-project-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
+    gap: var(--spacing-sm, 8px);
+    padding: 6px var(--spacing-sm, 8px);
     cursor: pointer;
-    border-radius: 4px;
-    font-size: 12px;
-    transition: background-color 0.15s;
-    color: var(--text-color, #333);
-}
-
-body[data-ui-theme="dark"] .recent-project-item {
-    color: var(--text-color, #dee2e6);
+    border-radius: var(--radius-sm, 4px);
+    font-size: var(--font-sm, 12px);
+    transition: background-color var(--transition-fast, 0.15s ease);
+    color: var(--text-color, #212529);
 }
 
 .recent-project-item:hover {
-    background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
-}
-
-body[data-ui-theme="dark"] .recent-project-item:hover {
-    background-color: var(--hover-bg, rgba(255, 255, 255, 0.08));
+    background-color: var(--hover-bg, #e9ecef);
 }
 
 .recent-project-item .recent-project-icon {
-    font-size: 14px;
+    font-size: var(--font-lg, 14px);
 }
 
 .recent-project-item .recent-project-name {
@@ -409,33 +331,34 @@ body[data-ui-theme="dark"] .recent-project-item:hover {
 .fallback-notice {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--warning-bg, #fff3cd);
-    border-radius: 4px;
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--warning-color, #856404);
+    gap: var(--spacing-sm, 8px);
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+    background: rgba(240, 173, 78, 0.1);
+    border-radius: var(--radius-sm, 4px);
+    margin-top: var(--spacing-sm, 8px);
+    font-size: var(--font-xs, 11px);
+    color: var(--warning-color, #f0ad4e);
 }
 
 /* ============ 模态框增强 ============ */
 .modal-content h3 {
     margin-top: 0;
-    margin-bottom: 20px;
-    color: var(--text-color);
+    margin-bottom: var(--spacing-xl, 24px);
+    color: var(--text-color, #212529);
     font-weight: 600;
-    font-size: 16px;
+    font-size: var(--font-xl, 16px);
 }
 
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: var(--spacing-lg, 16px);
 }
 
 .form-group label {
     display: block;
     margin-bottom: 6px;
     font-weight: 500;
-    font-size: 13px;
+    font-size: var(--font-md, 13px);
+    color: var(--text-color, #212529);
 }
 
 .form-group input[type="text"],
@@ -443,107 +366,111 @@ body[data-ui-theme="dark"] .recent-project-item:hover {
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color, #ddd);
-    border-radius: 4px;
-    font-size: 13px;
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+    border: 1px solid var(--input-border, #ced4da);
+    border-radius: var(--radius-sm, 4px);
+    font-size: var(--font-md, 13px);
+    background: var(--input-bg, #ffffff);
+    color: var(--input-text, #212529);
     box-sizing: border-box;
+    transition: border-color var(--transition-fast, 0.15s ease), box-shadow var(--transition-fast, 0.15s ease);
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: var(--primary-color, #0078d4);
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+    border-color: var(--input-focus-border, #86b7fe);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow, rgba(13, 110, 253, 0.25));
 }
 
 .form-group small {
     display: block;
-    margin-top: 4px;
-    font-size: 11px;
-    color: var(--text-color-light, #666);
+    margin-top: var(--spacing-xs, 4px);
+    font-size: var(--font-xs, 11px);
+    color: var(--text-color-light, #868e96);
 }
 
 .form-group .variables-list {
-    font-size: 12px;
+    font-size: var(--font-sm, 12px);
     line-height: 1.8;
-    color: var(--text-color-light, #666);
+    color: var(--text-color-light, #868e96);
 }
 
 .form-group .variables-list code {
-    background: var(--code-bg, #f5f5f5);
+    background: var(--hover-bg, #e9ecef);
     padding: 2px 6px;
     border-radius: 3px;
-    font-family: monospace;
+    font-family: 'Consolas', 'Monaco', monospace;
 }
 
 .form-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--spacing-sm, 8px);
     justify-content: flex-end;
-    margin-top: 20px;
+    margin-top: var(--spacing-xl, 24px);
 }
 
 .form-actions button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 13px;
+    padding: var(--spacing-sm, 8px) var(--spacing-lg, 16px);
+    border-radius: var(--radius-sm, 4px);
+    font-size: var(--font-md, 13px);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all var(--transition-fast, 0.15s ease);
 }
 
 .btn-cancel {
     background: transparent;
-    border: 1px solid var(--border-color, #ddd);
-    color: var(--text-color, #333);
+    border: 1px solid var(--border-color, #dee2e6);
+    color: var(--text-color, #212529);
 }
 
 .btn-cancel:hover {
-    background: var(--hover-bg, #f5f5f5);
+    background: var(--hover-bg, #e9ecef);
 }
 
 .btn-secondary {
-    background: var(--secondary-bg, #f0f0f0);
-    border: 1px solid var(--border-color, #ddd);
-    color: var(--text-color, #333);
+    background: var(--hover-bg, #e9ecef);
+    border: 1px solid var(--border-color, #dee2e6);
+    color: var(--text-color, #212529);
 }
 
 .btn-secondary:hover {
-    background: var(--hover-bg, #e5e5e5);
+    background: var(--active-bg, #dee2e6);
 }
 
 .btn-primary {
-    background: var(--primary-color, #0078d4);
-    border: 1px solid var(--primary-color, #0078d4);
+    background: var(--primary-color, #0d6efd);
+    border: 1px solid var(--primary-color, #0d6efd);
     color: white;
 }
 
 .btn-primary:hover {
-    background: var(--primary-hover, #106ebe);
+    background: var(--primary-hover, #0b5ed7);
+    border-color: var(--primary-hover, #0b5ed7);
 }
 
 .btn-link {
     background: transparent;
     border: none;
-    color: var(--primary-color, #0078d4);
+    color: var(--primary-color, #0d6efd);
     padding: 0;
     cursor: pointer;
     text-decoration: underline;
 }
 
 .btn-link:hover {
-    color: var(--primary-hover, #106ebe);
+    color: var(--primary-hover, #0b5ed7);
 }
 
 /* 命令预览 */
 .command-preview {
-    background: var(--code-bg, #1e1e1e);
-    color: var(--code-color, #d4d4d4);
-    padding: 12px;
-    border-radius: 4px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: var(--spacing-md, 12px);
+    border-radius: var(--radius-sm, 4px);
     font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 12px;
+    font-size: var(--font-sm, 12px);
     line-height: 1.5;
     overflow-x: auto;
     white-space: pre-wrap;
@@ -552,9 +479,9 @@ body[data-ui-theme="dark"] .recent-project-item:hover {
 
 /* ============ 占位文本 ============ */
 .placeholder-text {
-    color: var(--text-color-light, #999);
+    color: var(--text-color-light, #868e96);
     font-style: italic;
-    font-size: 12px;
+    font-size: var(--font-sm, 12px);
     text-align: center;
-    padding: 12px;
+    padding: var(--spacing-md, 12px);
 }

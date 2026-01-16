@@ -1,145 +1,175 @@
-/* style.css - 最终专业主题系统 v3.0 */
+/* style.css - 统一专业主题系统 v4.0 */
 
 /* 核心原则:
  * 1. 默认主题为 "白天UI / 深色画布", 确保其在无任何 data 属性时完美显示。
  * 2. 使用两套独立的 data 属性控制 UI 和画布，JS 负责组合。
  * 3. 对所有UI元素，特别是输入框，进行细致的样式定义，确保在任何模式下都清晰可读。
+ * 4. 统一间距、圆角、阴影等设计令牌，确保视觉一致性。
 */
+
+/* --- 0. 设计令牌 (Design Tokens) --- */
+:root {
+    /* 间距系统 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    
+    /* 圆角系统 */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    
+    /* 阴影系统 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.12);
+    
+    /* 过渡动画 */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    
+    /* 字体大小 */
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-md: 13px;
+    --font-lg: 14px;
+    --font-xl: 16px;
+    
+    /* 菜单栏高度 */
+    --menubar-height: 40px;
+}
 
 /* --- 1. 定义颜色变量 --- */
 
 /* 默认主题: 白天UI (Light UI) */
 :root {
     --primary-color: #0d6efd;
-    --text-color: #212529; /* 主要文本颜色，近黑 */
-    --text-color-secondary: #6c757d; /* 次要文本，用于标签和提示 */
-    --text-color-light: #6c757d; /* 浅色文本，用于用户指南等 */
-    --dark-gray: #495057; /* 深灰色，用于标签和次要文本 */
-    --secondary-color: #6c757d; /* 次要颜色，用于按钮等 */
-    --background-color: #f8f9fa; /* 非常浅的灰色背景，比纯白更柔和 */
-    --panel-bg: #ffffff; /* 所有面板（侧边栏、菜单栏）的背景 */
-    --border-color: #dee2e6; /* 边框颜色 */
-    --hover-bg: #e9ecef; /* 悬停背景色 */
+    --primary-hover: #0b5ed7;
+    --primary-active: #0a58ca;
+    
+    --success-color: #28a745;
+    --warning-color: #f0ad4e;
+    --error-color: #dc3545;
+    --info-color: #17a2b8;
+    
+    --text-color: #212529;
+    --text-color-secondary: #6c757d;
+    --text-color-light: #868e96;
+    --text-color-muted: #adb5bd;
+    
+    --dark-gray: #495057;
+    --secondary-color: #6c757d;
+    
+    --background-color: #f8f9fa;
+    --panel-bg: #ffffff;
+    --border-color: #dee2e6;
+    --border-color-light: #e9ecef;
+    --hover-bg: #e9ecef;
+    --active-bg: #dee2e6;
     
     --dropdown-bg: #ffffff;
-    --dropdown-shadow: rgba(0, 0, 0, 0.15);
+    --dropdown-shadow: rgba(0, 0, 0, 0.12);
     --dropdown-hover-bg: #0d6efd;
     --dropdown-hover-text: #ffffff;
+    --dropdown-border: #e9ecef;
 
     --input-bg: #ffffff;
     --input-text: #212529;
     --input-border: #ced4da;
     --input-focus-border: #86b7fe;
     --input-focus-shadow: rgba(13, 110, 253, 0.25);
+    --input-placeholder: #adb5bd;
 
     --button-selected-bg: #cfe2ff;
     --button-selected-border: #b6d4fe;
     --button-selected-text: #0a58ca;
+    
+    /* 菜单栏专用 */
+    --menu-bg: #ffffff;
+    --menu-border: #e9ecef;
+    --menu-hover-bg: #f1f3f5;
+    --menu-active-bg: #e9ecef;
+    
+    /* 侧边栏专用 */
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e9ecef;
 }
 
 /* 黑夜UI主题 (Dark UI) 的变量覆盖 */
 body[data-ui-theme="dark"] {
-    --text-color: #dee2e6;
-    --text-color-secondary: #adb5bd;
-    --text-color-light: #adb5bd; /* 浅色文本，在黑夜主题下使用较亮的颜色 */
-    --dark-gray: #adb5bd; /* 深灰色，在黑夜主题下使用较亮的颜色 */
-    --secondary-color: #adb5bd; /* 次要颜色，在黑夜主题下使用较亮的颜色 */
-    --background-color: #212529;
-    --panel-bg: #343a40;
-    --border-color: #495057;
-    --hover-bg: #495057;
-
-    --dropdown-bg: #343a40;
-    --dropdown-shadow: rgba(0, 0, 0, 0.3);
+    --primary-color: #3d8bfd;
+    --primary-hover: #5a9cfe;
+    --primary-active: #6ea8fe;
     
-    --input-bg: #495057;
-    --input-text: #f8f9fa;
-    --input-border: #6c757d;
-    --input-focus-border: #0d6efd;
-    --input-focus-shadow: rgba(13, 110, 253, 0.35);
+    --text-color: #e9ecef;
+    --text-color-secondary: #adb5bd;
+    --text-color-light: #868e96;
+    --text-color-muted: #6c757d;
+    
+    --dark-gray: #adb5bd;
+    --secondary-color: #adb5bd;
+    
+    --background-color: #1a1d21;
+    --panel-bg: #212529;
+    --border-color: #343a40;
+    --border-color-light: #495057;
+    --hover-bg: #2c3136;
+    --active-bg: #343a40;
 
-    --button-selected-bg: #0a58ca;
-    --button-selected-border: #0d6efd;
+    --dropdown-bg: #2c3136;
+    --dropdown-shadow: rgba(0, 0, 0, 0.35);
+    --dropdown-border: #495057;
+    
+    --input-bg: #343a40;
+    --input-text: #f8f9fa;
+    --input-border: #495057;
+    --input-focus-border: #3d8bfd;
+    --input-focus-shadow: rgba(61, 139, 253, 0.3);
+    --input-placeholder: #6c757d;
+
+    --button-selected-bg: #1a4480;
+    --button-selected-border: #3d8bfd;
     --button-selected-text: #ffffff;
+    
+    /* 菜单栏专用 */
+    --menu-bg: #212529;
+    --menu-border: #343a40;
+    --menu-hover-bg: #2c3136;
+    --menu-active-bg: #343a40;
+    
+    /* 侧边栏专用 */
+    --sidebar-bg: #212529;
+    --sidebar-border: #343a40;
+    
+    /* 阴影调整 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
 /* 默认画布主题: 深色画布 (Dark Canvas) */
 :root {
-    --canvas-bg: #1A2027; /* 深邃蓝黑色，比纯黑更专业 */
+    --canvas-bg: #1A2027;
     --canvas-grid: rgba(255, 255, 255, 0.08);
+    --canvas-grid-major: rgba(255, 255, 255, 0.15);
 }
 
 /* 浅色画布 (Light Canvas) 的变量覆盖 */
 body[data-canvas-theme="light"] {
     --canvas-bg: #ffffff;
-    --canvas-grid: rgba(0, 0, 0, 0.1);
+    --canvas-grid: rgba(0, 0, 0, 0.08);
+    --canvas-grid-major: rgba(0, 0, 0, 0.15);
 }
 
-/* --- 2. 应用变量到全局元素 --- */
-body {
-    background-color: var(--background-color);
-    color: var(--text-color);
-    transition: background-color 0.2s ease, color 0.2s ease;
-    /* 布局修复代码 */
-    padding-top: 40px; 
+/* --- 2. 全局基础样式 --- */
+* {
     box-sizing: border-box;
-}
-
-#top-menubar, #toolbar, #inspector {
-    background-color: var(--panel-bg);
-    border-color: var(--border-color) !important;
-    transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-#opticsCanvas {
-    background-color: var(--canvas-bg);
-}
-
-.dropbtn:hover, .menubar-icon-button:hover {
-    background-color: var(--hover-bg);
-}
-
-.dropdown-content {
-    background-color: var(--dropdown-bg);
-    box-shadow: 0 5px 15px var(--dropdown-shadow);
-    border: 1px solid var(--border-color);
-}
-.dropdown-content a { color: var(--text-color); }
-.dropdown-content a:hover {
-    background-color: var(--dropdown-hover-bg);
-    color: var(--dropdown-hover-text);
-}
-
-/* --- 3. 彻底修复所有输入框、选择框、文本域的样式 --- */
-.prop input[type="text"], .prop input[type="number"],
-.prop select, .notes-prop textarea, #combined-theme-switcher,
-#theme-switcher /* 保留旧ID以防万一 */ {
-    background-color: var(--input-bg);
-    color: var(--input-text);
-    border: 1px solid var(--input-border);
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-.prop input::placeholder, .notes-prop textarea::placeholder {
-    color: var(--text-color-secondary);
-    opacity: 0.8;
-}
-.prop input:focus, .prop select:focus, .notes-prop textarea:focus {
-    border-color: var(--input-focus-border);
-    box-shadow: 0 0 0 3px var(--input-focus-shadow);
-    outline: none;
-}
-#toolbar button.selected-tool {
-    background-color: var(--button-selected-bg);
-    border-color: var(--button-selected-border);
-    color: var(--button-selected-text);
-}
-.prop label { color: var(--text-color-secondary); }
-h4 { color: var(--text-color-secondary); }
-
-/* 确保下拉菜单中的文字颜色正确 */
-#combined-theme-switcher option {
-    background-color: var(--input-bg);
-    color: var(--input-text);
 }
 
 body {
@@ -147,335 +177,430 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--font-lg);
+    line-height: 1.5;
     overflow: hidden;
     background-color: var(--background-color);
     color: var(--text-color);
-
-    /* --- 关键修复代码 --- */
-    padding-top: 40px; /* 为顶部菜单栏留出 40px 的空间 */
-    box-sizing: border-box; /* 确保内边距不会增加 body 的总高度 */
+    padding-top: var(--menubar-height);
+    transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 
-/* --- Top Menubar Styles --- */
+/* --- 3. 面板和容器基础样式 --- */
+#top-menubar, #toolbar, #inspector {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color);
+    transition: background-color var(--transition-normal), border-color var(--transition-normal);
+}
+
+#opticsCanvas {
+    background-color: var(--canvas-bg);
+    transition: background-color var(--transition-normal);
+}
+
+/* --- 4. 顶部菜单栏样式 --- */
 #top-menubar {
-    background-color: var(--menu-bg);
-    padding: 0 15px;
-    /* Increased padding */
-    height: var(--menubar-height);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--menu-border);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     position: fixed;
-    /* Keep fixed */
     top: 0;
     left: 0;
     width: 100%;
+    height: var(--menubar-height);
+    padding: 0 var(--spacing-md);
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
     z-index: 100;
-    box-sizing: border-box;
-    flex-shrink: 0;
-    /* Prevent menubar from shrinking */
 }
 
 .menu-left {
     display: flex;
     align-items: center;
+    gap: var(--spacing-xs);
 }
 
+/* 下拉菜单按钮 */
 .dropbtn {
-    background-color: transparent;
-    color: var(--text-color);
-    padding: 8px 10px;
-    /* Adjust padding if needed */
-    font-size: 14px;
-    border: none;
-    cursor: pointer;
-    margin: 0 1px;
-    border-radius: 4px;
-    transition: background-color 0.2s ease;
     display: inline-flex;
-    /* Use flex for alignment */
     align-items: center;
-    /* Vertically center icon and text */
     gap: 6px;
-    /* Space between icon and text */
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-lg);
+    font-weight: 500;
+    color: var(--text-color);
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .dropbtn svg {
-    /* Style for SVGs within dropbtn */
     width: 16px;
-    /* Match SVG size */
     height: 16px;
     flex-shrink: 0;
-    /* Prevent icon from shrinking */
-    vertical-align: middle;
-    /* Might help alignment */
+    opacity: 0.8;
 }
 
-/* Keep the :hover style as is */
 .dropbtn:hover {
-    background-color: var(--menu-hover-bg);
+    background-color: var(--hover-bg);
 }
 
+.dropbtn:active {
+    background-color: var(--active-bg);
+}
+
+/* 下拉菜单容器 */
 .dropdown {
     position: relative;
     display: inline-block;
-    margin-right: 1px;
 }
 
+/* 下拉菜单内容 */
 .dropdown-content {
     display: none;
     position: absolute;
-    background-color: var(--dropdown-bg);
+    top: 100%;
+    left: 0;
     min-width: 220px;
-    /* Slightly wider dropdown */
-    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.12);
-    /* Refined shadow */
-    z-index: 101;
+    margin-top: 4px;
+    padding: var(--spacing-sm) 0;
+    background-color: var(--dropdown-bg);
     border: 1px solid var(--dropdown-border);
-    border-radius: 5px;
-    /* Slightly more rounded */
-    padding: 8px 0;
-    /* Increased vertical padding */
-    margin-top: 3px;
-    /* Small gap below button */
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-dropdown);
+    z-index: 101;
     overflow: hidden;
-    /* Ensure rounded corners clip content */
-}
-
-.dropdown-content a {
-    color: var(--text-color);
-    padding: 9px 18px;
-    /* Increased padding */
-    text-decoration: none;
-    display: block;
-    font-size: 13.5px;
-    /* Slightly larger font */
-    white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.15s ease;
-    /* Smooth transition */
-}
-
-.dropdown-content a:hover {
-    background-color: #007bff;
-    /* Use primary color for hover background */
-    color: white;
-    /* White text on hover */
-}
-
-.dropdown-content a.disabled-link {
-    color: #adb5bd;
-    cursor: not-allowed;
-    background-color: transparent !important;
-    opacity: 0.6;
-}
-
-.dropdown-content a.disabled-link:hover {
-    background-color: transparent !important;
-    /* No background change on hover */
-    color: #adb5bd !important;
-    /* Keep text color disabled */
-}
-
-.dropdown-content hr {
-    margin: 5px 0;
-    border: none;
-    border-top: 1px solid #e9ecef;
 }
 
 .dropdown:hover .dropdown-content {
     display: block;
 }
 
-.menubar-button {
-    padding: 6px 12px;
-    /* Adjust padding slightly */
-    font-size: 13px;
-    margin-left: 6px;
-    /* Tighter spacing */
-    border: 1px solid transparent;
-    /* Add border for consistency */
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+/* 下拉菜单项 */
+.dropdown-content a {
+    display: block;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-md);
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-/* --- Main Content Layout --- */
+.dropdown-content a:hover {
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.dropdown-content a.disabled-link {
+    color: var(--text-color-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent;
+    color: var(--text-color-muted);
+}
+
+/* 下拉菜单分隔线 */
+.dropdown-content hr {
+    margin: var(--spacing-xs) 0;
+    border: none;
+    border-top: 1px solid var(--border-color-light);
+}
+
+/* 下拉菜单内的表单控件 */
+.dropdown-content .prop {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.dropdown-content .prop label {
+    font-size: var(--font-md);
+    color: var(--text-color-secondary);
+    white-space: nowrap;
+    margin-right: auto;
+}
+
+.dropdown-content .prop select {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px var(--spacing-sm);
+    font-size: var(--font-md);
+    color: var(--input-text);
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.dropdown-content .prop select:hover {
+    border-color: var(--primary-color);
+}
+
+.dropdown-content .prop select:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+/* --- 5. 输入控件统一样式 --- */
+.prop input[type="text"], .prop input[type="number"],
+.prop select, .notes-prop textarea, #combined-theme-switcher {
+    padding: 6px var(--spacing-sm);
+    font-size: var(--font-md);
+    color: var(--input-text);
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-normal);
+}
+
+.prop input::placeholder, .notes-prop textarea::placeholder {
+    color: var(--input-placeholder);
+}
+
+.prop input:hover, .prop select:hover, .notes-prop textarea:hover {
+    border-color: var(--text-color-secondary);
+}
+
+.prop input:focus, .prop select:focus, .notes-prop textarea:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+}
+
+.prop label { 
+    color: var(--text-color-secondary);
+    font-size: var(--font-md);
+}
+
+h4 { 
+    color: var(--text-color-secondary);
+    font-size: var(--font-lg);
+    font-weight: 600;
+}
+
+/* 下拉选项样式 */
+#combined-theme-switcher option,
+.prop select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    padding: var(--spacing-sm);
+}
+
+/* --- 6. 菜单栏图标按钮 --- */
+.menubar-button {
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    margin-left: 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.menubar-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: 0 2px;
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--primary-color);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.menubar-icon-button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.menubar-icon-button:hover {
+    background-color: var(--hover-bg);
+    color: var(--primary-hover);
+}
+
+.menubar-icon-button:active {
+    background-color: var(--active-bg);
+}
+
+.menubar-icon-button.disabled {
+    color: var(--text-color-muted) !important;
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+
+/* 菜单栏分隔线 */
+.menubar-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    margin: 0 var(--spacing-sm);
+    align-self: center;
+}
+
+/* 菜单栏弹性空间 */
+.menubar-spacer {
+    flex-grow: 1;
+}
+
+/* --- 7. 主内容区域布局 --- */
 #main-content {
     display: flex;
     flex-grow: 1;
-    /* Take remaining vertical space */
     overflow: hidden;
-    /* Prevent content overflow */
     height: calc(100vh - var(--menubar-height));
-    /* Fill space below menubar */
 }
 
-/* --- Left Toolbar (Tools Only) --- */
+/* --- 8. 左侧工具栏 --- */
 #toolbar {
     width: 180px;
-    /* Adjusted width */
-    padding: 15px 10px;
-    /* Adjust padding */
-    box-sizing: border-box;
+    padding: var(--spacing-md) var(--spacing-sm);
     background-color: var(--sidebar-bg);
-    border-right: 1px solid var(--menu-border);
+    border-right: 1px solid var(--sidebar-border);
     overflow-y: auto;
     flex-shrink: 0;
     height: 100%;
-    /* Fill vertical space */
 }
 
 #toolbar h4 {
-    margin-top: 15px;
-    margin-bottom: 8px;
-    font-size: 14px;
-    padding-bottom: 4px;
-    color: var(--secondary-color);
+    margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+    padding-bottom: var(--spacing-xs);
+    font-size: var(--font-md);
+    font-weight: 600;
+    color: var(--text-color-secondary);
+    border-bottom: 1px solid var(--border-color-light);
+    width: calc(100% - 10px);
+    margin-left: 5px;
 }
 
 #toolbar h4:first-of-type {
     margin-top: 0;
 }
 
-
-/* --- Toolbar Icon Button Styling --- */
+/* 工具栏图标按钮 */
 #toolbar button.icon-button {
-    width: calc(50% - 8px); /* 保持两列布局 */
+    width: calc(50% - 8px);
     margin: 4px;
-    padding: 8px 5px;
-    font-size: 11px; /* 恢复到11px，因为现在高度是弹性的 */
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
+    padding: var(--spacing-sm) 5px;
+    font-size: var(--font-xs);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
-    min-height: 55px; /* ***核心修改：使用 min-height 替代固定的 height*** */
-    line-height: 1.3; /* 略微增加行高以改善换行后的外观 */
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    min-height: 55px;
+    line-height: 1.3;
     color: var(--text-color);
     vertical-align: top;
-    box-sizing: border-box; 
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
-/* Dark UI overrides for left toolbar buttons */
+#toolbar button.icon-button:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-color-secondary);
+    transform: translateY(-1px);
+}
+
+#toolbar button.icon-button:active {
+    transform: translateY(0);
+}
+
+#toolbar button.icon-button svg {
+    width: 20px;
+    height: 20px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    color: var(--text-color-secondary);
+    transition: color var(--transition-fast);
+}
+
+#toolbar button.icon-button:hover svg {
+    color: var(--primary-color);
+}
+
+#toolbar button.icon-button .toolbar-button-text {
+    display: block;
+    white-space: normal;
+    overflow: hidden;
+    max-height: 2.5em;
+}
+
+/* 选中状态 */
+#toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+    font-weight: 600;
+}
+
+#toolbar button.selected-tool svg {
+    color: var(--button-selected-text);
+}
+
+/* 黑夜主题下的工具栏按钮 */
 body[data-ui-theme="dark"] #toolbar button.icon-button {
     background-color: var(--input-bg);
     border-color: var(--input-border);
     color: var(--input-text);
 }
+
 body[data-ui-theme="dark"] #toolbar button.icon-button:hover {
     background-color: var(--hover-bg);
-    border-color: var(--input-border);
+    border-color: var(--text-color-secondary);
 }
+
 body[data-ui-theme="dark"] #toolbar button.icon-button svg {
-    color: var(--input-text);
+    color: var(--text-color-secondary);
 }
 
-#toolbar button.icon-button svg {
-    width: 20px;
-    /* Icon size */
-    height: 20px;
-    margin-bottom: 4px;
-    /* Space between icon and text */
-    flex-shrink: 0;
-    color: #495057;
-    /* Default icon color */
-    transition: color 0.2s ease;
+body[data-ui-theme="dark"] #toolbar button.icon-button:hover svg {
+    color: var(--primary-color);
 }
 
-#toolbar button.icon-button .toolbar-button-text {
-    display: block;
-    /* Ensure text takes its own line */
-    white-space: normal;
-    /* Allow text wrap if needed */
-    overflow: hidden;
-    /* Prevent long text overflow */
-    max-height: 2.5em;
-    /* Limit text height */
-}
-
-#toolbar button.icon-button:hover {
-    background-color: #e9ecef;
-    border-color: #ced4da;
-}
-
-#toolbar button.icon-button:hover svg {
-    color: #0056b3;
-    /* Icon color change on hover */
-}
-
-
-#toolbar button.selected-tool {
-    background-color: #cce5ff;
-    border-color: #99caff;
-    color: #004085;
-    font-weight: 600;
-}
-/* Selected state in dark UI uses theme-provided variables */
 body[data-ui-theme="dark"] #toolbar button.selected-tool {
     background-color: var(--button-selected-bg);
     border-color: var(--button-selected-border);
     color: var(--button-selected-text);
 }
+
 body[data-ui-theme="dark"] #toolbar button.selected-tool svg {
     color: var(--button-selected-text);
 }
 
-#toolbar button.selected-tool svg {
-    color: #004085;
-    /* Match text color when selected */
-}
-
-/* Toolbar Category Headers */
-#toolbar h4 {
-    margin-top: 12px;
-    margin-bottom: 5px;
-    padding-bottom: 3px;
-    font-size: 13px;
-    /* Slightly smaller header */
-    color: var(--secondary-color);
-    border-bottom: 1px solid #eee;
-    /* Subtle separator */
-    width: calc(100% - 10px);
-    /* Span across two columns */
-    margin-left: 5px;
-    font-weight: 600;
-}
-
-#toolbar h4:first-of-type {
-    margin-top: 0;
-}
-
-/* Adjust HR */
+/* 工具栏分隔线 */
 hr.thin-hr {
-    border-top: 1px solid #eee;
-    /* Match header separator */
-    margin: 8px 5px;
-    /* Align with button margins */
+    border: none;
+    border-top: 1px dashed var(--border-color-light);
+    margin: var(--spacing-sm) 5px;
     width: calc(100% - 10px);
 }
 
-#toolbar button.selected-tool {
-    background-color: #cce5ff;
-    border-color: #99caff;
-    color: #004085;
-    font-weight: 600;
-}
-
-hr.thin-hr {
-    border-top: 1px dashed #e1e5e8;
-    margin: 8px 0;
-}
-
-/* --- Center Simulation Area --- */
+/* --- 9. 中间模拟区域 --- */
 #simulation-area {
     flex-grow: 1;
     position: relative;
@@ -488,110 +613,60 @@ hr.thin-hr {
 
 #opticsCanvas {
     display: block;
-    background-color: var(--canvas-bg);
     cursor: default;
 }
 
 #mode-hint {
-    /* Keep existing hint styles */
-    font-style: italic;
-    color: #f8f9fa;
-    text-align: center;
     position: absolute;
-    top: 15px;
+    top: var(--spacing-md);
     left: 50%;
     transform: translateX(-50%);
-    background-color: rgba(44, 62, 80, 0.8);
-    padding: 6px 12px;
-    border-radius: 4px;
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    font-style: italic;
+    color: #f8f9fa;
+    background-color: rgba(44, 62, 80, 0.85);
+    border-radius: var(--radius-sm);
     z-index: 10;
     pointer-events: none;
     display: none;
-    font-size: 13px;
+    backdrop-filter: blur(4px);
 }
 
-/* --- Right Inspector Panel --- */
+/* --- 10. 右侧检查器面板 --- */
 #inspector {
     width: 280px;
-    /* Wider inspector */
     padding: 0;
-    /* Remove padding, handled by tabs */
-    box-sizing: border-box;
     background-color: var(--sidebar-bg);
-    border-left: 1px solid var(--menu-border);
+    border-left: 1px solid var(--sidebar-border);
     overflow: hidden;
-    /* Prevent content overflow, tabs handle scrolling */
     flex-shrink: 0;
     height: 100%;
     display: flex;
-    /* Use flex for vertical layout */
     flex-direction: column;
 }
 
-/* --- Inspector Property Group Styling --- */
-
-.prop-group-title {
-    font-size: 12px;
-    /* Slightly smaller title */
-    font-weight: 600;
-    color: var(--secondary-color);
-    /* Gray title */
-    margin-top: 18px;
-    /* Space above title */
-    margin-bottom: 8px;
-    padding-bottom: 3px;
-    text-transform: uppercase;
-    /* Optional: Uppercase title */
-    letter-spacing: 0.5px;
-    /* Optional: Adjust spacing */
-}
-
-.prop-group-divider {
-    border: none;
-    border-top: 1px solid #e9ecef;
-    /* Light separator line */
-    margin-top: 15px;
-    margin-bottom: 10px;
-}
-
-/* Adjust spacing for the first group title */
-#inspector-content>.prop-group-title:first-of-type {
-    margin-top: 5px;
-}
-
-/* Style for readonly/disabled inputs */
-.readonly-or-disabled {
-    background-color: #e9ecef;
-    cursor: not-allowed;
-    opacity: 0.7;
-    /* Optional: slightly fade */
-}
-
-/* Tabs */
+/* 标签页容器 */
 .tab-container {
     display: flex;
-    border-bottom: 1px solid var(--menu-border);
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
-    /* Prevent tabs from shrinking */
+    background-color: var(--panel-bg);
 }
 
 .tab-button {
     flex-grow: 1;
-    /* Distribute space evenly */
-    padding: 10px 5px;
-    /* Adjust padding */
-    cursor: pointer;
+    padding: var(--spacing-sm) 5px;
+    font-size: var(--font-md);
+    font-weight: 500;
+    color: var(--text-color-secondary);
+    background-color: transparent;
     border: none;
     border-bottom: 3px solid transparent;
-    /* Indicator line placeholder */
-    background-color: transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--secondary-color);
+    cursor: pointer;
     text-align: center;
-    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+    transition: color var(--transition-fast), border-bottom-color var(--transition-fast);
     margin-bottom: -1px;
-    /* Overlap bottom border */
     outline: none;
 }
 
@@ -605,81 +680,64 @@ hr.thin-hr {
     font-weight: 600;
 }
 
-/* Tab Content Panes */
+/* 标签页内容 */
 .tab-content {
-    padding: 15px;
+    padding: var(--spacing-md);
     flex-grow: 1;
-    /* Allow content to take space */
     overflow-y: auto;
-    /* Allow content to scroll */
     display: none;
-    /* Hide inactive tabs */
 }
 
 .tab-content.active {
     display: block;
-    /* Show active tab */
 }
 
-/* Adjustments for content within tabs */
 .tab-content h4 {
     margin-top: 5px;
-    margin-bottom: 15px;
-    font-size: 14px;
+    margin-bottom: var(--spacing-md);
 }
 
-/* --- Inspector Property Row (.prop) Styling --- */
+/* 检查器属性行 */
 .tab-content .prop {
     display: flex;
-    /* Use flexbox for alignment */
     align-items: center;
-    /* Vertically align label and input */
-    margin-bottom: 10px;
-    /* Reduced bottom margin */
+    margin-bottom: var(--spacing-sm);
     min-height: 28px;
-    /* Ensure consistent row height */
 }
 
-/* --- Inspector Label Styling --- */
 .tab-content .prop label {
     width: 100px;
-    /* Fixed label width */
     flex-shrink: 0;
-    /* Prevent label from shrinking */
-    font-size: 13px;
-    color: var(--dark-gray);
-    /* Slightly darker label text */
-    padding-right: 8px;
-    /* Space between label and input */
+    font-size: var(--font-md);
+    color: var(--text-color-secondary);
+    padding-right: var(--spacing-sm);
     text-align: right;
-    /* Align label text to the right */
-    box-sizing: border-box;
 }
 
-/* --- Inspector Input/Select Base Styling --- */
 .tab-content .prop input[type="text"],
 .tab-content .prop input[type="number"],
 .tab-content .prop input[type="range"],
 .tab-content .prop select {
     flex-grow: 1;
-    /* Allow input to fill remaining space */
-    padding: 5px 8px;
-    /* Adjust padding */
-    font-size: 13px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: #fff;
-    /* White background */
-    color: var(--text-color);
-    box-sizing: border-box;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    padding: 5px var(--spacing-sm);
+    font-size: var(--font-md);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--input-bg);
+    color: var(--input-text);
     height: 28px;
-    /* Match min-height of .prop */
     min-width: 50px;
-    /* Prevent inputs from becoming too small */
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* Dark UI overrides: ensure inspector inputs/selects are readable on dark theme */
+.tab-content .prop input:focus,
+.tab-content .prop select:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+/* 黑夜主题下的检查器输入框 */
 body[data-ui-theme="dark"] .tab-content .prop input[type="text"],
 body[data-ui-theme="dark"] .tab-content .prop input[type="number"],
 body[data-ui-theme="dark"] .tab-content .prop input[type="range"],
@@ -688,169 +746,137 @@ body[data-ui-theme="dark"] .tab-content .prop select {
     color: var(--input-text);
     border-color: var(--input-border);
 }
-body[data-ui-theme="dark"] .tab-content .prop input[type="text"]::placeholder,
+
+body[data-ui-theme="dark"] .tab-content .prop input::placeholder,
 body[data-ui-theme="dark"] .tab-content .prop input[type="number"]::placeholder,
 body[data-ui-theme="dark"] .notes-prop textarea::placeholder {
-    color: var(--text-color-secondary);
+    color: var(--input-placeholder);
 }
+
 body[data-ui-theme="dark"] .tab-content .prop select option {
     background-color: var(--input-bg);
     color: var(--input-text);
 }
 
-/* Ensure all selects in inspector are dark-themed in night mode */
 body[data-ui-theme="dark"] #inspector select {
     background-color: var(--input-bg);
     color: var(--input-text);
     border-color: var(--input-border);
 }
+
 body[data-ui-theme="dark"] #inspector select option {
     background-color: var(--input-bg);
     color: var(--input-text);
 }
 
-/* Dark theme for inspector textareas */
 body[data-ui-theme="dark"] #inspector textarea {
     background-color: var(--input-bg);
     color: var(--input-text);
     border-color: var(--input-border);
 }
 
-/* Focus style for inputs/selects */
-.tab-content .prop input[type="text"]:focus,
-.tab-content .prop input[type="number"]:focus,
-.tab-content .prop input[type="range"]:focus,
-.tab-content .prop select:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
-    /* Subtle focus glow */
-    outline: none;
-}
-/* Match focus styles for dark inputs using theme variables */
-body[data-ui-theme="dark"] .tab-content .prop input[type="text"]:focus,
-body[data-ui-theme="dark"] .tab-content .prop input[type="number"]:focus,
-body[data-ui-theme="dark"] .tab-content .prop input[type="range"]:focus,
-body[data-ui-theme="dark"] .tab-content .prop select:focus {
-    border-color: var(--input-focus-border);
-    box-shadow: 0 0 0 3px var(--input-focus-shadow);
-}
-
-/* Specific style for checkboxes */
+/* 复选框样式 */
 .tab-content .prop input[type="checkbox"] {
     height: auto;
-    /* Let checkbox determine its height */
     margin-left: 5px;
-    /* Add some left margin */
     cursor: pointer;
-    /* Optional: Style checkbox appearance more significantly later */
+    accent-color: var(--primary-color);
 }
 
-/* Align checkbox label differently if needed */
-/* .tab-content .prop input[type="checkbox"]+label {
-    text-align: left;
-} */
-
-/* Specific style for range sliders */
+/* 滑块样式 */
 .tab-content .prop input[type="range"] {
     padding: 0;
-    /* Remove default padding */
     height: auto;
-    /* Adjust height if needed */
     cursor: pointer;
+    accent-color: var(--primary-color);
 }
 
-/* Specific style for select dropdown arrows (basic reset) */
+/* 下拉选择框箭头 */
 .tab-content .prop select {
     appearance: none;
-    /* Remove default arrow */
     -webkit-appearance: none;
     -moz-appearance: none;
     background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236c757d%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20128c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4l128-128c3.6-3.6%205.4-7.8%205.4-12.8%200-5-1.8-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
-    /* Simple SVG arrow */
     background-repeat: no-repeat;
     background-position: right 8px center;
     background-size: 8px 10px;
     padding-right: 25px;
-    /* Space for the arrow */
 }
 
-/* Styling for the value span next to sliders/numbers */
+/* 数值显示 */
 .tab-content .prop span {
-    font-size: 12px;
-    /* Slightly smaller */
-    margin-left: 8px;
-    /* More spacing */
-    color: var(--secondary-color);
+    font-size: var(--font-sm);
+    margin-left: var(--spacing-sm);
+    color: var(--text-color-secondary);
     white-space: nowrap;
     line-height: 28px;
-    /* Align vertically */
 }
 
-/* Readonly/disabled input styles */
+/* 只读/禁用输入框 */
 .readonly-or-disabled {
-    background-color: #e9ecef !important;
-    /* Use important to override default white */
+    background-color: var(--hover-bg) !important;
     cursor: not-allowed;
     opacity: 0.7;
-    border-color: #ced4da;
-    /* Match border */
+    border-color: var(--border-color);
 }
 
 .readonly-or-disabled:focus {
     box-shadow: none;
-    /* Remove focus glow */
-    border-color: #ced4da;
-    /* Keep border standard */
+    border-color: var(--border-color);
 }
 
-/* Error text styling (if used) */
+/* 错误文本 */
 .error-text {
     color: var(--error-color);
     font-weight: bold;
 }
 
-/* Value display */
+/* 标签页内按钮 */
 .tab-content button {
-    /* Buttons within tabs */
     width: auto;
-    /* Don't force full width */
-    padding: 6px 12px;
-    font-size: 13px;
-    margin-top: 10px;
-    margin-right: 8px;
-    /* Space between buttons if inline */
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    margin-top: var(--spacing-sm);
+    margin-right: var(--spacing-sm);
     display: inline-block;
-    /* Allow multiple buttons per line */
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
+/* 删除按钮 */
 #delete-btn {
-    /* Specific style for delete button inside tab */
     display: block;
-    /* Make delete button full width */
     width: calc(100% - 30px);
-    /* Adjust width considering padding */
-    margin: 20px 15px 0 15px;
-    /* Center it with margin */
+    margin: var(--spacing-xl) var(--spacing-md) 0 var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     background-color: #f8d7da;
-    border-color: #f5c6cb;
+    border: 1px solid #f5c6cb;
     color: #721c24;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-md);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+#delete-btn:hover:not(:disabled) {
+    background-color: #f1c0c5;
 }
 
 #delete-btn:disabled {
-    /* Copied disabled style */
-    background-color: #f5f5f5;
-    border-color: #dddddd;
-    color: #bbbbbb;
-    box-shadow: none;
+    background-color: var(--hover-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-muted);
     cursor: not-allowed;
     opacity: 0.7;
 }
 
+/* 占位文本 */
 .placeholder-text {
-    color: var(--secondary-color);
+    color: var(--text-color-secondary);
     font-style: italic;
     text-align: center;
-    margin-top: 20px;
+    margin-top: var(--spacing-xl);
 }
 
 .scene-actions button {
@@ -1992,8 +2018,8 @@ body[data-ui-theme="dark"] .scene-save-hint {
 }
 
 .loading-text {
-    color: #666;
-    font-size: 14px;
+    color: var(--text-color-secondary);
+    font-size: var(--font-lg);
     font-weight: 500;
 }
 
@@ -2010,8 +2036,8 @@ body[data-ui-theme="dark"] .scene-save-hint {
 .diagram-toolbar-container {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     background: var(--panel-bg);
     border-bottom: 1px solid var(--border-color);
     position: absolute;
@@ -2024,13 +2050,13 @@ body[data-ui-theme="dark"] .scene-save-hint {
 /* 绘图模式专属工具栏 */
 .diagram-mode-toolbar {
     display: flex;
-    gap: 8px;
+    gap: var(--spacing-sm);
 }
 
 .diagram-mode-toolbar .toolbar-group {
     display: flex;
-    gap: 4px;
-    padding: 0 8px;
+    gap: var(--spacing-xs);
+    padding: 0 var(--spacing-sm);
     border-right: 1px solid var(--border-color);
 }
 
@@ -2043,14 +2069,14 @@ body[data-ui-theme="dark"] .scene-save-hint {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 6px 10px;
+    padding: 6px var(--spacing-sm);
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--text-color-secondary);
     cursor: pointer;
-    font-size: 11px;
-    transition: all 0.2s;
+    font-size: var(--font-xs);
+    transition: all var(--transition-fast);
 }
 
 .diagram-mode-toolbar .toolbar-btn:hover {
@@ -2086,8 +2112,8 @@ body[data-app-mode="diagram"] #opticsCanvas {
 .align-menu {
     background: var(--dropdown-bg);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    box-shadow: 0 4px 12px var(--dropdown-shadow);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-dropdown);
     z-index: 1000;
     min-width: 150px;
 }
@@ -2095,13 +2121,14 @@ body[data-app-mode="diagram"] #opticsCanvas {
 .align-menu button {
     display: block;
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--spacing-sm) var(--spacing-md);
     background: none;
     border: none;
     color: var(--text-color);
     text-align: left;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-md);
+    transition: background-color var(--transition-fast);
 }
 
 .align-menu button:hover {
@@ -2109,7 +2136,7 @@ body[data-app-mode="diagram"] #opticsCanvas {
 }
 
 .align-menu hr {
-    margin: 4px 0;
+    margin: var(--spacing-xs) 0;
     border: none;
     border-top: 1px solid var(--border-color);
 }
@@ -2258,17 +2285,19 @@ body[data-app-mode="diagram"] #opticsCanvas {
 }
 
 .export-dialog-footer .btn-export:hover {
-    background: #0b5ed7;
+    background: var(--primary-hover);
 }
 
-/* 模式切换器样式 */
+/* --- 11. 模式切换器样式 --- */
 .mode-switcher {
     display: inline-flex;
+    align-items: center;
     background: var(--panel-bg);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     padding: 3px;
     gap: 2px;
     border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .mode-btn {
@@ -2279,11 +2308,12 @@ body[data-app-mode="diagram"] #opticsCanvas {
     border: none;
     background: transparent;
     color: var(--text-color-secondary);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--font-md);
     font-family: inherit;
-    transition: all 0.2s ease;
+    font-weight: 500;
+    transition: all var(--transition-fast);
 }
 
 .mode-btn:hover {
@@ -2294,6 +2324,11 @@ body[data-app-mode="diagram"] #opticsCanvas {
 .mode-btn.active {
     background: var(--primary-color);
     color: #fff;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+body[data-ui-theme="dark"] .mode-btn.active {
+    box-shadow: 0 2px 4px rgba(61, 139, 253, 0.4);
 }
 
 .mode-btn:focus {
@@ -2322,8 +2357,158 @@ body[data-app-mode="diagram"] #opticsCanvas {
 }
 
 /* 响应式 */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
     .mode-btn-label {
         display: none;
+    }
+    
+    .mode-btn {
+        padding: 6px 8px;
+    }
+}
+
+/* --- 12. 滚动条美化 --- */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color-secondary);
+}
+
+/* 黑夜主题滚动条 */
+body[data-ui-theme="dark"]::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+}
+
+body[data-ui-theme="dark"]::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color-secondary);
+}
+
+/* --- 13. 响应式布局 --- */
+@media (max-width: 1200px) {
+    #toolbar {
+        width: 160px;
+    }
+    
+    #inspector {
+        width: 260px;
+    }
+}
+
+@media (max-width: 992px) {
+    #toolbar {
+        width: 140px;
+    }
+    
+    #toolbar button.icon-button {
+        width: calc(100% - 8px);
+    }
+    
+    #inspector {
+        width: 240px;
+    }
+    
+    .scene-path-container {
+        max-width: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    #toolbar {
+        width: 60px;
+        padding: var(--spacing-sm) var(--spacing-xs);
+    }
+    
+    #toolbar h4 {
+        display: none;
+    }
+    
+    #toolbar button.icon-button {
+        width: calc(100% - 4px);
+        margin: 2px;
+        padding: var(--spacing-sm) 2px;
+    }
+    
+    #toolbar button.icon-button .toolbar-button-text {
+        display: none;
+    }
+    
+    #inspector {
+        width: 200px;
+    }
+    
+    .tab-button {
+        padding: var(--spacing-sm) 2px;
+        font-size: var(--font-sm);
+    }
+    
+    .scene-path-container {
+        display: none;
+    }
+    
+    .menu-text {
+        display: none;
+    }
+    
+    .dropbtn {
+        padding: var(--spacing-sm);
+    }
+}
+
+/* --- 14. 焦点可见性 (无障碍) --- */
+:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* --- 15. 打印样式 --- */
+@media print {
+    #top-menubar,
+    #toolbar,
+    #inspector {
+        display: none !important;
+    }
+    
+    #simulation-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+    
+    body {
+        padding-top: 0;
+    }
+}
+
+/* --- 16. 动画减弱 (无障碍) --- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
