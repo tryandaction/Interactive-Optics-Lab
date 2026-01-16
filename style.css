@@ -481,6 +481,8 @@ h4 {
     overflow-y: auto;
     flex-shrink: 0;
     height: 100%;
+    position: relative;
+    z-index: 50;
 }
 
 #toolbar h4 {
@@ -2114,7 +2116,7 @@ body[data-app-mode="diagram"] #opticsCanvas {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-dropdown);
-    z-index: 1000;
+    z-index: 10001;
     min-width: 150px;
 }
 
@@ -2152,7 +2154,7 @@ body[data-app-mode="diagram"] #opticsCanvas {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2000;
+    z-index: 10000;
 }
 
 .export-dialog {
