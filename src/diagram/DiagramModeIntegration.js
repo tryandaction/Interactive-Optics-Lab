@@ -147,29 +147,39 @@ export class DiagramModeIntegration {
     _createUIComponents() {
         if (typeof document === 'undefined') return;
 
-        // 查找或创建工具栏容器
+        // 查找HTML中已有的模式切换器容器
+        const existingModeSwitcherContainer = document.getElementById('mode-switcher-container');
+        
+        // 查找或创建工具栏容器（用于绘图模式专属工具）
         this.toolbarContainer = document.querySelector('.diagram-toolbar-container');
         if (!this.toolbarContainer) {
             this.toolbarContainer = document.createElement('div');
-            this.toolbarContainer.className = 'diagram-toolbar-container';
+            this.toolbarContainer.className = 'diagram-toolbar-container diagram-only';
             
-            // 尝试插入到现有工具栏旁边
-            const existingToolbar = document.querySelector('.toolbar, #toolbar, .app-toolbar');
-            if (existingToolbar) {
-                existingToolbar.parentNode.insertBefore(this.toolbarContainer, existingToolbar.nextSibling);
+            // 尝试插入到模拟区域顶部
+            const simulationArea = document.getElementById('simulation-area');
+            const topMenubar = document.getElementById('top-menubar');
+            if (simulationArea) {
+                simulationArea.insertBefore(this.toolbarContainer, simulationArea.firstChild);
+            } else if (topMenubar && topMenubar.nextSibling) {
+                topMenubar.parentNode.insertBefore(this.toolbarContainer, topMenubar.nextSibling);
             } else {
                 document.body.appendChild(this.toolbarContainer);
             }
         }
 
-        // 创建模式切换器
-        const switcherContainer = document.createElement('div');
-        switcherContainer.className = 'mode-switcher-container';
-        this.toolbarContainer.appendChild(switcherContainer);
-        
-        this.modules.modeSwitcher = createModeSwitcher(switcherContainer, {
-            modeManager: this.modules.modeManager
-        });
+        // 如果HTML中没有模式切换器容器，则创建一个
+        if (!existingModeSwitcherContainer) {
+            const switcherContainer = document.createElement('div');
+            switcherContainer.className = 'mode-switcher-container';
+            switcherContainer.id = 'mode-switcher-container-diagram';
+            this.toolbarContainer.appendChild(switcherContainer);
+            
+            this.modules.modeSwitcher = createModeSwitcher(switcherContainer, {
+                modeManager: this.modules.modeManager
+            });
+        }
+        // 如果HTML中已有容器，ModeSwitcher应该已经由main.js初始化
 
         // 创建绘图模式工具栏
         this._createDiagramToolbar();

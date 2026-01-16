@@ -4466,6 +4466,20 @@ function setupEventListeners() {
     // Simulation Menu
     document.getElementById('menu-mode-raytrace')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'ray_trace') switchMode('ray_trace'); });
     document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
+    document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
+        e.preventDefault(); 
+        // 切换到专业绘图模式
+        if (typeof window.getModeManager === 'function') {
+            const modeManager = window.getModeManager();
+            modeManager.switchMode('diagram');
+        } else if (typeof window.getDiagramModeIntegration === 'function') {
+            const integration = window.getDiagramModeIntegration();
+            integration.switchToDiagramMode();
+        } else {
+            console.warn('专业绘图模式模块未加载');
+            showTemporaryMessage('专业绘图模式正在加载中...', 'info');
+        }
+    });
     document.getElementById('menu-open-settings')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('settings-tab'); });
     document.getElementById('menu-toggle-arrows')?.addEventListener('click', (e) => { e.preventDefault(); globalShowArrows = !globalShowArrows; if (globalShowArrows) arrowAnimationStartTime = performance.now() / 1000.0; else arrowAnimationStates.clear(); const cb = document.getElementById('setting-show-arrows'); if (cb) cb.checked = globalShowArrows; saveSettings(); /* Update button text? */ document.getElementById('toggle-arrows-btn')?.(globalShowArrows ? "隐藏所有箭头" : "显示所有箭头"); });
     document.getElementById('menu-toggle-selected-arrow')?.addEventListener('click', (e) => { e.preventDefault(); onlyShowSelectedSourceArrow = !onlyShowSelectedSourceArrow; const cb = document.getElementById('setting-selected-arrow'); if (cb) cb.checked = onlyShowSelectedSourceArrow; saveSettings(); /* Update button text? */ document.getElementById('toggle-selected-arrow-btn')?.(onlyShowSelectedSourceArrow ? "取消仅选中" : "仅显示选中"); });
@@ -5461,6 +5475,63 @@ function loadInitialTheme() {
 
 // --- 模式切换器初始化 ---
 let modeSwitcherInstance = null;
+let diagramModeIntegration = null;
+
+/**
+ * 初始化专业绘图模式集成
+ * 创建DiagramModeIntegration实例并设置相关功能
+ */
+function initializeDiagramModeIntegration() {
+    // 检查DiagramModeIntegration是否可用
+    if (typeof window.initializeDiagramMode === 'function') {
+        try {
+            diagramModeIntegration = window.initializeDiagramMode({
+                components: components,
+                cameraState: {
+                    scale: cameraScale,
+                    offset: cameraOffset
+                }
+            });
+            console.log('专业绘图模式集成已初始化');
+        } catch (error) {
+            console.error('初始化专业绘图模式失败:', error);
+        }
+    } else if (typeof window.getDiagramModeIntegration === 'function') {
+        try {
+            diagramModeIntegration = window.getDiagramModeIntegration();
+            diagramModeIntegration.initialize({
+                components: components,
+                cameraState: {
+                    scale: cameraScale,
+                    offset: cameraOffset
+                }
+            });
+            console.log('专业绘图模式集成已初始化');
+        } catch (error) {
+            console.error('初始化专业绘图模式失败:', error);
+        }
+    } else {
+        // 延迟初始化，等待模块加载
+        setTimeout(() => {
+            if (typeof window.initializeDiagramMode === 'function') {
+                try {
+                    diagramModeIntegration = window.initializeDiagramMode({
+                        components: components,
+                        cameraState: {
+                            scale: cameraScale,
+                            offset: cameraOffset
+                        }
+                    });
+                    console.log('专业绘图模式集成已延迟初始化');
+                } catch (error) {
+                    console.error('延迟初始化专业绘图模式失败:', error);
+                }
+            } else {
+                console.warn('DiagramModeIntegration模块未加载，专业绘图功能不可用');
+            }
+        }, 1000);
+    }
+}
 
 /**
  * 初始化模式切换器
@@ -5626,6 +5697,9 @@ function initialize() {
 
     // --- 初始化模式切换器 ---
     initializeModeSwitcher();
+    
+    // --- 初始化专业绘图模式集成 ---
+    initializeDiagramModeIntegration();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace

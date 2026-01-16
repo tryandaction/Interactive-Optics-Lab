@@ -85,4 +85,14 @@ if (typeof window !== 'undefined') {
         window.SymbolLibrary = module.SymbolLibrary;
         window.getSymbolLibrary = module.getSymbolLibrary;
     });
+    import('./DiagramModeIntegration.js').then(module => {
+        window.DiagramModeIntegration = module.DiagramModeIntegration;
+        window.getDiagramModeIntegration = module.getDiagramModeIntegration;
+        window.initializeDiagramMode = module.initializeDiagramMode;
+        window.resetDiagramModeIntegration = module.resetDiagramModeIntegration;
+    });
+    import('./ExportUI.js').then(module => {
+        window.openExportDialog = module.openExportDialog;
+        window.getExportDialog = module.getExportDialog;
+    });
 }
