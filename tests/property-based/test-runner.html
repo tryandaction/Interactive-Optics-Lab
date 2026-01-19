@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property-Based Tests - Professional Diagram System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .summary {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            display: none;
+        }
+
+        .summary.visible {
+            display: block;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .summary-card.passed {
+            border-left-color: #10b981;
+        }
+
+        .summary-card.failed {
+            border-left-color: #ef4444;
+        }
+
+        .summary-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .summary-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .results {
+            padding: 30px;
+        }
+
+        .test-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        .test-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .test-item.passed {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+
+        .test-item.failed {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+
+        .test-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .test-icon {
+            font-size: 20px;
+        }
+
+        .test-name {
+            font-weight: 600;
+            font-size: 15px;
+            flex: 1;
+        }
+
+        .test-stats {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .test-details {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .error-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .category-filter {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .category-tag {
+            padding: 5px 12px;
+            background: #e0e0e0;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .category-tag:hover {
+            background: #d0d0d0;
+        }
+
+        .category-tag.active {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Property-Based Tests</h1>
+            <p>Professional Optics Diagram System - Automated Testing Suite</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" onclick="runTests()">▶ Run All Tests</button>
+            <button class="btn-secondary" onclick="clearResults()">Clear Results</button>
+            <div style="flex: 1"></div>
+            <div class="category-filter" id="categoryFilter"></div>
+        </div>
+
+        <div class="summary" id="summary">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">Total Tests</div>
+                    <div class="summary-value" id="totalTests">0</div>
+                </div>
+                <div class="summary-card passed">
+                    <div class="summary-label">Passed</div>
+                    <div class="summary-value" id="passedTests">0</div>
+                </div>
+                <div class="summary-card failed">
+                    <div class="summary-label">Failed</div>
+                    <div class="summary-value" id="failedTests">0</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Success Rate</div>
+                    <div class="summary-value" id="successRate">0%</div>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <div class="loading">
+                <p style="color: #999; font-size: 14px;">Click "Run All Tests" to start testing</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../src/diagram/index.js" type="module"></script>
+    <script src="./DiagramSystemTests.js"></script>
+    <script>
+        let currentResults = null;
+
+        window.runTests = async function() {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summary');
+            
+            // Check if tests are loaded
+            if (!window.DIAGRAM_TESTS || window.DIAGRAM_TESTS.length === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="loading">
+                        <p style="color: #ef4444; font-size: 14px;">❌ Error: Tests not loaded. Make sure DiagramSystemTests.js is loaded correctly.</p>
+                        <p style="color: #666; font-size: 12px; margin-top: 10px;">Available tests: ${window.DIAGRAM_TESTS ? window.DIAGRAM_TESTS.length : 0}</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Show loading
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Running ${window.DIAGRAM_TESTS.length} tests...</p>
+                </div>
+            `;
+            summaryDiv.classList.remove('visible');
+
+            // Small delay to show loading
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Run all tests
+            const results = {
+                total: window.DIAGRAM_TESTS.length,
+                passed: 0,
+                failed: 0,
+                tests: []
+            };
+
+            for (const test of window.DIAGRAM_TESTS) {
+                try {
+                    const testResults = test.fn();
+                    const passed = testResults.filter(r => r.pass).length;
+                    const failed = testResults.length - passed;
+                    
+                    results.tests.push({
+                        name: test.name,
+                        category: test.category,
+                        description: test.description,
+                        passed: passed,
+                        failed: failed,
+                        errors: testResults.filter(r => !r.pass).slice(0, 3) // First 3 errors
+                    });
+
+                    if (failed === 0) {
+                        results.passed++;
+                    } else {
+                        results.failed++;
+                    }
+                } catch (error) {
+                    results.failed++;
+                    results.tests.push({
+                        name: test.name,
+                        category: test.category,
+                        description: test.description,
+                        passed: 0,
+                        failed: 100,
+                        errors: [{ error: error.message }]
+                    });
+                }
+
+                // Update progress
+                const progress = results.tests.length / results.total * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+            }
+
+            currentResults = results;
+
+            // Update summary
+            document.getElementById('totalTests').textContent = results.total;
+            document.getElementById('passedTests').textContent = results.passed;
+            document.getElementById('failedTests').textContent = results.failed;
+            document.getElementById('successRate').textContent = 
+                (results.passed / results.total * 100).toFixed(1) + '%';
+            summaryDiv.classList.add('visible');
+
+            // Display results
+            displayResults(results);
+
+            // Extract and display categories
+            displayCategories(results);
+        };
+
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            
+            let html = '';
+            results.tests.forEach(test => {
+                const passed = test.failed === 0;
+                const icon = passed ? '✓' : '✗';
+                const statusClass = passed ? 'passed' : 'failed';
+                
+                html += `
+                    <div class="test-item ${statusClass}">
+                        <div class="test-header">
+                            <span class="test-icon">${icon}</span>
+                            <span class="test-name">${test.name}</span>
+                            <span class="test-stats">${test.passed}/${test.passed + test.failed} passed</span>
+                        </div>
+                        <div class="test-details">
+                            <strong>Category:</strong> ${test.category}<br>
+                            <strong>Description:</strong> ${test.description}
+                        </div>
+                `;
+
+                if (!passed && test.errors.length > 0) {
+                    html += `
+                        <div class="error-details">
+                            <strong>Sample errors (first 3):</strong><br>
+                            ${test.errors.map((e, i) => `
+                                <div style="margin-top: 8px;">
+                                    <strong>Error ${i + 1}:</strong><br>
+                                    ${e.error || JSON.stringify(e, null, 2)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function displayCategories(results) {
+            const categories = new Set();
+            results.tests.forEach(test => {
+                if (test.category) {
+                    categories.add(test.category);
+                }
+            });
+
+            const filterDiv = document.getElementById('categoryFilter');
+            filterDiv.innerHTML = '<span class="category-tag active" onclick="filterByCategory(\'all\')">All</span>' +
+                Array.from(categories).sort().map(cat => 
+                    `<span class="category-tag" onclick="filterByCategory('${cat}')">${cat}</span>`
+                ).join('');
+        }
+
+        window.filterByCategory = function(category) {
+            const items = document.querySelectorAll('.test-item');
+            
+            if (category === 'all') {
+                items.forEach(item => item.style.display = 'block');
+            } else {
+                items.forEach(item => {
+                    const testCategory = item.querySelector('.test-details').textContent;
+                    const matches = testCategory.includes(category);
+                    item.style.display = matches ? 'block' : 'none';
+                });
+            }
+
+            // Update active state
+            document.querySelectorAll('.category-tag').forEach(tag => {
+                tag.classList.toggle('active', tag.textContent === category);
+            });
+        };
+
+        window.clearResults = function() {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summary');
+            
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <p style="color: #999; font-size: 14px;">Click "Run All Tests" to start testing</p>
+                </div>
+            `;
+            summaryDiv.classList.remove('visible');
+            
+            document.getElementById('categoryFilter').innerHTML = '';
+            currentResults = null;
+        };
+
+        // Show test count on load
+        window.addEventListener('load', () => {
+            const count = window.DIAGRAM_TESTS ? window.DIAGRAM_TESTS.length : 0;
+            console.log(`✅ Test runner loaded. ${count} tests available.`);
+            
+            if (count === 0) {
+                document.getElementById('results').innerHTML = `
+                    <div class="loading">
+                        <p style="color: #ef4444; font-size: 14px;">⚠️ No tests found. Check console for errors.</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

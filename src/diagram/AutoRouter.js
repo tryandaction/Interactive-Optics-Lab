@@ -351,11 +351,18 @@ export class AutoRouter {
     }
 
     /**
-     * 在障碍物周围找到路径
+     * 在障碍物周围找到路径（使用A*算法）
      * @private
      */
     _findPathAroundObstacles(start, end, detourPoints, bboxes) {
-        // 简化的贪心算法
+        // 使用A*算法进行路径查找
+        const aStarPath = this._aStarPathfinding(start, end, detourPoints, bboxes);
+        
+        if (aStarPath && aStarPath.length > 0) {
+            return aStarPath;
+        }
+        
+        // 回退到简化的贪心算法
         const path = [];
         let current = start;
         const visited = new Set();
@@ -387,6 +394,103 @@ export class AutoRouter {
             
             // 防止无限循环
             if (path.length > 10) break;
+        }
+        
+        return path;
+    }
+
+    /**
+     * A*路径查找算法
+     * @private
+     */
+    _aStarPathfinding(start, end, waypoints, bboxes) {
+        // 创建节点图
+        const nodes = [start, ...waypoints, end];
+        const nodeMap = new Map();
+        
+        nodes.forEach((node, index) => {
+            const key = `${Math.round(node.x)},${Math.round(node.y)}`;
+            nodeMap.set(key, { node, index, neighbors: [] });
+        });
+        
+        // 构建邻接关系
+        nodes.forEach((node, i) => {
+            const key = `${Math.round(node.x)},${Math.round(node.y)}`;
+            const nodeData = nodeMap.get(key);
+            
+            nodes.forEach((other, j) => {
+                if (i !== j && this._isPathClear(node, other, bboxes)) {
+                    nodeData.neighbors.push(j);
+                }
+            });
+        });
+        
+        // A*算法
+        const openSet = new Set([0]); // 起点索引
+        const cameFrom = new Map();
+        const gScore = new Map();
+        const fScore = new Map();
+        
+        gScore.set(0, 0);
+        fScore.set(0, start.distanceTo(end));
+        
+        while (openSet.size > 0) {
+            // 找到fScore最小的节点
+            let current = null;
+            let minF = Infinity;
+            
+            for (const idx of openSet) {
+                const f = fScore.get(idx) || Infinity;
+                if (f < minF) {
+                    minF = f;
+                    current = idx;
+                }
+            }
+            
+            // 到达终点
+            if (current === nodes.length - 1) {
+                return this._reconstructPath(cameFrom, current, nodes);
+            }
+            
+            openSet.delete(current);
+            
+            const currentKey = `${Math.round(nodes[current].x)},${Math.round(nodes[current].y)}`;
+            const currentData = nodeMap.get(currentKey);
+            
+            if (!currentData) continue;
+            
+            for (const neighbor of currentData.neighbors) {
+                const tentativeG = (gScore.get(current) || 0) + 
+                                  nodes[current].distanceTo(nodes[neighbor]);
+                
+                if (tentativeG < (gScore.get(neighbor) || Infinity)) {
+                    cameFrom.set(neighbor, current);
+                    gScore.set(neighbor, tentativeG);
+                    fScore.set(neighbor, tentativeG + nodes[neighbor].distanceTo(end));
+                    
+                    if (!openSet.has(neighbor)) {
+                        openSet.add(neighbor);
+                    }
+                }
+            }
+        }
+        
+        return null; // 没有找到路径
+    }
+
+    /**
+     * 重建路径
+     * @private
+     */
+    _reconstructPath(cameFrom, current, nodes) {
+        const path = [];
+        
+        while (cameFrom.has(current)) {
+            const node = nodes[current];
+            if (node.type !== 'start' && node.type !== 'end') {
+                path.unshift(node.clone());
+            }
+            current = cameFrom.get(current);
         }
         
         return path;
@@ -519,6 +623,194 @@ export class AutoRouter {
     }
 
     /**
+     * 平滑路径（添加圆角）
+     */
+    smoothPath(path, radius = null) {
+        if (path.length <= 2) return path;
+        
+        const cornerRadius = radius !== null ? radius : this.cornerRadius;
+        if (cornerRadius <= 0) return path;
+        
+        const smoothed = [path[0]];
+        
+        for (let i = 1; i < path.length - 1; i++) {
+            const prev = path[i - 1];
+            const curr = path[i];
+            const next = path[i + 1];
+            
+            // 计算圆角点
+            const d1 = curr.distanceTo(prev);
+            const d2 = curr.distanceTo(next);
+            const r = Math.min(cornerRadius, d1 / 2, d2 / 2);
+            
+            if (r > 0) {
+                // 计算圆角的起点和终点
+                const t1 = r / d1;
+                const t2 = r / d2;
+                
+                const p1 = new PathPoint(
+                    curr.x + (prev.x - curr.x) * t1,
+                    curr.y + (prev.y - curr.y) * t1,
+                    'corner-start'
+                );
+                
+                const p2 = new PathPoint(
+                    curr.x + (next.x - curr.x) * t2,
+                    curr.y + (next.y - curr.y) * t2,
+                    'corner-end'
+                );
+                
+                smoothed.push(p1);
+                smoothed.push(new PathPoint(curr.x, curr.y, 'corner-control'));
+                smoothed.push(p2);
+            } else {
+                smoothed.push(curr);
+            }
+        }
+        
+        smoothed.push(path[path.length - 1]);
+        return smoothed;
+    }
+
+    /**
+     * 使用贝塞尔曲线平滑路径
+     */
+    smoothPathBezier(path, tension = 0.3) {
+        if (path.length <= 2) return path;
+        
+        const smoothed = [path[0]];
+        
+        for (let i = 1; i < path.length - 1; i++) {
+            const prev = path[i - 1];
+            const curr = path[i];
+            const next = path[i + 1];
+            
+            // 计算控制点
+            const d1 = curr.distanceTo(prev);
+            const d2 = curr.distanceTo(next);
+            const dist = Math.min(d1, d2) * tension;
+            
+            // 计算切线方向
+            const dx1 = curr.x - prev.x;
+            const dy1 = curr.y - prev.y;
+            const dx2 = next.x - curr.x;
+            const dy2 = next.y - curr.y;
+            
+            // 归一化
+            const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) || 1;
+            const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 1;
+            
+            const nx1 = dx1 / len1;
+            const ny1 = dy1 / len1;
+            const nx2 = dx2 / len2;
+            const ny2 = dy2 / len2;
+            
+            // 平均切线方向
+            const tx = (nx1 + nx2) / 2;
+            const ty = (ny1 + ny2) / 2;
+            const tlen = Math.sqrt(tx * tx + ty * ty) || 1;
+            
+            // 控制点
+            const cp1 = new PathPoint(
+                curr.x - (tx / tlen) * dist,
+                curr.y - (ty / tlen) * dist,
+                'bezier-control-in'
+            );
+            
+            const cp2 = new PathPoint(
+                curr.x + (tx / tlen) * dist,
+                curr.y + (ty / tlen) * dist,
+                'bezier-control-out'
+            );
+            
+            smoothed.push(cp1);
+            smoothed.push(curr);
+            smoothed.push(cp2);
+        }
+        
+        smoothed.push(path[path.length - 1]);
+        return smoothed;
+    }
+
+    /**
+     * 计算路径长度
+     */
+    calculatePathLength(path) {
+        let length = 0;
+        
+        for (let i = 0; i < path.length - 1; i++) {
+            length += path[i].distanceTo(path[i + 1]);
+        }
+        
+        return length;
+    }
+
+    /**
+     * 计算路径成本（用于比较不同路径）
+     */
+    calculatePathCost(path, obstacles) {
+        let cost = this.calculatePathLength(path);
+        
+        // 添加转弯惩罚
+        let turns = 0;
+        for (let i = 1; i < path.length - 1; i++) {
+            if (!this._areCollinear(path[i - 1], path[i], path[i + 1], 5)) {
+                turns++;
+            }
+        }
+        cost += turns * 20; // 每个转弯增加成本
+        
+        // 添加接近障碍物的惩罚
+        let proximityPenalty = 0;
+        for (let i = 0; i < path.length - 1; i++) {
+            const segmentPenalty = this._calculateProximityPenalty(
+                path[i], 
+                path[i + 1], 
+                obstacles
+            );
+            proximityPenalty += segmentPenalty;
+        }
+        cost += proximityPenalty;
+        
+        return cost;
+    }
+
+    /**
+     * 计算接近障碍物的惩罚
+     * @private
+     */
+    _calculateProximityPenalty(p1, p2, obstacles) {
+        let penalty = 0;
+        const safeDistance = this.componentPadding * 1.5;
+        
+        for (const obstacle of obstacles) {
+            const bbox = this._getObstacleBBox(obstacle);
+            const dist = this._distanceToBox(p1, p2, bbox);
+            
+            if (dist < safeDistance) {
+                penalty += (safeDistance - dist) * 2;
+            }
+        }
+        
+        return penalty;
+    }
+
+    /**
+     * 计算线段到边界框的距离
+     * @private
+     */
+    _distanceToBox(p1, p2, bbox) {
+        // 简化：计算线段中点到边界框的距离
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        
+        const dx = Math.max(bbox.left - midX, 0, midX - bbox.right);
+        const dy = Math.max(bbox.top - midY, 0, midY - bbox.bottom);
+        
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    /**
      * 检查三点是否共线
      * @private
      */
@@ -630,6 +922,185 @@ export class AutoRouter {
      */
     static deserialize(data) {
         return new AutoRouter(data);
+    }
+
+    /**
+     * 批量路由多条连接
+     */
+    routeMultiple(connections, obstacles = []) {
+        const results = [];
+        
+        for (const conn of connections) {
+            const path = this.generatePath(conn.start, conn.end, obstacles);
+            const optimized = this.optimizePath(path);
+            const smoothed = this.cornerRadius > 0 ? this.smoothPath(optimized) : optimized;
+            
+            results.push({
+                connection: conn,
+                path: smoothed,
+                cost: this.calculatePathCost(smoothed, obstacles),
+                length: this.calculatePathLength(smoothed)
+            });
+        }
+        
+        return results;
+    }
+
+    /**
+     * 生成路由预览
+     */
+    generatePreview(start, end, obstacles = [], options = {}) {
+        const {
+            showAlternatives = false,
+            alternativeCount = 3
+        } = options;
+        
+        const preview = {
+            primary: null,
+            alternatives: []
+        };
+        
+        // 生成主路径
+        const primaryPath = this.generatePath(start, end, obstacles);
+        const optimized = this.optimizePath(primaryPath);
+        const smoothed = this.cornerRadius > 0 ? this.smoothPath(optimized) : optimized;
+        
+        preview.primary = {
+            path: smoothed,
+            cost: this.calculatePathCost(smoothed, obstacles),
+            length: this.calculatePathLength(smoothed),
+            style: this.style
+        };
+        
+        // 生成备选路径
+        if (showAlternatives) {
+            const originalStyle = this.style;
+            const styles = [
+                ROUTING_STYLES.ORTHOGONAL,
+                ROUTING_STYLES.DIAGONAL,
+                ROUTING_STYLES.CURVED
+            ].filter(s => s !== originalStyle);
+            
+            for (let i = 0; i < Math.min(alternativeCount, styles.length); i++) {
+                this.setStyle(styles[i]);
+                const altPath = this.generatePath(start, end, obstacles);
+                const altOptimized = this.optimizePath(altPath);
+                const altSmoothed = this.cornerRadius > 0 ? 
+                    this.smoothPath(altOptimized) : altOptimized;
+                
+                preview.alternatives.push({
+                    path: altSmoothed,
+                    cost: this.calculatePathCost(altSmoothed, obstacles),
+                    length: this.calculatePathLength(altSmoothed),
+                    style: styles[i]
+                });
+            }
+            
+            this.setStyle(originalStyle);
+        }
+        
+        return preview;
+    }
+
+    /**
+     * 自动选择最佳路由样式
+     */
+    autoSelectStyle(start, end, obstacles = []) {
+        const styles = Object.values(ROUTING_STYLES);
+        let bestStyle = this.style;
+        let bestCost = Infinity;
+        
+        const originalStyle = this.style;
+        
+        for (const style of styles) {
+            this.setStyle(style);
+            const path = this.generatePath(start, end, obstacles);
+            const optimized = this.optimizePath(path);
+            const cost = this.calculatePathCost(optimized, obstacles);
+            
+            if (cost < bestCost) {
+                bestCost = cost;
+                bestStyle = style;
+            }
+        }
+        
+        this.setStyle(bestStyle);
+        return bestStyle;
+    }
+
+    /**
+     * 检查路由是否有效
+     */
+    validateRoute(path, obstacles = []) {
+        const validation = {
+            valid: true,
+            errors: [],
+            warnings: []
+        };
+        
+        // 检查路径长度
+        if (path.length < 2) {
+            validation.valid = false;
+            validation.errors.push('Path must have at least 2 points');
+            return validation;
+        }
+        
+        // 检查是否与障碍物相交
+        for (let i = 0; i < path.length - 1; i++) {
+            if (this._isPathBlocked(path[i], path[i + 1], obstacles)) {
+                validation.valid = false;
+                validation.errors.push(`Path segment ${i} intersects with obstacle`);
+            }
+        }
+        
+        // 检查路径效率
+        const directDist = path[0].distanceTo(path[path.length - 1]);
+        const pathLength = this.calculatePathLength(path);
+        const efficiency = directDist / pathLength;
+        
+        if (efficiency < 0.5) {
+            validation.warnings.push('Path is inefficient (efficiency < 50%)');
+        }
+        
+        // 检查转弯数量
+        let turns = 0;
+        for (let i = 1; i < path.length - 1; i++) {
+            if (!this._areCollinear(path[i - 1], path[i], path[i + 1], 5)) {
+                turns++;
+            }
+        }
+        
+        if (turns > 5) {
+            validation.warnings.push(`Path has many turns (${turns})`);
+        }
+        
+        return validation;
+    }
+
+    /**
+     * 获取路由统计信息
+     */
+    getRouteStats(path, obstacles = []) {
+        const stats = {
+            length: this.calculatePathLength(path),
+            cost: this.calculatePathCost(path, obstacles),
+            points: path.length,
+            turns: 0,
+            efficiency: 0
+        };
+        
+        // 计算转弯数
+        for (let i = 1; i < path.length - 1; i++) {
+            if (!this._areCollinear(path[i - 1], path[i], path[i + 1], 5)) {
+                stats.turns++;
+            }
+        }
+        
+        // 计算效率
+        const directDist = path[0].distanceTo(path[path.length - 1]);
+        stats.efficiency = (directDist / stats.length * 100).toFixed(1);
+        
+        return stats;
     }
 }
 

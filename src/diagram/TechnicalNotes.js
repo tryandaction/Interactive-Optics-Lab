@@ -46,13 +46,28 @@ export class NoteItem {
         this.style = {
             bold: false,
             italic: false,
+            underline: false,
+            strikethrough: false,
             fontSize: 12,
             color: '#000000',
+            backgroundColor: 'transparent',
             ...config.style
         };
         
         /** @type {number} 序号（用于编号列表） */
         this.number = config.number || 1;
+        
+        /** @type {Array<string>} 链接的组件ID列表 */
+        this.linkedComponents = config.linkedComponents || [];
+        
+        /** @type {Object} 元数据 */
+        this.metadata = config.metadata || {};
+        
+        /** @type {Date} 创建时间 */
+        this.createdAt = config.createdAt ? new Date(config.createdAt) : new Date();
+        
+        /** @type {Date} 修改时间 */
+        this.updatedAt = config.updatedAt ? new Date(config.updatedAt) : new Date();
     }
 
     /**
@@ -61,6 +76,7 @@ export class NoteItem {
      */
     setText(text) {
         this.text = text;
+        this.updatedAt = new Date();
     }
 
     /**
@@ -70,6 +86,7 @@ export class NoteItem {
     setType(type) {
         if (Object.values(NoteType).includes(type)) {
             this.type = type;
+            this.updatedAt = new Date();
         }
     }
 
@@ -78,6 +95,7 @@ export class NoteItem {
      */
     toggleBold() {
         this.style.bold = !this.style.bold;
+        this.updatedAt = new Date();
     }
 
     /**
@@ -85,6 +103,23 @@ export class NoteItem {
      */
     toggleItalic() {
         this.style.italic = !this.style.italic;
+        this.updatedAt = new Date();
+    }
+
+    /**
+     * 切换下划线
+     */
+    toggleUnderline() {
+        this.style.underline = !this.style.underline;
+        this.updatedAt = new Date();
+    }
+
+    /**
+     * 切换删除线
+     */
+    toggleStrikethrough() {
+        this.style.strikethrough = !this.style.strikethrough;
+        this.updatedAt = new Date();
     }
 
     /**
@@ -93,6 +128,7 @@ export class NoteItem {
     increaseIndent() {
         if (this.indent < 5) {
             this.indent++;
+            this.updatedAt = new Date();
         }
     }
 
@@ -102,7 +138,48 @@ export class NoteItem {
     decreaseIndent() {
         if (this.indent > 0) {
             this.indent--;
+            this.updatedAt = new Date();
         }
+    }
+
+    /**
+     * 链接组件
+     * @param {string} componentId
+     */
+    linkComponent(componentId) {
+        if (!this.linkedComponents.includes(componentId)) {
+            this.linkedComponents.push(componentId);
+            this.updatedAt = new Date();
+        }
+    }
+
+    /**
+     * 取消链接组件
+     * @param {string} componentId
+     */
+    unlinkComponent(componentId) {
+        const index = this.linkedComponents.indexOf(componentId);
+        if (index > -1) {
+            this.linkedComponents.splice(index, 1);
+            this.updatedAt = new Date();
+        }
+    }
+
+    /**
+     * 检查是否链接了组件
+     * @param {string} componentId
+     * @returns {boolean}
+     */
+    isLinkedTo(componentId) {
+        return this.linkedComponents.includes(componentId);
+    }
+
+    /**
+     * 获取所有链接的组件
+     * @returns {Array<string>}
+     */
+    getLinkedComponents() {
+        return [...this.linkedComponents];
     }
 
     /**
@@ -135,7 +212,11 @@ export class NoteItem {
             text: this.text,
             indent: this.indent,
             style: { ...this.style },
-            number: this.number
+            number: this.number,
+            linkedComponents: [...this.linkedComponents],
+            metadata: { ...this.metadata },
+            createdAt: this.createdAt.toISOString(),
+            updatedAt: this.updatedAt.toISOString()
         };
     }
 
@@ -146,6 +227,53 @@ export class NoteItem {
      */
     static deserialize(data) {
         return new NoteItem(data);
+    }
+
+    /**
+     * 克隆
+     * @returns {NoteItem}
+     */
+    clone() {
+        return NoteItem.deserialize(this.serialize());
+    }
+
+    /**
+     * 导出为Markdown
+     * @returns {string}
+     */
+    toMarkdown() {
+        let md = '';
+        
+        // 缩进
+        md += '  '.repeat(this.indent);
+        
+        // 类型前缀
+        switch (this.type) {
+            case NoteType.HEADER:
+                md += '## ';
+                break;
+            case NoteType.BULLET:
+                md += '- ';
+                break;
+            case NoteType.NUMBERED:
+                md += `${this.number}. `;
+                break;
+        }
+        
+        // 文本格式
+        let text = this.text;
+        if (this.style.bold) text = `**${text}**`;
+        if (this.style.italic) text = `*${text}*`;
+        if (this.style.strikethrough) text = `~~${text}~~`;
+        
+        md += text;
+        
+        // 组件链接
+        if (this.linkedComponents.length > 0) {
+            md += ` [Components: ${this.linkedComponents.join(', ')}]`;
+        }
+        
+        return md;
     }
 }
 
@@ -469,6 +597,207 @@ export class TechnicalNotesManager {
             const prefix = note.getPrefix().trim();
             return indent + (prefix ? prefix + ' ' : '') + note.text;
         }).join('\n');
+    }
+
+    /**
+     * 导出为Markdown
+     * @returns {string}
+     */
+    exportToMarkdown() {
+        const lines = ['# Technical Notes', ''];
+        
+        this.notes.forEach(note => {
+            lines.push(note.toMarkdown());
+        });
+        
+        return lines.join('\n');
+    }
+
+    /**
+     * 导出为HTML
+     * @returns {string}
+     */
+    exportToHTML() {
+        const parts = [];
+        parts.push('<!DOCTYPE html>');
+        parts.push('<html>');
+        parts.push('<head>');
+        parts.push('<meta charset="UTF-8">');
+        parts.push('<title>Technical Notes</title>');
+        parts.push('<style>');
+        parts.push('body { font-family: Arial, sans-serif; margin: 20px; }');
+        parts.push('h2 { margin-top: 20px; }');
+        parts.push('ul, ol { margin: 10px 0; }');
+        parts.push('.indent-1 { margin-left: 20px; }');
+        parts.push('.indent-2 { margin-left: 40px; }');
+        parts.push('.indent-3 { margin-left: 60px; }');
+        parts.push('.indent-4 { margin-left: 80px; }');
+        parts.push('.indent-5 { margin-left: 100px; }');
+        parts.push('.linked-component { color: #0066cc; font-style: italic; }');
+        parts.push('</style>');
+        parts.push('</head>');
+        parts.push('<body>');
+        parts.push('<h1>Technical Notes</h1>');
+        
+        this.notes.forEach(note => {
+            const indentClass = note.indent > 0 ? ` class="indent-${note.indent}"` : '';
+            let tag = 'p';
+            let content = note.text;
+            
+            // 应用样式
+            if (note.style.bold) content = `<strong>${content}</strong>`;
+            if (note.style.italic) content = `<em>${content}</em>`;
+            if (note.style.underline) content = `<u>${content}</u>`;
+            if (note.style.strikethrough) content = `<s>${content}</s>`;
+            
+            // 添加组件链接
+            if (note.linkedComponents.length > 0) {
+                content += ` <span class="linked-component">[Components: ${note.linkedComponents.join(', ')}]</span>`;
+            }
+            
+            switch (note.type) {
+                case NoteType.HEADER:
+                    parts.push(`<h2${indentClass}>${content}</h2>`);
+                    break;
+                case NoteType.BULLET:
+                    parts.push(`<ul${indentClass}><li>${content}</li></ul>`);
+                    break;
+                case NoteType.NUMBERED:
+                    parts.push(`<ol${indentClass} start="${note.number}"><li>${content}</li></ol>`);
+                    break;
+                default:
+                    parts.push(`<p${indentClass}>${content}</p>`);
+            }
+        });
+        
+        parts.push('</body>');
+        parts.push('</html>');
+        
+        return parts.join('\n');
+    }
+
+    /**
+     * 导出为JSON
+     * @returns {string}
+     */
+    exportToJSON() {
+        return JSON.stringify(this.serialize(), null, 2);
+    }
+
+    /**
+     * 搜索说明
+     * @param {string} query - 搜索关键词
+     * @returns {Array<NoteItem>}
+     */
+    search(query) {
+        const lowerQuery = query.toLowerCase();
+        return this.notes.filter(note => 
+            note.text.toLowerCase().includes(lowerQuery)
+        );
+    }
+
+    /**
+     * 按组件ID搜索说明
+     * @param {string} componentId
+     * @returns {Array<NoteItem>}
+     */
+    searchByComponent(componentId) {
+        return this.notes.filter(note => 
+            note.isLinkedTo(componentId)
+        );
+    }
+
+    /**
+     * 获取统计信息
+     * @returns {Object}
+     */
+    getStatistics() {
+        const stats = {
+            totalNotes: this.notes.length,
+            byType: {},
+            totalWords: 0,
+            totalCharacters: 0,
+            linkedComponents: new Set()
+        };
+        
+        Object.values(NoteType).forEach(type => {
+            stats.byType[type] = 0;
+        });
+        
+        this.notes.forEach(note => {
+            stats.byType[note.type]++;
+            stats.totalWords += note.text.split(/\s+/).length;
+            stats.totalCharacters += note.text.length;
+            note.linkedComponents.forEach(id => stats.linkedComponents.add(id));
+        });
+        
+        stats.linkedComponents = stats.linkedComponents.size;
+        
+        return stats;
+    }
+
+    /**
+     * 批量链接组件
+     * @param {Array<string>} noteIds - 说明项ID列表
+     * @param {string} componentId - 组件ID
+     */
+    linkComponentToNotes(componentId, noteIds) {
+        noteIds.forEach(noteId => {
+            const note = this.getNote(noteId);
+            if (note) {
+                note.linkComponent(componentId);
+            }
+        });
+        this._notifyChange('componentLinked', { componentId, noteIds });
+    }
+
+    /**
+     * 批量取消链接组件
+     * @param {Array<string>} noteIds - 说明项ID列表
+     * @param {string} componentId - 组件ID
+     */
+    unlinkComponentFromNotes(componentId, noteIds) {
+        noteIds.forEach(noteId => {
+            const note = this.getNote(noteId);
+            if (note) {
+                note.unlinkComponent(componentId);
+            }
+        });
+        this._notifyChange('componentUnlinked', { componentId, noteIds });
+    }
+
+    /**
+     * 应用模板
+     * @param {string} templateName - 模板名称
+     */
+    applyTemplate(templateName) {
+        const templates = {
+            'experiment-setup': [
+                { type: NoteType.HEADER, text: 'Experimental Setup' },
+                { type: NoteType.BULLET, text: 'Laser source: 780 nm' },
+                { type: NoteType.BULLET, text: 'Beam diameter: 2 mm' },
+                { type: NoteType.BULLET, text: 'Power: 10 mW' }
+            ],
+            'optical-parameters': [
+                { type: NoteType.HEADER, text: 'Optical Parameters' },
+                { type: NoteType.NUMBERED, text: 'Wavelength: λ = 780 nm' },
+                { type: NoteType.NUMBERED, text: 'Focal length: f = 100 mm' },
+                { type: NoteType.NUMBERED, text: 'Numerical aperture: NA = 0.25' }
+            ],
+            'safety-notes': [
+                { type: NoteType.HEADER, text: 'Safety Considerations' },
+                { type: NoteType.BULLET, text: 'Wear laser safety goggles' },
+                { type: NoteType.BULLET, text: 'Avoid direct beam exposure' },
+                { type: NoteType.BULLET, text: 'Use beam blocks when not in use' }
+            ]
+        };
+        
+        const template = templates[templateName];
+        if (template) {
+            template.forEach(noteConfig => {
+                this.addNote(noteConfig);
+            });
+        }
     }
 
     /**

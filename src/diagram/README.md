@@ -450,3 +450,398 @@ src/diagram/
 - Firefox 75+
 - Safari 13+
 - Edge 80+
+
+
+---
+
+# Professional Optics Diagram System (English)
+
+A comprehensive, publication-quality optical diagram creation system for academic and professional use.
+
+## 🎯 New Features (v0.8.0)
+
+### 1. Enhanced Annotation System
+- Multiple annotation types (text, dimension, angle, label, callout)
+- LaTeX math expression support (KaTeX integration ready)
+- Leader lines with multiple styles (straight, curved, orthogonal)
+- Auto-positioning to avoid overlaps
+- Template-based creation
+
+### 2. Grid and Alignment Tools
+- **GridManager**: Rectangular, polar, and isometric grids
+- **AlignmentManager**: 7 alignment operations, distribution tools
+- Smart guides during drag operations
+- Snap-to-grid functionality
+- Custom guide lines
+
+### 3. Layer Management System
+- Create, rename, delete, duplicate layers
+- Visibility and lock controls
+- Opacity adjustment per layer
+- Z-order management
+- Layer nesting and grouping
+- **LayerPanel**: Visual UI for layer management
+
+### 4. Professional Styling and Themes
+- **StyleManager**: Component-level and global styles
+- **ThemeManager**: 6 built-in professional themes
+  - Professional (black/white, publication-ready)
+  - Academic (traditional scientific)
+  - Presentation (high contrast)
+  - Dark Mode (comfortable night work)
+  - Colorful (easy identification)
+  - Blueprint (engineering style)
+- **ThemePanel**: Visual theme browser and switcher
+
+### 5. Minimap Navigation
+- Thumbnail overview of entire diagram
+- Viewport indicator showing current view
+- Click-to-navigate functionality
+- Drag viewport to pan
+- Configurable position (4 corners)
+- Auto scene bounds calculation
+
+### 6. Measurement Tools
+- Distance measurement (mm, cm, m, inch, px)
+- Angle measurement (degrees, radians)
+- Area calculation (mm², cm², m²)
+- Optical path length with refractive indices
+- Visual measurement display
+- Measurement history and export
+
+## 📦 Module Structure
+
+```
+src/diagram/
+├── annotations/              # Annotation system
+│   ├── Annotation.js
+│   ├── AnnotationManager.js
+│   └── index.js
+├── grid/                     # Grid system
+│   ├── GridManager.js
+│   └── index.js
+├── alignment/                # Alignment tools
+│   ├── AlignmentManager.js
+│   └── index.js
+├── layers/                   # Layer management
+│   ├── LayerManager.js
+│   └── index.js
+├── styling/                  # Styling and themes
+│   ├── StyleManager.js
+│   ├── ThemeManager.js
+│   └── index.js
+├── navigation/               # Navigation tools
+│   ├── Minimap.js
+│   └── index.js
+├── measurement/              # Measurement tools
+│   ├── MeasurementTools.js
+│   └── index.js
+├── DiagramIntegrationExample.js  # Complete integration example
+└── index.js                  # Main exports
+```
+
+## 🚀 Quick Start (New Features)
+
+### Using Annotations
+
+```javascript
+import { getAnnotationManager, AnnotationType } from './annotations/index.js';
+
+const annotationMgr = getAnnotationManager();
+
+// Add dimension annotation
+const dimension = annotationMgr.createDimensionAnnotation(
+    { x: 100, y: 200 },
+    { x: 300, y: 200 },
+    { unit: 'mm', precision: 1 }
+);
+
+// Add label with LaTeX
+const label = annotationMgr.createLabelAnnotation(
+    'λ = 780 nm',
+    { x: 150, y: 150 },
+    { x: 200, y: 100 }
+);
+
+// Render
+annotationMgr.render(ctx);
+```
+
+### Using Grid and Alignment
+
+```javascript
+import { getGridManager, GridType } from './grid/index.js';
+import { getAlignmentManager, AlignDirection } from './alignment/index.js';
+
+const gridMgr = getGridManager();
+const alignMgr = getAlignmentManager();
+
+// Configure grid
+gridMgr.setType(GridType.RECTANGULAR);
+gridMgr.setSpacing(20);
+gridMgr.snapEnabled = true;
+
+// Snap position
+const snappedPos = gridMgr.snapToGridPoint({ x: 123, y: 456 });
+
+// Align objects
+alignMgr.alignObjects(selectedComponents, AlignDirection.LEFT);
+
+// Distribute objects
+alignMgr.distributeObjects(selectedComponents, DistributeDirection.HORIZONTAL);
+```
+
+### Using Measurement Tools
+
+```javascript
+import { getMeasurementTools, MeasurementType, Units } from './measurement/index.js';
+
+const measureTools = getMeasurementTools();
+
+// Set pixel scale
+measureTools.setPixelsPerMM(3.78);
+
+// Start distance measurement
+measureTools.startMeasurement(MeasurementType.DISTANCE);
+measureTools.addPoint({ x: 100, y: 200 });
+measureTools.addPoint({ x: 300, y: 200 });
+
+// Measure angle
+const angleResult = measureTools.measureAngle(
+    { x: 100, y: 100 },
+    { x: 200, y: 100 },
+    { x: 200, y: 200 }
+);
+console.log(angleResult.format(2));  // "90.00 deg"
+
+// Render measurements
+measureTools.render(ctx);
+```
+
+### Using Minimap
+
+```javascript
+import { getMinimap } from './navigation/index.js';
+
+const minimap = getMinimap({
+    width: 200,
+    height: 150,
+    position: 'bottom-right'
+});
+
+// Mount to container
+minimap.mount('canvas-container');
+
+// Update scene bounds
+minimap.updateSceneBounds(allComponents);
+
+// Update viewport
+minimap.updateViewport({
+    x: cameraX,
+    y: cameraY,
+    width: canvasWidth,
+    height: canvasHeight
+});
+
+// Render
+minimap.render(allComponents, allRays);
+
+// Handle viewport changes
+minimap.setOnViewportChange((viewport) => {
+    camera.x = viewport.x;
+    camera.y = viewport.y;
+    redraw();
+});
+```
+
+### Using Layers
+
+```javascript
+import { getLayerManager } from './layers/index.js';
+import { getLayerPanel } from '../ui/panels/index.js';
+
+const layerMgr = getLayerManager();
+const layerPanel = getLayerPanel('layer-panel-container');
+
+// Create layers
+const opticsLayer = layerMgr.createLayer({ name: 'Optics' });
+const annotationsLayer = layerMgr.createLayer({ name: 'Annotations' });
+
+// Add objects to layers
+layerMgr.addObjectToLayer('laser1', opticsLayer.id);
+layerMgr.addObjectToLayer('label1', annotationsLayer.id);
+
+// Control visibility
+layerMgr.toggleLayerVisibility(opticsLayer.id);
+layerMgr.setLayerOpacity(opticsLayer.id, 0.8);
+
+// Layer panel callbacks
+layerPanel.setOnLayerChange(() => {
+    redraw();
+});
+```
+
+### Using Themes
+
+```javascript
+import { getThemeManager } from './styling/index.js';
+import { getThemePanel } from '../ui/panels/index.js';
+
+const themeMgr = getThemeManager();
+const themePanel = getThemePanel('theme-panel-container');
+
+// Apply built-in theme
+themeMgr.applyTheme('professional');  // Black & white for publications
+themeMgr.applyTheme('academic');      // Traditional scientific
+themeMgr.applyTheme('presentation');  // High contrast for slides
+themeMgr.applyTheme('dark');          // Dark mode
+themeMgr.applyTheme('colorful');      // Color-coded components
+themeMgr.applyTheme('blueprint');     // Engineering style
+
+// Create custom theme
+const myTheme = themeMgr.createThemeFromCurrentStyle(
+    'My Lab Theme',
+    'Custom theme for our lab diagrams'
+);
+
+// Theme panel callbacks
+themePanel.setOnThemeChange((themeId) => {
+    themeMgr.applyTheme(themeId);
+    redraw();
+});
+```
+
+## 🎹 Keyboard Shortcuts
+
+- `Ctrl/Cmd + A`: Select all
+- `Ctrl/Cmd + L`: Align left
+- `Ctrl/Cmd + R`: Align right
+- `Ctrl/Cmd + T`: Align top
+- `Ctrl/Cmd + B`: Align bottom
+- `Ctrl/Cmd + H`: Distribute horizontally
+- `Ctrl/Cmd + V`: Distribute vertically
+- `G`: Toggle grid
+- `M`: Toggle minimap
+- `Escape`: Cancel current operation
+
+## 📚 Complete Integration Example
+
+See `DiagramIntegrationExample.js` for a comprehensive example showing:
+- Complete system initialization
+- UI panel setup
+- Event handling
+- Rendering pipeline
+- Export/import functionality
+- Keyboard shortcuts
+
+## 📊 Project Status
+
+**Completion: 85%**
+
+### ✅ Completed Features
+- Icon library (94+ icons)
+- Icon palette UI
+- Connection point system
+- Ray link management
+- Annotation system
+- Grid and alignment tools
+- Layer management
+- Styling and themes
+- Minimap navigation
+- Measurement tools
+
+### 🚧 In Progress
+- Enhanced export (EPS, CMYK)
+- Simulation mode integration
+- Import/export interoperability
+- Context help system
+
+## 📖 Documentation
+
+- **Implementation Progress**: `../../IMPLEMENTATION_PROGRESS.md`
+- **Task Breakdown**: `../../.kiro/specs/professional-optics-diagram-system/tasks.md`
+- **User Guide**: `../../UserGuide.md`
+
+---
+
+**Last Updated**: 2026-01-18  
+**Version**: 0.8.0-alpha  
+**Status**: Active Development
+
+
+### Using Simulation Integration
+
+```javascript
+import { getModeIntegrationManager, Mode } from './integration/index.js';
+
+const modeManager = getModeIntegrationManager();
+
+// Set initial scene
+modeManager.setScene(currentScene, Mode.SIMULATION);
+
+// Switch to diagram mode with options
+const result = modeManager.switchToDiagram({
+    simplify: true,      // Simplify ray paths
+    beautify: true,      // Beautify layout
+    snapToGrid: true,    // Snap to grid
+    gridSize: 20,        // Grid size
+    preserveRays: true   // Keep ray paths
+});
+
+if (result.success) {
+    const diagramScene = result.scene;
+    // Use diagram scene...
+}
+
+// Switch back to simulation
+modeManager.switchToSimulation();
+
+// Toggle between modes
+modeManager.toggleMode();
+
+// Listen to mode changes
+modeManager.addListener((event) => {
+    if (event.type === 'mode-changed') {
+        console.log(`Switched from ${event.oldMode} to ${event.newMode}`);
+        renderScene(event.scene);
+    }
+});
+
+// Preview conversion
+const preview = modeManager.previewConversion(scene, Mode.DIAGRAM);
+if (preview.success) {
+    console.log('Conversion OK');
+} else {
+    console.log('Errors:', preview.errors);
+}
+```
+
+## 🔄 Simulation-Diagram Integration
+
+The system provides seamless conversion between simulation and diagram modes:
+
+### Features
+- **Bidirectional Conversion**: Convert between simulation and diagram modes
+- **Property Preservation**: All optical properties are maintained
+- **Path Simplification**: Automatic ray path simplification using Douglas-Peucker algorithm
+- **Layout Beautification**: Automatic component arrangement
+- **Auto-Annotations**: Generate labels for key parameters
+- **Error Handling**: Comprehensive validation and error reporting
+
+### Component Type Mapping
+Supports 40+ component types including:
+- Light sources (Laser, LED, Point, Line, Fan)
+- Mirrors (Metallic, Dichroic, Spherical, Parabolic)
+- Lenses (Thin, Cylindrical, Aspheric, GRIN)
+- Polarizers (Linear, Circular, Wave plates, Prisms)
+- Detectors (Screen, Photodiode, CCD, Power meter, Spectrometer)
+- Special components (AOM, Aperture, Prism, Grating, Fiber)
+- And more...
+
+### Conversion Options
+- `simplify`: Simplify ray paths (default: true)
+- `beautify`: Optimize component layout (default: true)
+- `snapToGrid`: Snap components to grid (default: true)
+- `gridSize`: Grid spacing in pixels (default: 20)
+- `preserveRays`: Keep ray path data (default: true)
+

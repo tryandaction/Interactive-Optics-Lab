@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Icon Library Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .category {
+            margin: 30px 0;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .category h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .icon-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            text-align: center;
+            background: #fafafa;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        .icon-item:hover {
+            background: #e8f4f8;
+            border-color: #3498db;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .icon-canvas {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 10px;
+            background: white;
+            border: 1px solid #eee;
+        }
+        .icon-name {
+            font-size: 12px;
+            color: #555;
+            font-weight: bold;
+        }
+        .icon-type {
+            font-size: 10px;
+            color: #888;
+            margin-top: 5px;
+        }
+        .stats {
+            background: #3498db;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .stats h2 {
+            margin: 0 0 10px 0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Professional Optics Diagram System - Icon Library Test</h1>
+    
+    <div class="stats">
+        <h2>📊 Icon Statistics</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-number" id="total-icons">0</div>
+                <div class="stat-label">Total Icons</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="total-categories">0</div>
+                <div class="stat-label">Categories</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="base-icons">0</div>
+                <div class="stat-label">Base Icons</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="extended-icons">0</div>
+                <div class="stat-label">Extended Icons</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="icon-container"></div>
+
+    <script type="module">
+        import { getProfessionalIconManager, ICON_CATEGORIES } from './ProfessionalIconManager.js';
+        import { registerProfessionalIcons, PROFESSIONAL_SVG_ICONS } from './ProfessionalIconLibrary.js';
+        import { registerExtendedIcons, EXTENDED_SVG_ICONS } from './ProfessionalIconLibraryExtended.js';
+
+        // 注册所有图标
+        registerProfessionalIcons();
+        registerExtendedIcons();
+
+        const manager = getProfessionalIconManager();
+        const container = document.getElementById('icon-container');
+
+        // 更新统计信息
+        const baseCount = Object.keys(PROFESSIONAL_SVG_ICONS).length;
+        const extendedCount = Object.keys(EXTENDED_SVG_ICONS).length;
+        const totalCount = manager.getAllIconTypes().length;
+        const categoryCount = manager.getAllCategories().length;
+
+        document.getElementById('total-icons').textContent = totalCount;
+        document.getElementById('total-categories').textContent = categoryCount;
+        document.getElementById('base-icons').textContent = baseCount;
+        document.getElementById('extended-icons').textContent = extendedCount;
+
+        // 按分类显示图标
+        const categories = manager.getAllCategories();
+        const categoryNames = {
+            [ICON_CATEGORIES.SOURCES]: '光源 (Sources)',
+            [ICON_CATEGORIES.MIRRORS]: '反射镜 (Mirrors)',
+            [ICON_CATEGORIES.LENSES]: '透镜 (Lenses)',
+            [ICON_CATEGORIES.SPLITTERS]: '分束器 (Beam Splitters)',
+            [ICON_CATEGORIES.MODULATORS]: '调制器 (Modulators)',
+            [ICON_CATEGORIES.WAVEPLATES]: '波片 (Wave Plates)',
+            [ICON_CATEGORIES.POLARIZERS]: '偏振器 (Polarizers)',
+            [ICON_CATEGORIES.DETECTORS]: '探测器 (Detectors)',
+            [ICON_CATEGORIES.ATOMIC]: '原子组件 (Atomic)',
+            [ICON_CATEGORIES.FIBERS]: '光纤 (Fibers)',
+            [ICON_CATEGORIES.MISC]: '其他 (Miscellaneous)'
+        };
+
+        categories.forEach(category => {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'category';
+            
+            const iconTypes = manager.getIconsByCategory(category);
+            const categoryTitle = document.createElement('h2');
+            categoryTitle.textContent = `${categoryNames[category] || category} (${iconTypes.length} icons)`;
+            categoryDiv.appendChild(categoryTitle);
+
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'icon-grid';
+
+            iconTypes.forEach(iconType => {
+                const icon = manager.getIconDefinition(iconType);
+                if (!icon) return;
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'icon-item';
+
+                // 创建canvas
+                const canvas = document.createElement('canvas');
+                canvas.className = 'icon-canvas';
+                canvas.width = 100;
+                canvas.height = 100;
+                const ctx = canvas.getContext('2d');
+
+                // 渲染图标
+                ctx.clearRect(0, 0, 100, 100);
+                ctx.save();
+                ctx.translate(50, 50);
+                
+                // 计算缩放以适应canvas
+                const scale = Math.min(80 / icon.width, 80 / icon.height);
+                manager.renderIcon(ctx, iconType, 0, 0, 0, scale);
+                
+                ctx.restore();
+
+                // 添加名称和类型
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'icon-name';
+                nameDiv.textContent = icon.name;
+
+                const typeDiv = document.createElement('div');
+                typeDiv.className = 'icon-type';
+                typeDiv.textContent = iconType;
+
+                itemDiv.appendChild(canvas);
+                itemDiv.appendChild(nameDiv);
+                itemDiv.appendChild(typeDiv);
+                gridDiv.appendChild(itemDiv);
+            });
+
+            categoryDiv.appendChild(gridDiv);
+            container.appendChild(categoryDiv);
+        });
+
+        console.log('✅ Icon Library Test Complete');
+        console.log(`📊 Total Icons: ${totalCount}`);
+        console.log(`📁 Categories: ${categoryCount}`);
+        console.log(`🎨 Base Icons: ${baseCount}`);
+        console.log(`🎨 Extended Icons: ${extendedCount}`);
+    </script>
+</body>
+</html>

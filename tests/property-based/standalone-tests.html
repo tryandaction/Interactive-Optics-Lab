@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Property-Based Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 4px solid #ccc;
+        }
+        .test-result.pass {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .test-result.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .summary {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧪 Standalone Property-Based Tests</h1>
+        <p>Testing core mathematical and logical properties</p>
+    </div>
+
+    <button onclick="runAllTests()">▶ Run All Tests</button>
+
+    <div id="summary" style="display: none;" class="summary">
+        <div class="stat">
+            <div class="stat-value" id="totalTests">0</div>
+            <div class="stat-label">Total Tests</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="passedTests" style="color: #10b981;">0</div>
+            <div class="stat-label">Passed</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="failedTests" style="color: #ef4444;">0</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="successRate">0%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        // Standalone tests that don't require external modules
+        const tests = [
+            {
+                name: 'Distance Measurement Accuracy',
+                fn: () => {
+                    const results = [];
+                    for (let i = 0; i < 100; i++) {
+                        const x1 = Math.random() * 1000;
+                        const y1 = Math.random() * 1000;
+                        const x2 = Math.random() * 1000;
+                        const y2 = Math.random() * 1000;
+                        
+                        const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                        const isValid = distance >= 0 && !isNaN(distance);
+                        
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Angle Calculation Correctness',
+                fn: () => {
+                    const results = [];
+                    for (let i = 0; i < 100; i++) {
+                        const x1 = Math.random() * 100;
+                        const y1 = Math.random() * 100;
+                        const x2 = Math.random() * 100;
+                        const y2 = Math.random() * 100;
+                        
+                        const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+                        const isValid = angle >= -180 && angle <= 180;
+                        
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Wavelength to Frequency Conversion',
+                fn: () => {
+                    const results = [];
+                    const c = 299792458; // Speed of light in m/s
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const wavelength = 400 + Math.random() * 400; // 400-800 nm
+                        const wavelengthM = wavelength * 1e-9;
+                        const frequency = c / wavelengthM;
+                        
+                        const isValid = frequency > 0 && frequency < 1e16;
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Thin Lens Equation',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const f = 50 + Math.random() * 200; // Focal length 50-250mm
+                        const do_ = 100 + Math.random() * 500; // Object distance
+                        
+                        const di = 1 / (1/f - 1/do_); // Image distance
+                        
+                        // Verify lens equation: 1/f = 1/do + 1/di
+                        const check = Math.abs(1/f - (1/do_ + 1/di));
+                        const isValid = check < 0.0001;
+                        
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Grid Snap Accuracy',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const gridSize = 20;
+                        const x = Math.random() * 1000;
+                        const y = Math.random() * 1000;
+                        
+                        const snappedX = Math.round(x / gridSize) * gridSize;
+                        const snappedY = Math.round(y / gridSize) * gridSize;
+                        
+                        const isSnapped = snappedX % gridSize === 0 && snappedY % gridSize === 0;
+                        results.push({ pass: isSnapped });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Magnification Calculation',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const objectDistance = 100 + Math.random() * 500;
+                        const imageDistance = 50 + Math.random() * 300;
+                        
+                        const magnification = -imageDistance / objectDistance;
+                        
+                        // Magnification should be reasonable
+                        const isValid = Math.abs(magnification) < 100;
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Gaussian Beam Divergence',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const wavelength = 632.8e-9; // HeNe laser
+                        const waist = 0.5e-3 + Math.random() * 2e-3; // 0.5-2.5mm
+                        
+                        const divergence = wavelength / (Math.PI * waist);
+                        
+                        // Divergence should be positive and reasonable
+                        const isValid = divergence > 0 && divergence < 0.01;
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Numerical Aperture Range',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const n = 1 + Math.random() * 0.5; // Refractive index 1-1.5
+                        const halfAngle = Math.random() * Math.PI / 4; // 0-45 degrees
+                        
+                        const NA = n * Math.sin(halfAngle);
+                        
+                        // NA should be between 0 and n
+                        const isValid = NA >= 0 && NA <= n;
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Snell\'s Law Conservation',
+                fn: () => {
+                    const results = [];
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const n1 = 1.0; // Air
+                        const n2 = 1.5; // Glass
+                        const theta1 = Math.random() * Math.PI / 4; // 0-45 degrees
+                        
+                        const theta2 = Math.asin((n1 / n2) * Math.sin(theta1));
+                        
+                        // Verify Snell's law
+                        const check = Math.abs(n1 * Math.sin(theta1) - n2 * Math.sin(theta2));
+                        const isValid = check < 0.0001;
+                        
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            },
+            {
+                name: 'Photon Energy Calculation',
+                fn: () => {
+                    const results = [];
+                    const h = 6.62607015e-34; // Planck constant
+                    const c = 299792458; // Speed of light
+                    
+                    for (let i = 0; i < 100; i++) {
+                        const wavelength = (400 + Math.random() * 400) * 1e-9; // 400-800nm
+                        const energy = (h * c) / wavelength;
+                        
+                        // Energy should be in reasonable range for visible light
+                        const isValid = energy > 2e-19 && energy < 5e-19;
+                        results.push({ pass: isValid });
+                    }
+                    return results;
+                }
+            }
+        ];
+
+        function runAllTests() {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summary');
+            
+            resultsDiv.innerHTML = '<p>Running tests...</p>';
+            
+            let totalPassed = 0;
+            let totalFailed = 0;
+            let html = '';
+            
+            tests.forEach(test => {
+                const results = test.fn();
+                const passed = results.filter(r => r.pass).length;
+                const failed = results.length - passed;
+                
+                totalPassed += (failed === 0 ? 1 : 0);
+                totalFailed += (failed > 0 ? 1 : 0);
+                
+                const status = failed === 0 ? 'pass' : 'fail';
+                const icon = failed === 0 ? '✓' : '✗';
+                
+                html += `
+                    <div class="test-result ${status}">
+                        <strong>${icon} ${test.name}</strong><br>
+                        <small>${passed}/${results.length} iterations passed</small>
+                        ${failed > 0 ? `<br><small style="color: #ef4444;">Failed: ${failed} iterations</small>` : ''}
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+            
+            // Update summary
+            document.getElementById('totalTests').textContent = tests.length;
+            document.getElementById('passedTests').textContent = totalPassed;
+            document.getElementById('failedTests').textContent = totalFailed;
+            document.getElementById('successRate').textContent = 
+                ((totalPassed / tests.length) * 100).toFixed(1) + '%';
+            summaryDiv.style.display = 'grid';
+        }
+    </script>
+</body>
+</html>

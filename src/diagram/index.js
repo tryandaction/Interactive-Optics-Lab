@@ -88,6 +88,20 @@ export {
 } from './ProfessionalIconLibrary.js';
 
 export {
+    EXTENDED_SVG_ICONS,
+    registerExtendedIcons,
+    getExtendedIconTypes
+} from './ProfessionalIconLibraryExtended.js';
+
+export {
+    registerExtendedIconsPart1,
+    registerExtendedIconsPart2,
+    registerExtendedIconsPart3,
+    registerExtendedIconsPart4,
+    registerAllExtendedIcons
+} from './icons/ExtendedIconLibrary.js';
+
+export {
     ConnectionPointManager,
     ConnectionPointInstance,
     getConnectionPointManager,
@@ -177,5 +191,145 @@ export {
     getMinimap,
     resetMinimap
 } from './Minimap.js';
+
+// ========== 增强导出模块 ==========
+export {
+    EPSExporter,
+    getEPSExporter,
+    resetEPSExporter,
+    HighDPIExporter,
+    getHighDPIExporter,
+    resetHighDPIExporter,
+    DPI_PRESETS,
+    PDFExporter,
+    getPDFExporter,
+    resetPDFExporter,
+    PDF_PRESETS
+} from './export/index.js';
+
+// ========== 模式集成模块 ==========
+export {
+    DiagramToSimulationConverter,
+    getDiagramToSimulationConverter,
+    resetDiagramToSimulationConverter,
+    SimulationToDiagramConverter,
+    getSimulationToDiagramConverter,
+    resetSimulationToDiagramConverter,
+    ModeIntegrationManager,
+    getModeIntegrationManager,
+    resetModeIntegrationManager,
+    Mode
+} from './integration/index.js';
+
+// ========== 导航模块 ==========
+export {
+    Minimap as NavigationMinimap,
+    getMinimap as getNavigationMinimap,
+    resetMinimap as resetNavigationMinimap
+} from './navigation/index.js';
+
+// ========== 测量工具模块 ==========
+export {
+    MeasurementTools,
+    MeasurementResult,
+    getMeasurementTools,
+    resetMeasurementTools,
+    MeasurementType,
+    Units
+} from './measurement/index.js';
+
+// ========== 光学计算器模块 ==========
+export {
+    OpticsCalculator,
+    PhysicalConstants,
+    getOpticsCalculator,
+    resetOpticsCalculator
+} from './calculation/index.js';
+
+// ========== 注释系统模块 ==========
+export {
+    Annotation as DiagramAnnotation,
+    AnnotationManager as DiagramAnnotationManager,
+    getAnnotationManager as getDiagramAnnotationManager,
+    resetAnnotationManager as resetDiagramAnnotationManager,
+    AnnotationType,
+    LeaderLineStyle
+} from './annotations/index.js';
+
+// ========== 网格和对齐模块 ==========
+export {
+    GridManager,
+    getGridManager,
+    resetGridManager,
+    GridType
+} from './grid/index.js';
+
+export {
+    AlignmentManager,
+    getAlignmentManager,
+    resetAlignmentManager,
+    AlignDirection as AlignmentDirection,
+    DistributeDirection as DistributionDirection,
+    AlignTarget
+} from './alignment/index.js';
+
+// ========== 图层管理模块 ==========
+export {
+    Layer,
+    LayerManager,
+    getLayerManager,
+    resetLayerManager
+} from './layers/index.js';
+
+// ========== 样式和主题模块 ==========
+export {
+    StyleManager,
+    getStyleManager,
+    resetStyleManager
+} from './styling/index.js';
+
+export {
+    ThemeManager,
+    getThemeManager,
+    resetThemeManager,
+    BUILTIN_THEMES
+} from './styling/index.js';
+
+// ========== 布局模块 ==========
+export {
+    ForceDirectedLayout,
+    getForceDirectedLayout,
+    resetForceDirectedLayout,
+    HierarchicalLayout,
+    LayoutDirection,
+    getHierarchicalLayout,
+    resetHierarchicalLayout,
+    LayoutManager,
+    LayoutType,
+    getLayoutManager,
+    resetLayoutManager
+} from './layout/index.js';
+
+// ========== 验证模块 ==========
+export {
+    DiagramValidator,
+    ValidationResult,
+    getDiagramValidator,
+    resetDiagramValidator
+} from './validation/index.js';
+
+// ========== 模板系统模块 ==========
+export {
+    TEMPLATE_LIBRARY,
+    TEMPLATE_CATEGORIES,
+    getAllTemplates,
+    getTemplatesByCategory,
+    getTemplateById,
+    searchTemplates,
+    AdvancedTemplateManager,
+    TemplateBrowser,
+    getAdvancedTemplateManager,
+    resetAdvancedTemplateManager
+} from './templates/index.js';
 
 // 兼容旧代码的全局导出已移至 src/compat/legacy-globals.js
