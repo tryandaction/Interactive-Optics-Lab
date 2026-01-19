@@ -57,7 +57,7 @@ const state = {
     globalShowArrows: false,
     onlyShowSelectedSourceArrow: false,
     arrowAnimationSpeed: 100,
-    showArrowTrail: true,
+    showArrowTrail: false,  // 禁用箭头拖影
     arrowAnimationStates: new Map(),
     
     // 历史记录状态

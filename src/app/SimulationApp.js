@@ -59,7 +59,7 @@ export class SimulationApp {
         this.globalShowArrows = false;
         this.onlyShowSelectedSourceArrow = false;
         this.arrowAnimationSpeed = 100;
-        this.showArrowTrail = true;
+        this.showArrowTrail = false;  // 禁用箭头拖影
         this.arrowAnimationStates = new Map();
         this.arrowAnimationStartTime = 0;
         

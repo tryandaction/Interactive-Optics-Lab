@@ -26,7 +26,7 @@ import { getIconBrowserPanel } from './IconBrowserPanel.js';
 import { getProfessionalLabelManager } from './ProfessionalLabelSystem.js';
 import { getTechnicalNotesArea } from './TechnicalNotesArea.js';
 import { getInteractionManager } from './InteractionManager.js';
-import { getDiagramTemplateManager, TemplateBrowserPanel } from './DiagramTemplateSystem.js';
+import { getAdvancedTemplateManager, TemplateBrowser } from './templates/index.js';
 import { getCustomConnectionPointEditor } from './CustomConnectionPointEditor.js';
 import { getMinimap } from './Minimap.js';
 
@@ -175,8 +175,8 @@ export class DiagramModeIntegration {
         });
         
         // 初始化模板系统
-        this.modules.templateManager = getDiagramTemplateManager();
-        this.modules.templateBrowser = new TemplateBrowserPanel({
+        this.modules.templateManager = getAdvancedTemplateManager();
+        this.modules.templateBrowser = new TemplateBrowser({
             manager: this.modules.templateManager,
             onSelect: (template) => console.log('Template selected:', template.name),
             onApply: (template) => this._applyTemplate(template)

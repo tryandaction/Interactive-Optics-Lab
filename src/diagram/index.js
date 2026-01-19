@@ -160,16 +160,7 @@ export {
     resetInteractionManager
 } from './InteractionManager.js';
 
-export {
-    DiagramTemplate,
-    DiagramTemplateManager,
-    TemplateBrowserPanel,
-    getDiagramTemplateManager,
-    resetDiagramTemplateManager,
-    TEMPLATE_CATEGORIES,
-    CATEGORY_NAMES,
-    BUILTIN_TEMPLATES
-} from './DiagramTemplateSystem.js';
+// DiagramTemplateSystem.js has been removed - use templates/index.js instead
 
 export {
     CustomConnectionPointEditor,
@@ -321,7 +312,7 @@ export {
 // ========== 模板系统模块 ==========
 export {
     TEMPLATE_LIBRARY,
-    TEMPLATE_CATEGORIES,
+    TEMPLATE_CATEGORIES as TEMPLATE_CATEGORIES_NEW,
     getAllTemplates,
     getTemplatesByCategory,
     getTemplateById,
