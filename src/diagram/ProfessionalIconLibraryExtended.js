@@ -223,8 +223,7 @@ export const EXTENDED_SVG_ICONS = {
     },
 
     // ========== 分束器扩展 (3个) ==========
-    PlateBe
-amSplitter: {
+    PlateBeamSplitter: {
         name: '平板分束器',
         category: ICON_CATEGORIES.SPLITTERS,
         width: 8,
@@ -625,8 +624,7 @@ amSplitter: {
         </svg>`
     },
 
-    OpticalDipole
-Trap: {
+    OpticalDipoleTrap: {
         name: '光学偶极阱',
         category: ICON_CATEGORIES.ATOMIC,
         width: 60,
@@ -666,8 +664,7 @@ Trap: {
         category: ICON_CATEGORIES.ATOMIC,
         width: 80,
         height: 60,
-        connectionPoints: []
-        ],
+        connectionPoints: [],
         svgContent: `<svg viewBox="0 0 80 60" xmlns="http://www.w3.org/2000/svg">
             <ellipse cx="20" cy="30" rx="8" ry="25" fill="none" stroke="#cc6600" stroke-width="3"/>
             <ellipse cx="60" cy="30" rx="8" ry="25" fill="none" stroke="#cc6600" stroke-width="3"/>

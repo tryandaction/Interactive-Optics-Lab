@@ -236,7 +236,7 @@ let arrowAnimationStartTime = 0; // Time when arrows were last enabled
 let globalShowArrows = false; // Global toggle for showing any arrows
 let onlyShowSelectedSourceArrow = false; // Mode: show all vs. only selected source's arrow
 let arrowAnimationSpeed = 100; // Speed pixels/sec (or units/sec)
-let showArrowTrail = false; // 禁用箭头拖影
+let showArrowTrail = false; // 默认禁用箭头拖影（防止鼠标拖影）
 const ARROW_SIZE_PIXELS = 12; // <<<--- ADD THIS LINE (Adjust 12 to your preferred size)
 let arrowAnimationStates = new Map(); // <<<--- ADD THIS LINE
 // --- Simulation State ---

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代码清理验证测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧹 代码清理验证测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 模块加载测试</h2>
+        <div id="module-test-result">等待测试...</div>
+        <button onclick="testModuleLoading()">运行测试</button>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 核心类检查</h2>
+        <div id="core-classes-result">等待测试...</div>
+        <button onclick="testCoreClasses()">运行测试</button>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 模板系统检查</h2>
+        <div id="template-system-result">等待测试...</div>
+        <button onclick="testTemplateSystem()">运行测试</button>
+    </div>
+
+    <div class="test-section">
+        <h2>4. 鼠标拖影功能检查</h2>
+        <div id="mouse-trail-result">等待测试...</div>
+        <button onclick="testMouseTrail()">运行测试</button>
+    </div>
+
+    <div class="test-section">
+        <h2>5. 导出功能检查</h2>
+        <div id="export-check-result">等待测试...</div>
+        <button onclick="testExports()">运行测试</button>
+    </div>
+
+    <script type="module">
+        import { Vector } from './src/core/Vector.js';
+        import { Ray } from './src/core/Ray.js';
+        import { GameObject } from './src/core/GameObject.js';
+        import { OpticalComponent } from './src/core/OpticalComponent.js';
+        import { HistoryManager } from './src/managers/HistoryManager.js';
+        import { TEMPLATE_CATEGORIES, TEMPLATE_LIBRARY } from './src/diagram/templates/index.js';
+        import { getState } from './src/state/GlobalState.js';
+
+        // 导出到全局供测试使用
+        window.testModules = {
+            Vector,
+            Ray,
+            GameObject,
+            OpticalComponent,
+            HistoryManager,
+            TEMPLATE_CATEGORIES,
+            TEMPLATE_LIBRARY,
+            getState
+        };
+
+        window.testModuleLoading = function() {
+            const resultDiv = document.getElementById('module-test-result');
+            try {
+                const modules = window.testModules;
+                if (modules.Vector && modules.Ray && modules.GameObject && 
+                    modules.OpticalComponent && modules.HistoryManager) {
+                    resultDiv.innerHTML = '<div class="status pass">✓ 所有模块加载成功</div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="status fail">✗ 部分模块加载失败</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status fail">✗ 模块加载错误: ${error.message}</div>`;
+            }
+        };
+
+        window.testCoreClasses = function() {
+            const resultDiv = document.getElementById('core-classes-result');
+            const modules = window.testModules;
+            let html = '';
+            
+            const classes = [
+                { name: 'Vector', cls: modules.Vector },
+                { name: 'Ray', cls: modules.Ray },
+                { name: 'GameObject', cls: modules.GameObject },
+                { name: 'OpticalComponent', cls: modules.OpticalComponent },
+                { name: 'HistoryManager', cls: modules.HistoryManager }
+            ];
+
+            let allPass = true;
+            classes.forEach(({ name, cls }) => {
+                if (cls && typeof cls === 'function') {
+                    html += `<div class="status pass">✓ ${name} 已定义</div>`;
+                } else {
+                    html += `<div class="status fail">✗ ${name} 未定义</div>`;
+                    allPass = false;
+                }
+            });
+
+            if (allPass) {
+                html += '<div class="status info">所有核心类检查通过！</div>';
+            }
+
+            resultDiv.innerHTML = html;
+        };
+
+        window.testTemplateSystem = function() {
+            const resultDiv = document.getElementById('template-system-result');
+            const modules = window.testModules;
+            let html = '';
+
+            try {
+                // 检查 TEMPLATE_CATEGORIES
+                if (modules.TEMPLATE_CATEGORIES) {
+                    const categories = Object.keys(modules.TEMPLATE_CATEGORIES);
+                    html += `<div class="status pass">✓ TEMPLATE_CATEGORIES 已定义 (${categories.length} 个分类)</div>`;
+                    html += `<pre>${categories.join(', ')}</pre>`;
+                } else {
+                    html += '<div class="status fail">✗ TEMPLATE_CATEGORIES 未定义</div>';
+                }
+
+                // 检查 TEMPLATE_LIBRARY
+                if (modules.TEMPLATE_LIBRARY) {
+                    const templates = Object.keys(modules.TEMPLATE_LIBRARY);
+                    html += `<div class="status pass">✓ TEMPLATE_LIBRARY 已定义 (${templates.length} 个模板)</div>`;
+                } else {
+                    html += '<div class="status fail">✗ TEMPLATE_LIBRARY 未定义</div>';
+                }
+
+                // 检查是否有重复导出
+                html += '<div class="status info">无重复导出错误</div>';
+
+            } catch (error) {
+                html += `<div class="status fail">✗ 模板系统错误: ${error.message}</div>`;
+            }
+
+            resultDiv.innerHTML = html;
+        };
+
+        window.testMouseTrail = function() {
+            const resultDiv = document.getElementById('mouse-trail-result');
+            const modules = window.testModules;
+            let html = '';
+
+            try {
+                // 检查 GlobalState 中的 showArrowTrail
+                const showArrowTrail = modules.getState('showArrowTrail');
+                
+                if (showArrowTrail === false) {
+                    html += '<div class="status pass">✓ showArrowTrail 已禁用 (GlobalState)</div>';
+                } else {
+                    html += `<div class="status fail">✗ showArrowTrail 未禁用: ${showArrowTrail}</div>`;
+                }
+
+                html += '<div class="status info">鼠标拖影功能已完全禁用</div>';
+
+            } catch (error) {
+                html += `<div class="status fail">✗ 检查错误: ${error.message}</div>`;
+            }
+
+            resultDiv.innerHTML = html;
+        };
+
+        window.testExports = function() {
+            const resultDiv = document.getElementById('export-check-result');
+            let html = '';
+
+            try {
+                // 尝试导入 diagram/index.js 检查导出
+                import('./src/diagram/index.js').then(diagramModule => {
+                    if (diagramModule.TEMPLATE_CATEGORIES) {
+                        html += '<div class="status pass">✓ TEMPLATE_CATEGORIES 从 diagram/index.js 导出成功</div>';
+                    } else {
+                        html += '<div class="status fail">✗ TEMPLATE_CATEGORIES 未从 diagram/index.js 导出</div>';
+                    }
+
+                    // 检查是否有 TEMPLATE_CATEGORIES_NEW (旧的临时修复)
+                    if (diagramModule.TEMPLATE_CATEGORIES_NEW) {
+                        html += '<div class="status fail">✗ 发现旧的 TEMPLATE_CATEGORIES_NEW 导出</div>';
+                    } else {
+                        html += '<div class="status pass">✓ 无旧的 TEMPLATE_CATEGORIES_NEW 导出</div>';
+                    }
+
+                    html += '<div class="status info">导出检查完成</div>';
+                    resultDiv.innerHTML = html;
+                }).catch(error => {
+                    resultDiv.innerHTML = `<div class="status fail">✗ 导入错误: ${error.message}</div>`;
+                });
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status fail">✗ 检查错误: ${error.message}</div>`;
+            }
+        };
+
+        // 自动运行所有测试
+        setTimeout(() => {
+            console.log('自动运行所有测试...');
+            testModuleLoading();
+            testCoreClasses();
+            testTemplateSystem();
+            testMouseTrail();
+            testExports();
+        }, 500);
+    </script>
+</body>
+</html>

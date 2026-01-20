@@ -7,67 +7,67 @@ export { ModeManager, APP_MODES, getModeManager, resetModeManager } from './Mode
 export { ModeSwitcher, createModeSwitcher } from './ModeSwitcher.js';
 export { SymbolLibrary, getSymbolLibrary, resetSymbolLibrary } from './SymbolLibrary.js';
 export { Annotation, AnnotationManager, getAnnotationManager, resetAnnotationManager, SUBSCRIPT_MAP, SUPERSCRIPT_MAP } from './AnnotationSystem.js';
-export { 
-    LayoutEngine, 
-    ComponentGroup, 
-    AlignDirection, 
-    DistributeDirection, 
-    getLayoutEngine, 
-    resetLayoutEngine 
+export {
+    LayoutEngine,
+    ComponentGroup,
+    AlignDirection,
+    DistributeDirection,
+    getLayoutEngine,
+    resetLayoutEngine
 } from './LayoutEngine.js';
-export { 
-    ExportEngine, 
-    ExportFormat, 
-    getExportEngine, 
-    resetExportEngine 
+export {
+    ExportEngine,
+    ExportFormat,
+    getExportEngine,
+    resetExportEngine
 } from './ExportEngine.js';
-export { 
-    ExportDialog, 
-    CropSelector, 
-    getExportDialog, 
-    openExportDialog 
+export {
+    ExportDialog,
+    CropSelector,
+    getExportDialog,
+    openExportDialog
 } from './ExportUI.js';
-export { 
-    RayStyleManager, 
-    LineStyle, 
-    ColorSchemes, 
-    getRayStyleManager, 
-    resetRayStyleManager 
+export {
+    RayStyleManager,
+    LineStyle,
+    ColorSchemes,
+    getRayStyleManager,
+    resetRayStyleManager
 } from './RayStyleManager.js';
-export { 
-    TechnicalNotesManager, 
-    NoteItem, 
-    NoteType, 
-    getTechnicalNotesManager, 
-    resetTechnicalNotesManager 
+export {
+    TechnicalNotesManager,
+    NoteItem,
+    NoteType,
+    getTechnicalNotesManager,
+    resetTechnicalNotesManager
 } from './TechnicalNotes.js';
-export { 
-    ParameterDisplayManager, 
-    ParameterUnits, 
-    LabelPosition, 
-    getParameterDisplayManager, 
-    resetParameterDisplayManager 
+export {
+    ParameterDisplayManager,
+    ParameterUnits,
+    LabelPosition,
+    getParameterDisplayManager,
+    resetParameterDisplayManager
 } from './ParameterDisplay.js';
-export { 
-    TemplateManager, 
-    ExportTemplate, 
-    TemplateType, 
-    getTemplateManager, 
-    resetTemplateManager 
+export {
+    TemplateManager,
+    ExportTemplate,
+    TemplateType,
+    getTemplateManager,
+    resetTemplateManager
 } from './TemplateManager.js';
-export { 
-    BatchExportManager, 
-    BatchExportTask, 
-    BatchExportStatus, 
-    NamingPattern, 
-    getBatchExportManager, 
-    resetBatchExportManager 
+export {
+    BatchExportManager,
+    BatchExportTask,
+    BatchExportStatus,
+    NamingPattern,
+    getBatchExportManager,
+    resetBatchExportManager
 } from './BatchExport.js';
-export { 
-    DiagramModeIntegration, 
-    getDiagramModeIntegration, 
-    initializeDiagramMode, 
-    resetDiagramModeIntegration 
+export {
+    DiagramModeIntegration,
+    getDiagramModeIntegration,
+    initializeDiagramMode,
+    resetDiagramModeIntegration
 } from './DiagramModeIntegration.js';
 
 // ========== 专业绘图模式新模块 ==========
@@ -312,7 +312,7 @@ export {
 // ========== 模板系统模块 ==========
 export {
     TEMPLATE_LIBRARY,
-    TEMPLATE_CATEGORIES as TEMPLATE_CATEGORIES_NEW,
+    TEMPLATE_CATEGORIES,
     getAllTemplates,
     getTemplatesByCategory,
     getTemplateById,
