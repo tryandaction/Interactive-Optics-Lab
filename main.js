@@ -5847,25 +5847,46 @@ function initialize() {
  * @param {number} interval - 检查间隔（毫秒）
  * @returns {Promise<boolean>} - 是否成功加载
  */
-function waitForModules(maxWait = 5000, interval = 50) {
+function waitForModules(maxWait = 10000, interval = 100) {
     return new Promise((resolve) => {
         const startTime = Date.now();
+        let checkCount = 0;
         
         function check() {
-            // 检查核心类是否已加载
-            if (typeof Vector !== 'undefined' && 
-                typeof GameObject !== 'undefined' && 
-                typeof Ray !== 'undefined' && 
-                typeof OpticalComponent !== 'undefined' &&
-                typeof HistoryManager !== 'undefined') {
+            checkCount++;
+            
+            // 详细检查每个核心类
+            const checks = {
+                Vector: typeof Vector !== 'undefined',
+                GameObject: typeof GameObject !== 'undefined',
+                Ray: typeof Ray !== 'undefined',
+                OpticalComponent: typeof OpticalComponent !== 'undefined',
+                HistoryManager: typeof HistoryManager !== 'undefined'
+            };
+            
+            const allLoaded = Object.values(checks).every(v => v);
+            
+            if (allLoaded) {
                 console.log("所有核心模块已加载完成。");
                 resolve(true);
                 return;
             }
             
+            // 每秒输出一次状态
+            if (checkCount % 10 === 0) {
+                const missing = Object.entries(checks)
+                    .filter(([_, loaded]) => !loaded)
+                    .map(([name, _]) => name);
+                console.log(`等待模块加载... 缺失: ${missing.join(', ')}`);
+            }
+            
             // 检查是否超时
             if (Date.now() - startTime > maxWait) {
-                console.error("等待模块加载超时！");
+                const missing = Object.entries(checks)
+                    .filter(([_, loaded]) => !loaded)
+                    .map(([name, _]) => name);
+                console.error(`等待模块加载超时！缺失的模块: ${missing.join(', ')}`);
+                console.error("请检查 src/compat/legacy-globals.js 是否正确加载");
                 resolve(false);
                 return;
             }

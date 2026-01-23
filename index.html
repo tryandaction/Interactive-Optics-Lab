@@ -967,8 +967,24 @@
         注意：如果控制台出现 installHook.js 相关错误，这是浏览器扩展引起的，
         不是本项目的代码问题，可以安全忽略。
     -->
+    
+    <!-- 错误处理 -->
+    <script>
+        // 捕获模块加载错误
+        window.addEventListener('error', (e) => {
+            if (e.filename && e.filename.includes('.js')) {
+                console.error('❌ 脚本加载错误:', e.filename, e.message);
+            }
+        }, true);
+        
+        // 捕获未处理的 Promise 拒绝
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('❌ Promise 拒绝:', e.reason);
+        });
+    </script>
+    
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
-    <script type="module" src="src/compat/legacy-globals.js"></script>
+    <script type="module" src="src/compat/legacy-globals.js" onerror="console.error('❌ 无法加载 legacy-globals.js')"></script>
     
     <!-- 统一项目管理模块 -->
     <script type="module">

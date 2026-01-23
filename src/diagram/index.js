@@ -191,25 +191,8 @@ export {
 } from './ProfessionalDiagramAPI.js';
 
 // ========== 集成示例 ==========
-export {
-    initializeProfessionalDiagramSystem,
-    quickStart as quickStartDiagramSystem,
-    createQuickStartConfig
-} from './IntegrationExample.js';
-
-export {
-    ComprehensiveIntegration,
-    createComprehensiveExample,
-    getComprehensiveIntegration,
-    resetComprehensiveIntegration
-} from './ComprehensiveIntegrationExample.js';
-
-export {
-    NavigationIntegration,
-    createNavigationExample,
-    getNavigationIntegration,
-    resetNavigationIntegration
-} from './NavigationIntegrationExample.js';
+// 注意：IntegrationExample.js, ComprehensiveIntegrationExample.js, 
+// NavigationIntegrationExample.js 文件已被移除或不存在
 
 // ========== 专业绘图模式新模块 ==========
 export {

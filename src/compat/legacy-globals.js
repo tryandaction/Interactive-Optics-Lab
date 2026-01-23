@@ -253,5 +253,8 @@ if (typeof window !== 'undefined') {
     window.openExportDialog = openExportDialog;
     window.getExportDialog = getExportDialog;
 
+    // 设置加载完成标志
+    window.__LEGACY_GLOBALS_LOADED__ = true;
+
     console.log("Legacy globals loaded for backward compatibility");
 }

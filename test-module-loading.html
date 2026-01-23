@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块加载测试</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #0e4429;
+            color: #3fb950;
+        }
+        .error {
+            background: #5a1e1e;
+            color: #f85149;
+        }
+        .pending {
+            background: #3d3d00;
+            color: #f0e68c;
+        }
+    </style>
+</head>
+<body>
+    <h1>模块加载测试</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        const results = document.getElementById('results');
+        
+        function addStatus(message, type = 'pending') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+            return div;
+        }
+
+        // 测试模块加载
+        const loadingStatus = addStatus('正在加载 legacy-globals.js...', 'pending');
+        
+        try {
+            // 导入模块
+            await import('./src/compat/legacy-globals.js');
+            
+            loadingStatus.textContent = '✓ legacy-globals.js 加载成功';
+            loadingStatus.className = 'status success';
+            
+            // 检查核心类
+            const coreClasses = ['Vector', 'GameObject', 'Ray', 'OpticalComponent', 'HistoryManager'];
+            
+            for (const className of coreClasses) {
+                if (typeof window[className] !== 'undefined') {
+                    addStatus(`✓ ${className} 已定义`, 'success');
+                } else {
+                    addStatus(`✗ ${className} 未定义`, 'error');
+                }
+            }
+            
+            // 检查加载标志
+            if (window.__LEGACY_GLOBALS_LOADED__) {
+                addStatus('✓ 全局加载标志已设置', 'success');
+            } else {
+                addStatus('✗ 全局加载标志未设置', 'error');
+            }
+            
+        } catch (error) {
+            loadingStatus.textContent = `✗ 加载失败: ${error.message}`;
+            loadingStatus.className = 'status error';
+            addStatus(`错误详情: ${error.stack}`, 'error');
+        }
+    </script>
+</body>
+</html>
