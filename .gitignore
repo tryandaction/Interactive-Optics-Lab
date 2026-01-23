@@ -1,40 +1,67 @@
-# 依赖文件夹
-node_modules/
+# 操作系统文件 / OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# 环境变量文件
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# 日志文件
-*.log
-logs/
-
-# IDE和编辑器文件
+# 编辑器文件 / Editor Files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.settings/
 
-# 操作系统生成的文件
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# 日志文件 / Log Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# 临时文件
+# 依赖目录 / Dependencies
+node_modules/
+bower_components/
+
+# 构建输出 / Build Output
+dist/
+build/
+out/
+
+# 临时文件 / Temporary Files
 *.tmp
 *.temp
-
-# 缓存
 .cache/
-.npm/
 
-# Kiro IDE 配置文件
-.kiro/
+# 测试覆盖率 / Test Coverage
+coverage/
+.nyc_output/
+
+# 环境变量 / Environment Variables
+.env
+.env.local
+.env.*.local
+
+# 备份文件 / Backup Files
+*.bak
+*.backup
+*~
+
+# 压缩文件 / Archives
+*.zip
+*.tar.gz
+*.rar
+
+# 本地配置 / Local Config
+config.local.js
+settings.local.json
+
+# 用户数据 / User Data
+user-data/
+diagrams/
+exports/
+
+# 调试文件 / Debug Files
+debug.log
+error.log
+
+.kiro

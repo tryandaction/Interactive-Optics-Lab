@@ -2,10 +2,12 @@
  * IconPalettePanel.js - 图标选择面板
  * 提供可视化的图标库浏览和选择界面
  * 
- * Requirements: 1.3, 1.7
+ * Requirements: 1.3, 1.7, 3.1, 3.2, 3.3, 3.7
  */
 
 import { getProfessionalIconManager, ICON_CATEGORIES } from '../../diagram/ProfessionalIconManager.js';
+import { getDragDropManager } from '../../diagram/DragDropManager.js';
+import { getEventBus } from '../../diagram/EventBus.js';
 
 /**
  * 图标选择面板类
@@ -15,16 +17,20 @@ export class IconPalettePanel {
         this.containerId = containerId;
         this.container = null;
         this.iconManager = getProfessionalIconManager();
+        this.dragDropManager = null; // 延迟初始化
+        this.eventBus = getEventBus();
         
         // 状态
         this.currentCategory = 'all';
         this.searchQuery = '';
         this.selectedIcon = null;
         this.hoveredIcon = null;
+        this.visible = false;
         
         // 回调
         this.onIconSelect = null;
         this.onIconDragStart = null;
+        this.onIconDrop = null;
         
         // 初始化
         this._initialize();
@@ -414,15 +420,34 @@ export class IconPalettePanel {
             this._hidePreview();
         });
         
-        // 拖拽
-        item.draggable = true;
-        item.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('component-type', type);
-            e.dataTransfer.effectAllowed = 'copy';
+        // 拖拽 - 使用DragDropManager
+        item.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // 只处理左键
             
-            if (this.onIconDragStart) {
-                this.onIconDragStart(type, icon);
+            // 延迟初始化DragDropManager
+            if (!this.dragDropManager) {
+                this.dragDropManager = getDragDropManager();
             }
+            
+            // 准备拖动数据
+            const dragData = {
+                type: type,
+                label: icon.name,
+                category: icon.category,
+                icon: '📦', // 可以根据类型设置不同图标
+                connectionPoints: icon.connectionPoints || []
+            };
+            
+            // 开始拖动
+            this.dragDropManager.startDrag(dragData, e);
+            
+            // 触发回调
+            if (this.onIconDragStart) {
+                this.onIconDragStart(dragData);
+            }
+            
+            // 发布事件
+            this.eventBus.emit('icon:drag-start', { type, icon });
         });
         
         return item;
@@ -566,6 +591,73 @@ export class IconPalettePanel {
         const items = this.container.querySelectorAll('.icon-palette-item');
         items.forEach(item => item.classList.remove('selected'));
         this.selectedIcon = null;
+    }
+    
+    /**
+     * 设置DragDropManager
+     * @param {DragDropManager} manager - 拖放管理器实例
+     */
+    setDragDropManager(manager) {
+        this.dragDropManager = manager;
+    }
+    
+    /**
+     * 挂载到容器
+     * @param {HTMLElement|string} container - 容器元素或ID
+     */
+    mount(container) {
+        if (typeof container === 'string') {
+            container = document.getElementById(container);
+        }
+        
+        if (!container) {
+            console.error('IconPalettePanel: Invalid container');
+            return;
+        }
+        
+        // 创建面板容器
+        if (!this.container) {
+            this.containerId = container.id || 'icon-palette-container';
+            const panelDiv = document.createElement('div');
+            panelDiv.id = this.containerId;
+            panelDiv.style.cssText = `
+                position: fixed;
+                left: 0;
+                top: 60px;
+                width: 280px;
+                height: calc(100vh - 60px);
+                background: white;
+                border-right: 1px solid #ddd;
+                box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+                z-index: 900;
+                display: none;
+            `;
+            container.appendChild(panelDiv);
+            
+            this.container = panelDiv;
+            this._buildUI();
+            this._bindEvents();
+            this._loadIcons();
+        }
+    }
+    
+    /**
+     * 卸载
+     */
+    unmount() {
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+            this.container = null;
+        }
+    }
+    
+    /**
+     * 销毁
+     */
+    destroy() {
+        this.unmount();
+        this.dragDropManager = null;
+        this.eventBus = null;
     }
 }
 

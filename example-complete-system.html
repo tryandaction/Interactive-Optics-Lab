@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Optics Diagram System - Complete Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f0f0f0;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 250px 1fr 250px;
+            grid-template-rows: 60px 1fr 40px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .toolbar {
+            grid-column: 1 / -1;
+            background: #2c3e50;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .toolbar h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .toolbar-btn {
+            padding: 8px 16px;
+            background: #34495e;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: #4a5f7f;
+        }
+
+        .toolbar-btn.active {
+            background: #3498db;
+        }
+
+        .left-panel {
+            background: white;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        #main-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .right-panel {
+            background: white;
+            border-left: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .status-bar {
+            grid-column: 1 / -1;
+            background: #34495e;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 12px;
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 8px;
+        }
+
+        .panel-tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            background: #f8f8f8;
+        }
+
+        .panel-tab {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .panel-tab:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .panel-tab.active {
+            color: #3498db;
+            border-bottom-color: #3498db;
+            background: white;
+        }
+
+        .panel-content {
+            display: none;
+            height: calc(100% - 45px);
+        }
+
+        .panel-content.active {
+            display: block;
+        }
+
+        .info-box {
+            padding: 20px;
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            margin: 20px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .quick-actions {
+            padding: 20px;
+        }
+
+        .quick-actions h3 {
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .action-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #2980b9;
+        }
+
+        .action-btn.secondary {
+            background: #95a5a6;
+        }
+
+        .action-btn.secondary:hover {
+            background: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <h1>🔬 Professional Optics Diagram System</h1>
+            <div class="toolbar-group">
+                <button class="toolbar-btn" id="btn-grid">Grid</button>
+                <button class="toolbar-btn" id="btn-snap">Snap</button>
+                <button class="toolbar-btn" id="btn-measure">Measure</button>
+                <button class="toolbar-btn" id="btn-minimap">Minimap</button>
+                <button class="toolbar-btn" id="btn-save">Save</button>
+                <button class="toolbar-btn" id="btn-export">Export</button>
+            </div>
+        </div>
+
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="panel-tabs">
+                <button class="panel-tab active" data-panel="icons">Icons</button>
+                <button class="panel-tab" data-panel="layers">Layers</button>
+            </div>
+            <div class="panel-content active" id="panel-icons">
+                <div id="icon-palette-container"></div>
+            </div>
+            <div class="panel-content" id="panel-layers">
+                <div id="layer-panel-container"></div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-container">
+            <canvas id="main-canvas"></canvas>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="panel-tabs">
+                <button class="panel-tab active" data-panel="theme">Theme</button>
+                <button class="panel-tab" data-panel="tools">Tools</button>
+                <button class="panel-tab" data-panel="help">Help</button>
+            </div>
+            <div class="panel-content active" id="panel-theme">
+                <div id="theme-panel-container"></div>
+            </div>
+            <div class="panel-content" id="panel-tools">
+                <div class="quick-actions">
+                    <h3>Quick Actions</h3>
+                    <button class="action-btn" id="btn-add-laser">Add Laser</button>
+                    <button class="action-btn" id="btn-add-mirror">Add Mirror</button>
+                    <button class="action-btn" id="btn-add-lens">Add Lens</button>
+                    <button class="action-btn" id="btn-align-left">Align Left</button>
+                    <button class="action-btn" id="btn-distribute">Distribute</button>
+                    <button class="action-btn secondary" id="btn-clear">Clear All</button>
+                </div>
+            </div>
+            <div class="panel-content" id="panel-help">
+                <div class="info-box">
+                    <h3>🎯 Quick Start</h3>
+                    <p>
+                        1. Browse icons in the left panel<br>
+                        2. Drag components to canvas<br>
+                        3. Use grid snapping for precision<br>
+                        4. Add annotations and measurements<br>
+                        5. Apply themes for different styles<br>
+                        6. Export as publication-quality images
+                    </p>
+                </div>
+                <div class="info-box">
+                    <h3>⌨️ Keyboard Shortcuts</h3>
+                    <p>
+                        <strong>G</strong> - Toggle Grid<br>
+                        <strong>S</strong> - Toggle Snap<br>
+                        <strong>M</strong> - Toggle Minimap<br>
+                        <strong>Del</strong> - Delete Selected<br>
+                        <strong>Ctrl+Z</strong> - Undo<br>
+                        <strong>Ctrl+S</strong> - Save
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span>Position:</span>
+                <span id="status-pos">0, 0</span>
+            </div>
+            <div class="status-item">
+                <span>Components:</span>
+                <span id="status-count">0</span>
+            </div>
+            <div class="status-item">
+                <span>Theme:</span>
+                <span id="status-theme">Professional</span>
+            </div>
+            <div class="status-item" style="margin-left: auto;">
+                <span>Ready</span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { getProfessionalDiagramAPI } from './src/diagram/ProfessionalDiagramAPI.js';
+
+        // Initialize the system
+        const api = getProfessionalDiagramAPI();
+        
+        api.initialize('main-canvas', {
+            iconPaletteContainer: 'icon-palette-container',
+            layerPanelContainer: 'layer-panel-container',
+            themePanelContainer: 'theme-panel-container',
+            enableMinimap: true,
+            theme: 'professional',
+            gridSpacing: 20
+        });
+
+        // Setup canvas
+        const canvas = document.getElementById('main-canvas');
+        const resizeCanvas = () => {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        };
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Components array
+        let components = [];
+        let selectedComponent = null;
+
+        // Toolbar buttons
+        document.getElementById('btn-grid').addEventListener('click', function() {
+            api.grid.toggle();
+            this.classList.toggle('active');
+            render();
+        });
+
+        document.getElementById('btn-snap').addEventListener('click', function() {
+            api.managers.grid.snapEnabled = !api.managers.grid.snapEnabled;
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('btn-measure').addEventListener('click', function() {
+            api.managers.measurement.showMeasurements = !api.managers.measurement.showMeasurements;
+            this.classList.toggle('active');
+            render();
+        });
+
+        document.getElementById('btn-minimap').addEventListener('click', function() {
+            api.minimap?.toggle();
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('btn-save').addEventListener('click', () => {
+            const json = api.exportJSON();
+            localStorage.setItem('diagram-state', json);
+            alert('Diagram saved!');
+        });
+
+        document.getElementById('btn-export').addEventListener('click', () => {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'optical-diagram.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        });
+
+        // Panel tabs
+        document.querySelectorAll('.panel-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const panel = tab.dataset.panel;
+                const container = tab.closest('.left-panel, .right-panel');
+                
+                container.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+                container.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                container.querySelector(`#panel-${panel}`).classList.add('active');
+            });
+        });
+
+        // Quick actions
+        document.getElementById('btn-add-laser').addEventListener('click', () => {
+            addComponent('LaserSource', canvas.width / 2, canvas.height / 2);
+        });
+
+        document.getElementById('btn-add-mirror').addEventListener('click', () => {
+            addComponent('Mirror', canvas.width / 2, canvas.height / 2);
+        });
+
+        document.getElementById('btn-add-lens').addEventListener('click', () => {
+            addComponent('ConvexLens', canvas.width / 2, canvas.height / 2);
+        });
+
+        document.getElementById('btn-align-left').addEventListener('click', () => {
+            if (components.length > 1) {
+                api.alignment.align(components, 'left');
+                render();
+            }
+        });
+
+        document.getElementById('btn-distribute').addEventListener('click', () => {
+            if (components.length > 2) {
+                api.alignment.distribute(components, 'horizontal');
+                render();
+            }
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            if (confirm('Clear all components?')) {
+                components = [];
+                api.reset();
+                render();
+            }
+        });
+
+        // Add component helper
+        function addComponent(type, x, y) {
+            const component = {
+                id: 'comp_' + Date.now(),
+                type: type,
+                pos: { x, y },
+                angle: 0,
+                scale: 1,
+                getBounds: () => ({ width: 60, height: 60 })
+            };
+            components.push(component);
+            api.layers.addObject(component.id);
+            api.connections.init(component);
+            render();
+            updateStatus();
+        }
+
+        // Mouse handling
+        let isDragging = false;
+        let dragStart = null;
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Find clicked component
+            selectedComponent = components.find(c => {
+                const dx = x - c.pos.x;
+                const dy = y - c.pos.y;
+                return Math.sqrt(dx*dx + dy*dy) < 30;
+            });
+
+            if (selectedComponent) {
+                isDragging = true;
+                dragStart = { x, y };
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Update status
+            document.getElementById('status-pos').textContent = `${Math.round(x)}, ${Math.round(y)}`;
+
+            if (isDragging && selectedComponent) {
+                let newPos = { x, y };
+                
+                // Apply grid snapping
+                if (api.managers.grid.snapEnabled) {
+                    newPos = api.grid.snap(newPos);
+                }
+
+                selectedComponent.pos = newPos;
+
+                // Generate smart guides
+                api.alignment.smartGuides(selectedComponent, components, newPos);
+
+                render();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragStart = null;
+            api.managers.alignment.clearSmartGuides();
+            render();
+        });
+
+        // Render function
+        function render() {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Render grid
+            api.grid.render({
+                x: 0, y: 0,
+                width: canvas.width,
+                height: canvas.height
+            });
+
+            // Render components
+            components.forEach(comp => {
+                api.icons.render(comp.type, comp.pos.x, comp.pos.y, comp.angle, comp.scale);
+            });
+
+            // Render connections
+            api.connections.render(components);
+
+            // Render annotations
+            api.annotations.render();
+
+            // Render measurements
+            api.measurement.render();
+
+            // Render alignment guides
+            api.alignment.renderGuides();
+
+            // Update minimap
+            if (api.minimap) {
+                api.minimap.manager.updateSceneBounds(components);
+                api.minimap.render(components, []);
+            }
+        }
+
+        // Update status
+        function updateStatus() {
+            document.getElementById('status-count').textContent = components.length;
+        }
+
+        // Theme change handler
+        api.panels.themePanel?.setOnThemeChange((themeId) => {
+            document.getElementById('status-theme').textContent = 
+                api.theme.getCurrent()?.name || themeId;
+            render();
+        });
+
+        // Initial render
+        render();
+
+        // Load saved state if exists
+        const saved = localStorage.getItem('diagram-state');
+        if (saved) {
+            try {
+                api.importJSON(saved);
+                render();
+            } catch (e) {
+                console.error('Failed to load saved state:', e);
+            }
+        }
+
+        console.log('✅ Professional Optics Diagram System initialized!');
+        console.log('API:', api);
+    </script>
+</body>
+</html>

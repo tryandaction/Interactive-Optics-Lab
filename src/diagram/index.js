@@ -70,6 +70,147 @@ export {
     resetDiagramModeIntegration
 } from './DiagramModeIntegration.js';
 
+// ========== 诊断系统 ==========
+export {
+    DiagnosticSystem,
+    getDiagnosticSystem,
+    DiagnosticLevel
+} from './DiagnosticSystem.js';
+
+// ========== 事件总线 ==========
+export {
+    EventBus,
+    getEventBus,
+    resetEventBus
+} from './EventBus.js';
+
+// ========== 交互管理器 ==========
+export {
+    DragDropManager,
+    getDragDropManager,
+    resetDragDropManager
+} from './DragDropManager.js';
+
+export {
+    SelectionManager,
+    getSelectionManager,
+    resetSelectionManager
+} from './SelectionManager.js';
+
+export {
+    CanvasEventHandler,
+    getCanvasEventHandler,
+    resetCanvasEventHandler
+} from './CanvasEventHandler.js';
+
+export {
+    FeedbackManager,
+    getFeedbackManager,
+    resetFeedbackManager,
+    FeedbackType,
+    CursorStyle
+} from './FeedbackManager.js';
+
+export {
+    StateManager,
+    DiagramState,
+    getStateManager,
+    resetStateManager
+} from './StateManager.js';
+
+export {
+    EventBindingManager
+} from './EventBindingManager.js';
+
+export {
+    ErrorHandler,
+    getErrorHandler,
+    createErrorHandler,
+    resetErrorHandler,
+    ErrorType,
+    ErrorSeverity,
+    RecoveryStrategy
+} from './ErrorHandler.js';
+
+export {
+    TutorialManager,
+    getTutorialManager,
+    createTutorialManager,
+    resetTutorialManager
+} from './TutorialManager.js';
+
+export {
+    InitializationManager,
+    getInitializationManager,
+    resetInitializationManager
+} from './InitializationManager.js';
+
+export {
+    DebugPanel,
+    getDebugPanel,
+    resetDebugPanel
+} from './DebugPanel.js';
+
+export {
+    PerformanceOptimizer,
+    getPerformanceOptimizer,
+    resetPerformanceOptimizer
+} from './PerformanceOptimizer.js';
+
+export {
+    KeyboardShortcutManager,
+    getKeyboardShortcutManager,
+    resetKeyboardShortcutManager
+} from './KeyboardShortcutManager.js';
+
+export {
+    UnifiedHistoryManager,
+    getUnifiedHistoryManager,
+    resetUnifiedHistoryManager,
+    createComponentAction,
+    createAnnotationAction,
+    createLayerAction,
+    createStyleAction
+} from './UnifiedHistoryManager.js';
+
+// ========== 导入模块 ==========
+export {
+    SVGImporter,
+    getSVGImporter,
+    resetSVGImporter,
+    ImageImporter,
+    getImageImporter,
+    resetImageImporter
+} from './import/index.js';
+
+// ========== 统一API ==========
+export {
+    ProfessionalDiagramAPI,
+    getProfessionalDiagramAPI,
+    resetProfessionalDiagramAPI
+} from './ProfessionalDiagramAPI.js';
+
+// ========== 集成示例 ==========
+export {
+    initializeProfessionalDiagramSystem,
+    quickStart as quickStartDiagramSystem,
+    createQuickStartConfig
+} from './IntegrationExample.js';
+
+export {
+    ComprehensiveIntegration,
+    createComprehensiveExample,
+    getComprehensiveIntegration,
+    resetComprehensiveIntegration
+} from './ComprehensiveIntegrationExample.js';
+
+export {
+    NavigationIntegration,
+    createNavigationExample,
+    getNavigationIntegration,
+    resetNavigationIntegration
+} from './NavigationIntegrationExample.js';
+
 // ========== 专业绘图模式新模块 ==========
 export {
     ProfessionalIconManager,

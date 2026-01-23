@@ -2,10 +2,11 @@
  * ConnectionPointManager.js - 连接点管理器
  * 管理光学元件的连接点定义、渲染和交互
  * 
- * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
+ * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 5.1, 5.7
  */
 
 import { getProfessionalIconManager, CONNECTION_POINT_TYPES } from './ProfessionalIconManager.js';
+import { getEventBus } from './EventBus.js';
 
 /**
  * 生成唯一ID
@@ -151,7 +152,7 @@ export class ConnectionPointInstance {
  * 连接点管理器类
  */
 export class ConnectionPointManager {
-    constructor() {
+    constructor(config = {}) {
         /** @type {Map<string, ConnectionPointInstance[]>} 组件ID -> 连接点实例数组 */
         this.componentPoints = new Map();
         
@@ -165,15 +166,26 @@ export class ConnectionPointManager {
         this.selectedPoint = null;
         
         /** @type {boolean} 是否显示连接点 */
-        this.visible = true;
+        this.visible = config.visible !== false;
         
         /** @type {boolean} 是否显示标签 */
-        this.showLabels = true;
+        this.showLabels = config.showLabels !== false;
         
         /** @type {number} 吸附距离 */
-        this.snapDistance = 20;
+        this.snapDistance = config.snapDistance || 20;
+        
+        /** @type {number} 命中测试容差 */
+        this.hitTestTolerance = config.hitTestTolerance || 10;
         
         this.iconManager = getProfessionalIconManager();
+        this.eventBus = config.eventBus || getEventBus();
+        
+        // 统计
+        this.stats = {
+            totalPoints: 0,
+            customPoints: 0,
+            connectedPoints: 0
+        };
     }
 
     /**
@@ -294,7 +306,58 @@ export class ConnectionPointManager {
             }
         }
         
+        this.stats.customPoints--;
+        this.stats.totalPoints--;
+        
+        // 发布事件
+        this.eventBus.emit('connectionpoint:removed', {
+            pointId: pointInstanceId,
+            componentId: point.componentId
+        });
+        
         return true;
+    }
+    
+    /**
+     * 命中测试 - 查找指定位置的连接点
+     * @param {Object} position - {x, y} 世界坐标
+     * @returns {ConnectionPointInstance|null}
+     */
+    hitTest(position) {
+        return this.findPointAtPosition(position);
+    }
+    
+    /**
+     * 获取统计信息
+     * @returns {Object}
+     */
+    getStats() {
+        // 更新统计
+        this.stats.totalPoints = this.pointsById.size;
+        this.stats.customPoints = Array.from(this.pointsById.values())
+            .filter(p => p.isCustom).length;
+        this.stats.connectedPoints = Array.from(this.pointsById.values())
+            .filter(p => p.isConnected()).length;
+        
+        return { ...this.stats };
+    }
+    
+    /**
+     * 设置可见性
+     * @param {boolean} visible
+     */
+    setVisible(visible) {
+        this.visible = visible;
+        this.eventBus.emit('connectionpoint:visibility-changed', { visible });
+    }
+    
+    /**
+     * 切换标签显示
+     * @param {boolean} show
+     */
+    setShowLabels(show) {
+        this.showLabels = show;
+        this.eventBus.emit('connectionpoint:labels-changed', { show });
     }
 
     /**

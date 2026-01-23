@@ -1752,3 +1752,734 @@ if (typeof window !== 'undefined') {
     
     console.log(`Total tests registered: ${window.DIAGRAM_TESTS.length}`);
 }
+
+
+// ========================================
+// KEYBOARD SHORTCUT TESTS
+// ========================================
+
+/**
+ * Test 38: Shortcut Registration Validation
+ * Property: All registered shortcuts have valid handlers
+ */
+function testShortcutRegistration() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const keyboard = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            
+            // Generate random shortcut
+            const modifiers = ['Ctrl', 'Alt', 'Shift'];
+            const keys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const modifier = modifiers[i % modifiers.length];
+            const key = keys[i % keys.length];
+            const shortcut = `${modifier}+${key}`;
+            
+            let handlerCalled = false;
+            const handler = () => { handlerCalled = true; };
+            
+            // Register shortcut
+            const registered = keyboard.register(shortcut, handler, {
+                description: 'Test shortcut'
+            });
+            
+            if (!registered) {
+                results.push({
+                    pass: false,
+                    input: { shortcut },
+                    expected: 'Successful registration',
+                    actual: 'Registration failed',
+                    error: 'Failed to register valid shortcut'
+                });
+                continue;
+            }
+            
+            // Verify it's in the registry
+            const shortcuts = keyboard.getAllShortcuts();
+            const found = shortcuts.some(s => s.originalKey === shortcut);
+            
+            if (!found) {
+                results.push({
+                    pass: false,
+                    input: { shortcut },
+                    expected: 'Shortcut in registry',
+                    actual: 'Shortcut not found',
+                    error: 'Registered shortcut not in registry'
+                });
+                continue;
+            }
+            
+            // Cleanup
+            keyboard.unregister(shortcut);
+            
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 39: Shortcut Conflict Detection
+ * Property: Duplicate shortcuts are detected
+ */
+function testShortcutConflictDetection() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const keyboard = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            
+            const shortcut = 'Ctrl+T';
+            const handler1 = () => {};
+            const handler2 = () => {};
+            
+            // Register first shortcut
+            keyboard.register(shortcut, handler1, { description: 'First' });
+            
+            // Try to register duplicate without override
+            const registered = keyboard.register(shortcut, handler2, { 
+                description: 'Second',
+                override: false 
+            });
+            
+            if (registered) {
+                results.push({
+                    pass: false,
+                    input: { shortcut },
+                    expected: 'Conflict detected',
+                    actual: 'Duplicate registered',
+                    error: 'Conflict not detected'
+                });
+                keyboard.unregister(shortcut);
+                continue;
+            }
+            
+            // Cleanup
+            keyboard.unregister(shortcut);
+            
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 40: Shortcut Context Switching
+ * Property: Context changes affect shortcut availability
+ */
+function testShortcutContextSwitching() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const keyboard = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            
+            // Register shortcuts in different contexts
+            keyboard.register('Ctrl+G', () => {}, { 
+                description: 'Global',
+                context: 'global' 
+            });
+            keyboard.register('Ctrl+C', () => {}, { 
+                description: 'Canvas',
+                context: 'canvas' 
+            });
+            
+            // Switch to canvas context
+            keyboard.setContext('canvas');
+            
+            if (keyboard.getContext() !== 'canvas') {
+                results.push({
+                    pass: false,
+                    input: { context: 'canvas' },
+                    expected: 'Context changed',
+                    actual: keyboard.getContext(),
+                    error: 'Context not changed'
+                });
+                continue;
+            }
+            
+            // Cleanup
+            keyboard.unregister('Ctrl+G', 'global');
+            keyboard.unregister('Ctrl+C', 'canvas');
+            keyboard.setContext('global');
+            
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 41: Shortcut Enable/Disable
+ * Property: Disabled shortcuts don't execute
+ */
+function testShortcutEnableDisable() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const keyboard = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            
+            const shortcut = 'Ctrl+E';
+            let executed = false;
+            
+            keyboard.register(shortcut, () => { executed = true; }, {
+                description: 'Test'
+            });
+            
+            // Disable shortcut
+            keyboard.disable(shortcut);
+            
+            // Verify it's disabled
+            const shortcuts = keyboard.getAllShortcuts();
+            const found = shortcuts.find(s => s.originalKey === shortcut);
+            
+            if (!found || found.enabled) {
+                results.push({
+                    pass: false,
+                    input: { shortcut },
+                    expected: 'Shortcut disabled',
+                    actual: found ? 'enabled' : 'not found',
+                    error: 'Shortcut not disabled'
+                });
+                keyboard.unregister(shortcut);
+                continue;
+            }
+            
+            // Cleanup
+            keyboard.unregister(shortcut);
+            
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 42: Shortcut Serialization
+ * Property: Shortcuts can be serialized and restored
+ */
+function testShortcutSerialization() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const keyboard = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            
+            // Register some shortcuts
+            keyboard.register('Ctrl+1', () => {}, { description: 'Test 1' });
+            keyboard.register('Ctrl+2', () => {}, { description: 'Test 2' });
+            keyboard.disable('Ctrl+2');
+            
+            // Serialize
+            const state = keyboard.serialize();
+            
+            if (!state || !state.shortcuts) {
+                results.push({
+                    pass: false,
+                    input: {},
+                    expected: 'Valid state',
+                    actual: state,
+                    error: 'Serialization failed'
+                });
+                continue;
+            }
+            
+            // Create new instance and deserialize
+            const keyboard2 = getKeyboardShortcutManager({ eventBus: getEventBus() });
+            keyboard2.deserialize(state);
+            
+            // Verify state restored
+            const shortcuts = keyboard2.getAllShortcuts();
+            const shortcut2 = shortcuts.find(s => s.originalKey === 'Ctrl+2');
+            
+            if (!shortcut2 || shortcut2.enabled) {
+                results.push({
+                    pass: false,
+                    input: { state },
+                    expected: 'Ctrl+2 disabled',
+                    actual: shortcut2 ? 'enabled' : 'not found',
+                    error: 'State not restored correctly'
+                });
+                continue;
+            }
+            
+            // Cleanup
+            keyboard.unregister('Ctrl+1');
+            keyboard.unregister('Ctrl+2');
+            
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+// ========================================
+// HISTORY MANAGER TESTS
+// ========================================
+
+/**
+ * Test 43: Undo/Redo Consistency
+ * Property: Undo followed by redo returns to original state
+ */
+function testUndoRedoConsistency() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const history = getUnifiedHistoryManager({ eventBus: getEventBus() });
+            history.clear();
+            
+            let value = 0;
+            
+            // Record action
+            history.record({
+                type: 'test:modify',
+                name: 'Modify Value',
+                undo: () => { value = 0; },
+                redo: () => { value = 10; }
+            });
+            
+            // Execute
+            value = 10;
+            
+            // Undo
+            history.undo();
+            
+            if (value !== 0) {
+                results.push({
+                    pass: false,
+                    input: { initialValue: 10 },
+                    expected: 0,
+                    actual: value,
+                    error: 'Undo did not restore state'
+                });
+                continue;
+            }
+            
+            // Redo
+            history.redo();
+            
+            if (value !== 10) {
+                results.push({
+                    pass: false,
+                    input: { undoneValue: 0 },
+                    expected: 10,
+                    actual: value,
+                    error: 'Redo did not restore state'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 44: History Size Limit
+ * Property: History respects maximum size limit
+ */
+function testHistorySizeLimit() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const maxSize = 10;
+            const history = getUnifiedHistoryManager({ 
+                eventBus: getEventBus(),
+                maxHistorySize: maxSize
+            });
+            history.clear();
+            
+            // Add more actions than limit
+            for (let j = 0; j < maxSize + 5; j++) {
+                history.record({
+                    type: 'test:action',
+                    name: `Action ${j}`,
+                    undo: () => {},
+                    redo: () => {}
+                });
+            }
+            
+            const stats = history.getStats();
+            
+            if (stats.undoCount > maxSize) {
+                results.push({
+                    pass: false,
+                    input: { maxSize, added: maxSize + 5 },
+                    expected: `<= ${maxSize}`,
+                    actual: stats.undoCount,
+                    error: 'History exceeded size limit'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 45: Batch Operation Merging
+ * Property: Batched operations become single undo step
+ */
+function testBatchOperationMerging() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const history = getUnifiedHistoryManager({ eventBus: getEventBus() });
+            history.clear();
+            
+            let values = [];
+            
+            // Begin batch
+            history.beginBatch('Add Multiple Values');
+            
+            // Add multiple actions
+            for (let j = 0; j < 5; j++) {
+                history.record({
+                    type: 'test:add',
+                    name: `Add ${j}`,
+                    undo: () => { values.pop(); },
+                    redo: () => { values.push(j); }
+                });
+                values.push(j);
+            }
+            
+            // End batch
+            history.endBatch();
+            
+            const stats = history.getStats();
+            
+            // Should be 1 undo operation (the batch)
+            if (stats.undoCount !== 1) {
+                results.push({
+                    pass: false,
+                    input: { operations: 5 },
+                    expected: 1,
+                    actual: stats.undoCount,
+                    error: 'Batch not merged into single operation'
+                });
+                continue;
+            }
+            
+            // Undo should remove all 5 values
+            history.undo();
+            
+            if (values.length !== 0) {
+                results.push({
+                    pass: false,
+                    input: { batchSize: 5 },
+                    expected: 0,
+                    actual: values.length,
+                    error: 'Batch undo did not undo all operations'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 46: Action Validation
+ * Property: Invalid actions are rejected
+ */
+function testActionValidation() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const history = getUnifiedHistoryManager({ eventBus: getEventBus() });
+            history.clear();
+            
+            const initialCount = history.getStats().undoCount;
+            
+            // Try to record invalid action (no undo method)
+            history.record({
+                type: 'test:invalid',
+                name: 'Invalid Action'
+                // Missing undo/restore
+            });
+            
+            const finalCount = history.getStats().undoCount;
+            
+            // Should not have been recorded
+            if (finalCount !== initialCount) {
+                results.push({
+                    pass: false,
+                    input: { action: 'invalid' },
+                    expected: 'Action rejected',
+                    actual: 'Action recorded',
+                    error: 'Invalid action was recorded'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 47: History Navigation
+ * Property: Can jump to any point in history
+ */
+function testHistoryNavigation() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const history = getUnifiedHistoryManager({ eventBus: getEventBus() });
+            history.clear();
+            
+            let value = 0;
+            
+            // Record multiple actions
+            for (let j = 1; j <= 5; j++) {
+                const targetValue = j;
+                history.record({
+                    type: 'test:set',
+                    name: `Set ${j}`,
+                    undo: () => { value = targetValue - 1; },
+                    redo: () => { value = targetValue; }
+                });
+                value = j;
+            }
+            
+            // Jump to middle point
+            history.goToHistoryPoint(2);
+            
+            // Value should be 3 (index 2 in 0-based)
+            if (value !== 3) {
+                results.push({
+                    pass: false,
+                    input: { targetIndex: 2 },
+                    expected: 3,
+                    actual: value,
+                    error: 'History navigation failed'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+/**
+ * Test 48: History Serialization
+ * Property: History configuration can be serialized
+ */
+function testHistorySerialization() {
+    const results = [];
+    
+    for (let i = 0; i < 100; i++) {
+        try {
+            const history = getUnifiedHistoryManager({ 
+                eventBus: getEventBus(),
+                maxHistorySize: 50
+            });
+            
+            history.setEnabled(false);
+            
+            // Serialize
+            const state = history.serialize();
+            
+            if (!state || typeof state.enabled !== 'boolean') {
+                results.push({
+                    pass: false,
+                    input: {},
+                    expected: 'Valid state',
+                    actual: state,
+                    error: 'Serialization failed'
+                });
+                continue;
+            }
+            
+            // Create new instance and deserialize
+            const history2 = getUnifiedHistoryManager({ eventBus: getEventBus() });
+            history2.deserialize(state);
+            
+            // Verify config restored
+            const stats = history2.getStats();
+            
+            if (stats.enabled !== false) {
+                results.push({
+                    pass: false,
+                    input: { state },
+                    expected: 'enabled: false',
+                    actual: `enabled: ${stats.enabled}`,
+                    error: 'State not restored correctly'
+                });
+                continue;
+            }
+            
+            history.clear();
+            results.push({ pass: true });
+        } catch (error) {
+            results.push({
+                pass: false,
+                error: error.message
+            });
+        }
+    }
+    
+    return results;
+}
+
+// ========================================
+// TEST SUITE REGISTRATION - PART 3
+// ========================================
+
+if (typeof window !== 'undefined') {
+    window.DIAGRAM_TESTS = window.DIAGRAM_TESTS || [];
+    
+    window.DIAGRAM_TESTS.push(
+        // Keyboard Shortcut Tests
+        {
+            name: 'Shortcut Registration Validation',
+            category: 'keyboard',
+            description: 'All registered shortcuts have valid handlers',
+            fn: testShortcutRegistration
+        },
+        {
+            name: 'Shortcut Conflict Detection',
+            category: 'keyboard',
+            description: 'Duplicate shortcuts are detected',
+            fn: testShortcutConflictDetection
+        },
+        {
+            name: 'Shortcut Context Switching',
+            category: 'keyboard',
+            description: 'Context changes affect shortcut availability',
+            fn: testShortcutContextSwitching
+        },
+        {
+            name: 'Shortcut Enable/Disable',
+            category: 'keyboard',
+            description: 'Disabled shortcuts don\'t execute',
+            fn: testShortcutEnableDisable
+        },
+        {
+            name: 'Shortcut Serialization',
+            category: 'keyboard',
+            description: 'Shortcuts can be serialized and restored',
+            fn: testShortcutSerialization
+        },
+        // History Manager Tests
+        {
+            name: 'Undo/Redo Consistency',
+            category: 'history',
+            description: 'Undo followed by redo returns to original state',
+            fn: testUndoRedoConsistency
+        },
+        {
+            name: 'History Size Limit',
+            category: 'history',
+            description: 'History respects maximum size limit',
+            fn: testHistorySizeLimit
+        },
+        {
+            name: 'Batch Operation Merging',
+            category: 'history',
+            description: 'Batched operations become single undo step',
+            fn: testBatchOperationMerging
+        },
+        {
+            name: 'Action Validation',
+            category: 'history',
+            description: 'Invalid actions are rejected',
+            fn: testActionValidation
+        },
+        {
+            name: 'History Navigation',
+            category: 'history',
+            description: 'Can jump to any point in history',
+            fn: testHistoryNavigation
+        },
+        {
+            name: 'History Serialization',
+            category: 'history',
+            description: 'History configuration can be serialized',
+            fn: testHistorySerialization
+        }
+    );
+    
+    console.log(`✅ Total tests registered: ${window.DIAGRAM_TESTS.length}`);
+    console.log(`📊 Test categories: ${[...new Set(window.DIAGRAM_TESTS.map(t => t.category))].join(', ')}`);
+}

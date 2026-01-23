@@ -2,11 +2,12 @@
  * RayLinkManager.js - 光线链接管理器
  * 管理光学元件之间的光线连接（手动链接模式）
  * 
- * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.9
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.9, 5.3, 5.5, 5.6, 5.8
  */
 
 import { getConnectionPointManager } from './ConnectionPointManager.js';
 import { getAutoRouter, ROUTING_STYLES } from './AutoRouter.js';
+import { getEventBus } from './EventBus.js';
 
 /**
  * 生成唯一ID
@@ -391,7 +392,7 @@ export class RayLink {
  * 光线链接管理器类
  */
 export class RayLinkManager {
-    constructor() {
+    constructor(config = {}) {
         /** @type {Map<string, RayLink>} */
         this.links = new Map();
         
@@ -402,14 +403,164 @@ export class RayLinkManager {
         this.hoveredLink = null;
         
         /** @type {Object|null} 正在创建的链接 */
-        this.editingLink = null;
+        this.creatingLink = null;
         
-        /** @type {Object} 默认样式 */
-        this.defaultStyle = { ...RAY_LINK_STYLES.DEFAULT };
+        this.connectionPointManager = config.connectionPointManager || getConnectionPointManager();
+        this.autoRouter = config.autoRouter || getAutoRouter();
+        this.eventBus = config.eventBus || getEventBus();
         
-        this.connectionPointManager = getConnectionPointManager();
+        // 配置
+        this.enableAutoRouting = config.enableAutoRouting !== false;
+        this.defaultStyle = config.defaultStyle || RAY_LINK_STYLES.DEFAULT;
+        
+        // 统计
+        this.stats = {
+            totalLinks: 0,
+            createdLinks: 0,
+            deletedLinks: 0
+        };
     }
-
+    
+    /**
+     * 开始创建链接
+     * @param {string} sourceComponentId - 源组件ID
+     * @param {string} sourcePointId - 源连接点ID
+     */
+    startLinkCreation(sourceComponentId, sourcePointId) {
+        const sourcePoint = this.connectionPointManager.getPoint(sourceComponentId, sourcePointId);
+        if (!sourcePoint) {
+            console.error('RayLinkManager: Source point not found');
+            return false;
+        }
+        
+        this.creatingLink = {
+            sourceComponentId,
+            sourcePointId,
+            currentPosition: { ...sourcePoint.worldPosition }
+        };
+        
+        this.eventBus.emit('link:creation-start', {
+            sourceComponentId,
+            sourcePointId
+        });
+        
+        return true;
+    }
+    
+    /**
+     * 更新正在创建的链接
+     * @param {Object} position - 当前鼠标位置 {x, y}
+     */
+    updateLinkCreation(position) {
+        if (!this.creatingLink) return;
+        
+        this.creatingLink.currentPosition = { ...position };
+        
+        // 检查是否靠近有效的目标连接点
+        const nearbyPoint = this._findNearbyConnectionPoint(position);
+        this.creatingLink.targetPoint = nearbyPoint;
+        
+        this.eventBus.emit('link:creation-update', {
+            position,
+            targetPoint: nearbyPoint
+        });
+    }
+    
+    /**
+     * 完成链接创建
+     * @param {string} targetComponentId - 目标组件ID
+     * @param {string} targetPointId - 目标连接点ID
+     * @returns {RayLink|null}
+     */
+    completeLinkCreation(targetComponentId, targetPointId) {
+        if (!this.creatingLink) return null;
+        
+        const { sourceComponentId, sourcePointId } = this.creatingLink;
+        
+        // 验证连接
+        if (!this._canConnect(sourceComponentId, sourcePointId, targetComponentId, targetPointId)) {
+            this.cancelLinkCreation();
+            return null;
+        }
+        
+        // 创建链接
+        const link = this.createLink({
+            sourceComponentId,
+            sourcePointId,
+            targetComponentId,
+            targetPointId
+        });
+        
+        this.creatingLink = null;
+        
+        if (link) {
+            this.stats.createdLinks++;
+            this.eventBus.emit('link:created', { link });
+        }
+        
+        return link;
+    }
+    
+    /**
+     * 取消链接创建
+     */
+    cancelLinkCreation() {
+        if (!this.creatingLink) return;
+        
+        this.eventBus.emit('link:creation-cancel', {
+            sourceComponentId: this.creatingLink.sourceComponentId,
+            sourcePointId: this.creatingLink.sourcePointId
+        });
+        
+        this.creatingLink = null;
+    }
+    
+    /**
+     * 检查是否正在创建链接
+     * @returns {boolean}
+     */
+    isCreatingLink() {
+        return this.creatingLink !== null;
+    }
+    
+    /**
+     * 查找附近的连接点
+     * @private
+     */
+    _findNearbyConnectionPoint(position) {
+        const snapDistance = this.connectionPointManager.snapDistance || 20;
+        return this.connectionPointManager.findNearestPoint(position, null, snapDistance);
+    }
+    
+    /**
+     * 检查是否可以连接
+     * @private
+     */
+    _canConnect(sourceCompId, sourcePointId, targetCompId, targetPointId) {
+        // 不能连接到自己
+        if (sourceCompId === targetCompId) {
+            return false;
+        }
+        
+        // 检查连接点类型兼容性
+        const sourcePoint = this.connectionPointManager.getPoint(sourceCompId, sourcePointId);
+        const targetPoint = this.connectionPointManager.getPoint(targetCompId, targetPointId);
+        
+        if (!sourcePoint || !targetPoint) {
+            return false;
+        }
+        
+        // 检查是否已存在连接
+        const existingLink = this.getAllLinks().find(link =>
+            (link.sourceComponentId === sourceCompId && link.sourcePointId === sourcePointId &&
+             link.targetComponentId === targetCompId && link.targetPointId === targetPointId) ||
+            (link.sourceComponentId === targetCompId && link.sourcePointId === targetPointId &&
+             link.targetComponentId === sourceCompId && link.targetPointId === sourcePointId)
+        );
+        
+        return !existingLink;
+    }
+    
     /**
      * 创建新链接
      */
@@ -420,6 +571,7 @@ export class RayLinkManager {
         });
         
         this.links.set(link.id, link);
+        this.stats.totalLinks++;
         
         // 更新连接点状态
         const sourcePoint = this.connectionPointManager.getPoint(
@@ -431,6 +583,8 @@ export class RayLinkManager {
         
         if (sourcePoint) sourcePoint.addConnection(link.id);
         if (targetPoint) targetPoint.addConnection(link.id);
+        
+        this.eventBus.emit('link:created', { link });
         
         return link;
     }
@@ -454,9 +608,12 @@ export class RayLinkManager {
         if (targetPoint) targetPoint.removeConnection(linkId);
         
         this.links.delete(linkId);
+        this.stats.deletedLinks++;
         
         if (this.selectedLink?.id === linkId) this.selectedLink = null;
         if (this.hoveredLink?.id === linkId) this.hoveredLink = null;
+        
+        this.eventBus.emit('link:deleted', { linkId });
         
         return true;
     }
@@ -493,192 +650,15 @@ export class RayLinkManager {
         linksToDelete.forEach(link => this.deleteLink(link.id));
         return linksToDelete.length;
     }
-
+    
     /**
-     * 开始创建链接
+     * 获取统计信息
      */
-    startLinkCreation(sourceComponentId, sourcePointId) {
-        this.editingLink = {
-            sourceComponentId,
-            sourcePointId,
-            currentPosition: null,
-            snapTarget: null
-        };
+    getStats() {
+        this.stats.totalLinks = this.links.size;
+        return { ...this.stats };
     }
-
-    /**
-     * 更新正在创建的链接
-     */
-    updateLinkCreation(position) {
-        if (!this.editingLink) return;
-        
-        this.editingLink.currentPosition = { ...position };
-        
-        // 查找吸附目标
-        const nearestPoint = this.connectionPointManager.findNearestPoint(
-            position,
-            this.editingLink.sourceComponentId
-        );
-        
-        this.editingLink.snapTarget = nearestPoint;
-    }
-
-    /**
-     * 完成链接创建
-     */
-    finishLinkCreation(style = {}) {
-        if (!this.editingLink || !this.editingLink.snapTarget) {
-            this.cancelLinkCreation();
-            return null;
-        }
-        
-        const link = this.createLink({
-            sourceComponentId: this.editingLink.sourceComponentId,
-            sourcePointId: this.editingLink.sourcePointId,
-            targetComponentId: this.editingLink.snapTarget.componentId,
-            targetPointId: this.editingLink.snapTarget.pointId,
-            style
-        });
-        
-        this.editingLink = null;
-        return link;
-    }
-
-    /**
-     * 取消链接创建
-     */
-    cancelLinkCreation() {
-        this.editingLink = null;
-    }
-
-    /**
-     * 应用自动布线到链接
-     * @param {string} linkId - 链接ID
-     * @param {Array} obstacles - 障碍物（组件）列表
-     * @param {Object} options - 布线选项
-     */
-    applyAutoRouting(linkId, obstacles = [], options = {}) {
-        const link = this.links.get(linkId);
-        if (!link) return false;
-        
-        const sourcePoint = this.connectionPointManager.getPoint(
-            link.sourceComponentId, link.sourcePointId
-        );
-        const targetPoint = this.connectionPointManager.getPoint(
-            link.targetComponentId, link.targetPointId
-        );
-        
-        if (!sourcePoint || !targetPoint) return false;
-        
-        const autoRouter = getAutoRouter(options);
-        
-        // 过滤掉源和目标组件
-        const filteredObstacles = obstacles.filter(o => {
-            const id = o.id || o.uuid;
-            return id !== link.sourceComponentId && id !== link.targetComponentId;
-        });
-        
-        // 生成路径
-        const path = autoRouter.generatePath(
-            { 
-                x: sourcePoint.worldPosition.x, 
-                y: sourcePoint.worldPosition.y,
-                direction: this._angleToDirection(sourcePoint.worldDirection)
-            },
-            { 
-                x: targetPoint.worldPosition.x, 
-                y: targetPoint.worldPosition.y,
-                direction: this._angleToDirection(targetPoint.worldDirection + Math.PI)
-            },
-            filteredObstacles
-        );
-        
-        // 优化路径
-        const optimizedPath = autoRouter.optimizePath(path);
-        
-        // 更新链接的waypoints（跳过起点和终点）
-        link.waypoints = optimizedPath
-            .slice(1, -1)
-            .map(p => ({ x: p.x, y: p.y }));
-        
-        link._cachedPath = null;
-        return true;
-    }
-
-    /**
-     * 对所有链接应用自动布线
-     * @param {Array} obstacles - 障碍物（组件）列表
-     * @param {Object} options - 布线选项
-     */
-    applyAutoRoutingToAll(obstacles = [], options = {}) {
-        let count = 0;
-        this.links.forEach((link, linkId) => {
-            if (this.applyAutoRouting(linkId, obstacles, options)) {
-                count++;
-            }
-        });
-        return count;
-    }
-
-    /**
-     * 清除链接的自动布线（恢复直线）
-     * @param {string} linkId - 链接ID
-     */
-    clearAutoRouting(linkId) {
-        const link = this.links.get(linkId);
-        if (!link) return false;
-        
-        link.waypoints = [];
-        link._cachedPath = null;
-        return true;
-    }
-
-    /**
-     * 清除所有链接的自动布线
-     */
-    clearAllAutoRouting() {
-        this.links.forEach(link => {
-            link.waypoints = [];
-            link._cachedPath = null;
-        });
-    }
-
-    /**
-     * 角度转方向字符串
-     * @private
-     */
-    _angleToDirection(angle) {
-        // 归一化角度到 0-2π
-        const normalized = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        
-        if (normalized < Math.PI / 4 || normalized >= Math.PI * 7 / 4) {
-            return 'right';
-        } else if (normalized < Math.PI * 3 / 4) {
-            return 'down';
-        } else if (normalized < Math.PI * 5 / 4) {
-            return 'left';
-        } else {
-            return 'up';
-        }
-    }
-
-    /**
-     * 设置自动布线样式
-     * @param {string} style - 布线样式 (orthogonal, diagonal, direct, curved)
-     */
-    setAutoRoutingStyle(style) {
-        const autoRouter = getAutoRouter();
-        autoRouter.setStyle(style);
-    }
-
-    /**
-     * 获取当前自动布线样式
-     */
-    getAutoRoutingStyle() {
-        const autoRouter = getAutoRouter();
-        return autoRouter.style;
-    }
-
+    
     /**
      * 渲染所有链接
      */
@@ -691,8 +671,8 @@ export class RayLinkManager {
         });
         
         // 渲染正在创建的链接
-        if (this.editingLink && this.editingLink.currentPosition) {
-            this._renderEditingLink(ctx);
+        if (this.creatingLink && this.creatingLink.currentPosition) {
+            this._renderCreatingLink(ctx);
         }
     }
 
@@ -700,20 +680,20 @@ export class RayLinkManager {
      * 渲染正在创建的链接
      * @private
      */
-    _renderEditingLink(ctx) {
+    _renderCreatingLink(ctx) {
         const sourcePoint = this.connectionPointManager.getPoint(
-            this.editingLink.sourceComponentId,
-            this.editingLink.sourcePointId
+            this.creatingLink.sourceComponentId,
+            this.creatingLink.sourcePointId
         );
         
         if (!sourcePoint) return;
         
         const startPos = sourcePoint.worldPosition;
-        let endPos = this.editingLink.currentPosition;
+        let endPos = this.creatingLink.currentPosition;
         
         // 如果有吸附目标，使用目标位置
-        if (this.editingLink.snapTarget) {
-            endPos = this.editingLink.snapTarget.worldPosition;
+        if (this.creatingLink.targetPoint) {
+            endPos = this.creatingLink.targetPoint.worldPosition;
         }
         
         ctx.save();
@@ -728,7 +708,7 @@ export class RayLinkManager {
         ctx.stroke();
         
         // 吸附指示
-        if (this.editingLink.snapTarget) {
+        if (this.creatingLink.targetPoint) {
             ctx.setLineDash([]);
             ctx.fillStyle = '#44cc44';
             ctx.beginPath();
@@ -744,7 +724,7 @@ export class RayLinkManager {
      */
     handleMouseMove(position) {
         // 如果正在创建链接
-        if (this.editingLink) {
+        if (this.creatingLink) {
             this.updateLinkCreation(position);
             return null;
         }
@@ -767,9 +747,12 @@ export class RayLinkManager {
      */
     handleMouseClick(position) {
         // 如果正在创建链接
-        if (this.editingLink) {
-            if (this.editingLink.snapTarget) {
-                return this.finishLinkCreation();
+        if (this.creatingLink) {
+            if (this.creatingLink.targetPoint) {
+                return this.completeLinkCreation(
+                    this.creatingLink.targetPoint.componentId,
+                    this.creatingLink.targetPoint.pointId
+                );
             }
             return null;
         }
@@ -778,6 +761,7 @@ export class RayLinkManager {
         for (const link of this.links.values()) {
             if (link.hitTest(position)) {
                 this.selectedLink = link;
+                this.eventBus.emit('link:selected', { link });
                 return link;
             }
         }
@@ -785,7 +769,7 @@ export class RayLinkManager {
         this.selectedLink = null;
         return null;
     }
-
+    
     /**
      * 序列化
      */
@@ -819,21 +803,39 @@ export class RayLinkManager {
         this.links.clear();
         this.selectedLink = null;
         this.hoveredLink = null;
-        this.editingLink = null;
+        this.creatingLink = null;
+        this.stats = {
+            totalLinks: 0,
+            createdLinks: 0,
+            deletedLinks: 0
+        };
+    }
+    
+    /**
+     * 销毁
+     */
+    destroy() {
+        this.clear();
+        this.connectionPointManager = null;
+        this.autoRouter = null;
+        this.eventBus = null;
     }
 }
 
 // ========== 单例模式 ==========
 let rayLinkManagerInstance = null;
 
-export function getRayLinkManager() {
+export function getRayLinkManager(config) {
     if (!rayLinkManagerInstance) {
-        rayLinkManagerInstance = new RayLinkManager();
+        rayLinkManagerInstance = new RayLinkManager(config);
     }
     return rayLinkManagerInstance;
 }
 
 export function resetRayLinkManager() {
+    if (rayLinkManagerInstance) {
+        rayLinkManagerInstance.destroy();
+    }
     rayLinkManagerInstance = null;
 }
 

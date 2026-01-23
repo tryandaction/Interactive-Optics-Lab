@@ -113,6 +113,8 @@ export class ModeManager {
         }
 
         const oldMode = this.currentMode;
+        const oldSnapshot = this.stateSnapshot;
+        let rollbackNeeded = false;
 
         try {
             // 1. 捕获当前状态快照
@@ -138,8 +140,24 @@ export class ModeManager {
 
         } catch (error) {
             console.error('ModeManager: Error during mode switch:', error);
+            rollbackNeeded = true;
+            
             // 回滚到旧模式
-            this.currentMode = oldMode;
+            try {
+                console.warn(`ModeManager: Rolling back to ${oldMode}`);
+                this.currentMode = oldMode;
+                this.stateSnapshot = oldSnapshot;
+                this._updateUI(oldMode);
+                this._saveCurrentMode(oldMode);
+                
+                // 通知监听器回滚
+                this._notifyModeChange(mode, oldMode, 'rollback');
+                
+                console.log(`ModeManager: Successfully rolled back to ${oldMode}`);
+            } catch (rollbackError) {
+                console.error('ModeManager: Error during rollback:', rollbackError);
+            }
+            
             return false;
         }
     }

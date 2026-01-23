@@ -29,6 +29,7 @@ import { getInteractionManager } from './InteractionManager.js';
 import { getAdvancedTemplateManager, TemplateBrowser } from './templates/index.js';
 import { getCustomConnectionPointEditor } from './CustomConnectionPointEditor.js';
 import { getMinimap } from './Minimap.js';
+import { getDiagnosticSystem } from './DiagnosticSystem.js';
 
 /**
  * 专业绘图模式集成类
@@ -77,6 +78,9 @@ export class DiagramModeIntegration {
         
         /** @type {Array<Function>} 清理函数 */
         this.cleanupFunctions = [];
+        
+        /** @type {DiagnosticSystem} 诊断系统 */
+        this.diagnosticSystem = getDiagnosticSystem();
     }
 
     /**
@@ -86,10 +90,12 @@ export class DiagramModeIntegration {
     initialize(appContext = {}) {
         if (this.initialized) {
             console.warn('DiagramModeIntegration: Already initialized');
+            this.diagnosticSystem.log('warning', 'DiagramModeIntegration already initialized');
             return;
         }
 
         console.log('DiagramModeIntegration: Initializing...');
+        this.diagnosticSystem.log('info', 'DiagramModeIntegration initialization started');
 
         // 初始化所有模块
         this._initializeModules(appContext);
@@ -105,6 +111,13 @@ export class DiagramModeIntegration {
         
         this.initialized = true;
         console.log('DiagramModeIntegration: Initialization complete');
+        this.diagnosticSystem.log('info', 'DiagramModeIntegration initialization complete');
+        
+        // 运行初始诊断
+        setTimeout(() => {
+            const report = this.diagnosticSystem.runFullDiagnostic();
+            console.log('Initial Diagnostic Report:', report);
+        }, 1000);
     }
 
     /**
@@ -739,8 +752,11 @@ export class DiagramModeIntegration {
      * @private
      */
     _bindToolbarEvents(toolbar) {
+        this.diagnosticSystem.log('info', 'Binding toolbar events');
+        
         // 导出按钮
         toolbar.querySelector('#btn-export')?.addEventListener('click', () => {
+            this.diagnosticSystem.trackEvent('toolbar:export');
             this.openExportDialog();
         });
 
