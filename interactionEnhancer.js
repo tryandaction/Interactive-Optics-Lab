@@ -108,13 +108,9 @@ class InteractionEnhancer {
             });
         }
 
-        // 监听画布事件
+        // 不再监听画布鼠标移动事件，避免拖影
         const canvas = document.getElementById('opticsCanvas');
         if (canvas) {
-            canvas.addEventListener('mousemove', (e) => {
-                this.handleMouseMove(e);
-            });
-            
             canvas.addEventListener('mousedown', (e) => {
                 this.handleMouseDown(e);
             });
@@ -169,19 +165,8 @@ class InteractionEnhancer {
      * 处理鼠标移动事件
      */
     handleMouseMove(e) {
-        if (!this.isEnabled) return;
-
-        const mousePos = this.getMousePosition(e);
-        
-        // 更新对齐辅助线
-        if (this.alignmentEnabled) {
-            this.updateAlignmentLines(mousePos);
-        }
-        
-        // 更新吸附点
-        if (this.snapEnabled) {
-            this.updateSnapPoints(mousePos);
-        }
+        // 完全禁用鼠标移动处理，避免任何拖影效果
+        return;
     }
 
     /**
@@ -403,69 +388,16 @@ class InteractionEnhancer {
      * 绘制对齐辅助线
      */
     drawAlignmentLines() {
-        const canvas = document.getElementById('opticsCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // 保存当前状态
-        ctx.save();
-        
-        // 设置样式
-        ctx.strokeStyle = '#007bff';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        ctx.globalAlpha = 0.8;
-        
-        // 绘制对齐线
-        this.alignmentLines.forEach(line => {
-            ctx.beginPath();
-            if (line.type === 'horizontal') {
-                ctx.moveTo(line.startX, line.y);
-                ctx.lineTo(line.endX, line.y);
-            } else {
-                ctx.moveTo(line.x, line.startY);
-                ctx.lineTo(line.x, line.endY);
-            }
-            ctx.stroke();
-        });
-        
-        // 恢复状态
-        ctx.restore();
+        // 禁用绘制，避免拖影
+        return;
     }
 
     /**
      * 绘制吸附点
      */
     drawSnapPoints() {
-        const canvas = document.getElementById('opticsCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // 保存当前状态
-        ctx.save();
-        
-        // 绘制吸附点
-        this.snapPoints.forEach(point => {
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
-            
-            // 根据类型设置颜色
-            switch (point.type) {
-                case 'grid-x':
-                case 'grid-y':
-                    ctx.fillStyle = '#6c757d';
-                    break;
-                case 'center-x':
-                case 'center-y':
-                    ctx.fillStyle = '#28a745';
-                    break;
-                default:
-                    ctx.fillStyle = '#007bff';
-            }
-            
-            ctx.fill();
-        });
-        
-        // 恢复状态
-        ctx.restore();
+        // 禁用绘制，避免拖影
+        return;
     }
 
     /**

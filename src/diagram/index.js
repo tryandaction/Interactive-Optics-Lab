@@ -92,9 +92,9 @@ export {
 } from './DragDropManager.js';
 
 export {
-    SelectionManager,
-    getSelectionManager,
-    resetSelectionManager
+    SelectionManager as DiagramSelectionManagerCore,
+    getSelectionManager as getDiagramSelectionManager,
+    resetSelectionManager as resetDiagramSelectionManager
 } from './SelectionManager.js';
 
 export {
@@ -291,9 +291,9 @@ export {
 
 export {
     InteractionManager,
-    HistoryManager,
-    SelectionManager,
-    ClipboardManager,
+    HistoryManager as DiagramHistoryManager,
+    SelectionManager as DiagramSelectionManager,
+    ClipboardManager as DiagramClipboardManager,
     GroupManager,
     Action,
     ActionType,
