@@ -17,6 +17,9 @@ export class ExportDialog {
     constructor(options = {}) {
         /** @type {ExportEngine} */
         this.exportEngine = options.exportEngine || getExportEngine();
+
+        /** @type {Object|null} 初始配置覆盖 */
+        this.initialConfig = options.initialConfig || null;
         
         /** @type {HTMLElement|null} */
         this.dialogElement = null;
@@ -49,14 +52,25 @@ export class ExportDialog {
      */
     open(scene) {
         this.currentScene = scene;
-        this.config = { ...this.exportEngine.getConfig() };
+        this.config = {
+            ...this.exportEngine.getConfig(),
+            ...(this.initialConfig || {})
+        };
         
         if (!this.dialogElement) {
             this._createDialog();
         }
+
+        if (this.config.exportPurpose) {
+            this._applyPurposePreset(this.config.exportPurpose, { skipPreview: true, skipTemplateReset: true });
+        } else {
+            this._syncUIWithConfig();
+        }
         
         this.dialogElement.style.display = 'flex';
         this.isOpen = true;
+
+        this._updateScopeVisibility();
         
         // 生成初始预览
         this._updatePreview();
@@ -124,11 +138,21 @@ export class ExportDialog {
             </div>
             <div class="preview-info">
                 <span class="preview-size">--</span>
+                <span class="preview-scope">--</span>
                 <span class="preview-format">--</span>
             </div>
         </div>
         
         <div class="export-dialog-options">
+            <div class="option-group">
+                <label>导出用途</label>
+                <select id="export-purpose">
+                    <option value="">自定义</option>
+                    <option value="research">日常科研</option>
+                    <option value="paper">论文/出版</option>
+                </select>
+                <span class="option-hint" id="export-purpose-hint">选择用途可快速套用推荐参数</span>
+            </div>
             <div class="option-group">
                 <label>预设模板</label>
                 <select id="export-template">
@@ -144,6 +168,45 @@ export class ExportDialog {
                     <option value="png">PNG (位图)</option>
                     <option value="pdf">PDF (文档)</option>
                 </select>
+            </div>
+
+            <div class="option-group">
+                <label>导出范围</label>
+                <select id="export-scope">
+                    <option value="canvas">全画布</option>
+                    <option value="content">内容自适应</option>
+                    <option value="crop">自定义裁剪</option>
+                </select>
+                <span class="option-hint" id="export-scope-hint">内容自适应会根据图形自动计算尺寸</span>
+            </div>
+
+            <div class="option-group" id="export-content-padding-group">
+                <label>内容边距 (px)</label>
+                <input type="number" id="export-content-padding" min="0" max="500" value="${this.config.contentPadding ?? 30}" />
+            </div>
+
+            <div class="option-group" id="export-crop-group">
+                <label>裁剪区域 (px)</label>
+                <div class="option-row">
+                    <div class="option-group">
+                        <label>X</label>
+                        <input type="number" id="export-crop-x" value="${this.config.cropArea?.x ?? 0}" />
+                    </div>
+                    <div class="option-group">
+                        <label>Y</label>
+                        <input type="number" id="export-crop-y" value="${this.config.cropArea?.y ?? 0}" />
+                    </div>
+                </div>
+                <div class="option-row">
+                    <div class="option-group">
+                        <label>宽度</label>
+                        <input type="number" id="export-crop-width" min="1" value="${this.config.cropArea?.width ?? 500}" />
+                    </div>
+                    <div class="option-group">
+                        <label>高度</label>
+                        <input type="number" id="export-crop-height" min="1" value="${this.config.cropArea?.height ?? 300}" />
+                    </div>
+                </div>
             </div>
             
             <div class="option-row">
@@ -161,6 +224,22 @@ export class ExportDialog {
                 <label>DPI (分辨率)</label>
                 <input type="number" id="export-dpi" min="72" max="1200" value="${this.config.dpi}" />
                 <span class="option-hint">仅对PNG/PDF有效</span>
+            </div>
+
+            <div class="option-row">
+                <div class="option-group">
+                    <label>线宽系数</label>
+                    <input type="number" id="export-stroke-scale" min="0.1" max="5" step="0.1" value="${this.config.strokeScale ?? 1}" />
+                </div>
+                <div class="option-group">
+                    <label>字体系数</label>
+                    <input type="number" id="export-font-scale" min="0.5" max="3" step="0.1" value="${this.config.fontScale ?? 1}" />
+                </div>
+            </div>
+
+            <div class="option-group">
+                <label>图标缩放</label>
+                <input type="number" id="export-icon-scale" min="0.2" max="5" step="0.1" value="${this.config.iconScale ?? 1}" />
             </div>
             
             <div class="option-group">
@@ -187,6 +266,18 @@ export class ExportDialog {
                 <label class="checkbox-label">
                     <input type="checkbox" id="export-grid" ${this.config.includeGrid ? 'checked' : ''} />
                     包含网格
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="export-diagram-links" ${this.config.includeDiagramLinks ? 'checked' : ''} />
+                    包含连接光线
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="export-professional-labels" ${this.config.includeProfessionalLabels ? 'checked' : ''} />
+                    包含专业标注
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="export-professional-icons" ${this.config.useProfessionalIcons ? 'checked' : ''} />
+                    使用专业图标
                 </label>
             </div>
         </div>
@@ -220,7 +311,15 @@ export class ExportDialog {
         
         // 导出按钮
         dialog.querySelector('#export-confirm').addEventListener('click', () => this._handleExport());
-        
+
+        // 用途选择
+        const purposeSelect = dialog.querySelector('#export-purpose');
+        if (purposeSelect) {
+            purposeSelect.addEventListener('change', (e) => {
+                this._applyPurposePreset(e.target.value || '');
+            });
+        }
+
         // 模板选择
         dialog.querySelector('#export-template').addEventListener('change', (e) => {
             if (e.target.value) {
@@ -233,7 +332,45 @@ export class ExportDialog {
             this.config.format = e.target.value;
             this._updatePreviewDebounced();
         });
-        
+
+        // 导出范围
+        const scopeSelect = dialog.querySelector('#export-scope');
+        if (scopeSelect) {
+            scopeSelect.addEventListener('change', (e) => {
+                this.config.exportScope = e.target.value;
+                this._updateScopeVisibility();
+                if (this.config.exportScope === 'crop') {
+                    this._updateCropAreaFromInputs();
+                }
+                this._updatePreviewDebounced();
+            });
+        }
+
+        // 内容边距
+        const paddingInput = dialog.querySelector('#export-content-padding');
+        if (paddingInput) {
+            paddingInput.addEventListener('input', (e) => {
+                this.config.contentPadding = parseInt(e.target.value) || 0;
+                this._updatePreviewDebounced();
+            });
+        }
+
+        // 裁剪区域
+        const cropInputs = [
+            dialog.querySelector('#export-crop-x'),
+            dialog.querySelector('#export-crop-y'),
+            dialog.querySelector('#export-crop-width'),
+            dialog.querySelector('#export-crop-height')
+        ].filter(Boolean);
+        if (cropInputs.length) {
+            cropInputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    this._updateCropAreaFromInputs();
+                    this._updatePreviewDebounced();
+                });
+            });
+        }
+
         // 尺寸输入
         dialog.querySelector('#export-width').addEventListener('input', (e) => {
             this.config.width = parseInt(e.target.value) || 1920;
@@ -250,6 +387,29 @@ export class ExportDialog {
             this.config.dpi = parseInt(e.target.value) || 300;
             this._updatePreviewDebounced();
         });
+
+        // 线宽/字体/图标缩放
+        const strokeScaleInput = dialog.querySelector('#export-stroke-scale');
+        if (strokeScaleInput) {
+            strokeScaleInput.addEventListener('input', (e) => {
+                this.config.strokeScale = parseFloat(e.target.value) || 1;
+                this._updatePreviewDebounced();
+            });
+        }
+        const fontScaleInput = dialog.querySelector('#export-font-scale');
+        if (fontScaleInput) {
+            fontScaleInput.addEventListener('input', (e) => {
+                this.config.fontScale = parseFloat(e.target.value) || 1;
+                this._updatePreviewDebounced();
+            });
+        }
+        const iconScaleInput = dialog.querySelector('#export-icon-scale');
+        if (iconScaleInput) {
+            iconScaleInput.addEventListener('input', (e) => {
+                this.config.iconScale = parseFloat(e.target.value) || 1;
+                this._updatePreviewDebounced();
+            });
+        }
         
         // 背景颜色
         dialog.querySelector('#export-bgcolor').addEventListener('input', (e) => {
@@ -293,6 +453,24 @@ export class ExportDialog {
             this.config.includeGrid = e.target.checked;
             this._updatePreviewDebounced();
         });
+
+        dialog.querySelector('#export-diagram-links').addEventListener('change', (e) => {
+            this.config.includeDiagramLinks = e.target.checked;
+            this._updatePreviewDebounced();
+        });
+
+        dialog.querySelector('#export-professional-labels').addEventListener('change', (e) => {
+            this.config.includeProfessionalLabels = e.target.checked;
+            this._updatePreviewDebounced();
+        });
+
+        const professionalIconsToggle = dialog.querySelector('#export-professional-icons');
+        if (professionalIconsToggle) {
+            professionalIconsToggle.addEventListener('change', (e) => {
+                this.config.useProfessionalIcons = e.target.checked;
+                this._updatePreviewDebounced();
+            });
+        }
     }
 
     /**
@@ -315,28 +493,248 @@ export class ExportDialog {
         const template = this.exportEngine.getTemplate(templateName);
         if (!template) return;
         
-        this.config = { ...this.config, ...template };
-        
-        // 更新UI
-        const dialog = this.dialogElement;
-        dialog.querySelector('#export-format').value = this.config.format;
-        dialog.querySelector('#export-width').value = this.config.width;
-        dialog.querySelector('#export-height').value = this.config.height;
-        dialog.querySelector('#export-dpi').value = this.config.dpi;
-        
-        if (this.config.backgroundColor === 'transparent') {
-            dialog.querySelector('#export-transparent').checked = true;
-        } else {
-            dialog.querySelector('#export-bgcolor').value = this.config.backgroundColor;
-            dialog.querySelector('#export-bgcolor-text').value = this.config.backgroundColor;
-            dialog.querySelector('#export-transparent').checked = false;
-        }
-        
-        dialog.querySelector('#export-annotations').checked = this.config.includeAnnotations !== false;
-        dialog.querySelector('#export-notes').checked = this.config.includeNotes !== false;
-        dialog.querySelector('#export-grid').checked = this.config.includeGrid === true;
-        
+        this.config = { ...this.config, ...template, exportPurpose: template.exportPurpose ?? '' };
+
+        this._syncUIWithConfig();
         this._updatePreview();
+    }
+
+    /**
+     * 应用用途预设
+     * @private
+     */
+    _applyPurposePreset(purpose, options = {}) {
+        this.config.exportPurpose = purpose || '';
+        if (!purpose) {
+            this._syncUIWithConfig();
+            if (!options.skipPreview) {
+                this._updatePreview();
+            }
+            return;
+        }
+
+        const presets = this._getPurposePresets();
+        const preset = presets[purpose];
+        if (!preset) {
+            this._syncUIWithConfig();
+            if (!options.skipPreview) {
+                this._updatePreview();
+            }
+            return;
+        }
+
+        this.config = { ...this.config, ...preset, exportPurpose: purpose };
+        if (!options.skipTemplateReset) {
+            const templateSelect = this.dialogElement?.querySelector('#export-template');
+            if (templateSelect) {
+                templateSelect.value = '';
+            }
+        }
+
+        this._syncUIWithConfig();
+        if (!options.skipPreview) {
+            this._updatePreview();
+        }
+    }
+
+    /**
+     * 用途预设配置
+     * @private
+     */
+    _getPurposePresets() {
+        return {
+            research: {
+                format: 'png',
+                width: 1920,
+                height: 1080,
+                dpi: 150,
+                backgroundColor: '#ffffff',
+                includeNotes: true,
+                includeGrid: true,
+                includeAnnotations: true,
+                includeDiagramLinks: true,
+                includeProfessionalLabels: true,
+                useProfessionalIcons: false,
+                exportScope: 'canvas',
+                contentPadding: 20,
+                fontScale: 1,
+                strokeScale: 1,
+                iconScale: 1
+            },
+            paper: {
+                format: 'pdf',
+                width: 3000,
+                height: 2000,
+                dpi: 300,
+                backgroundColor: '#ffffff',
+                includeNotes: false,
+                includeGrid: false,
+                includeAnnotations: true,
+                includeDiagramLinks: true,
+                includeProfessionalLabels: true,
+                useProfessionalIcons: true,
+                exportScope: 'content',
+                contentPadding: 40,
+                fontScale: 1,
+                strokeScale: 1,
+                iconScale: 1
+            }
+        };
+    }
+
+    /**
+     * 更新用途提示
+     * @private
+     */
+    _updatePurposeHint(purpose) {
+        const hint = this.dialogElement?.querySelector('#export-purpose-hint');
+        if (!hint) return;
+        if (purpose === 'research') {
+            hint.textContent = '适合日常科研记录，含网格与技术说明';
+        } else if (purpose === 'paper') {
+            hint.textContent = '适合论文/出版，默认内容自适应与专业图标';
+        } else {
+            hint.textContent = '选择用途可快速套用推荐参数';
+        }
+    }
+
+    /**
+     * 同步UI与当前配置
+     * @private
+     */
+    _syncUIWithConfig() {
+        if (!this.dialogElement) return;
+        const dialog = this.dialogElement;
+
+        const purposeSelect = dialog.querySelector('#export-purpose');
+        if (purposeSelect) purposeSelect.value = this.config.exportPurpose || '';
+        this._updatePurposeHint(this.config.exportPurpose || '');
+
+        const formatSelect = dialog.querySelector('#export-format');
+        if (formatSelect) formatSelect.value = this.config.format;
+
+        const scopeSelect = dialog.querySelector('#export-scope');
+        if (scopeSelect) scopeSelect.value = this.config.exportScope || 'canvas';
+
+        const paddingInput = dialog.querySelector('#export-content-padding');
+        if (paddingInput) paddingInput.value = this.config.contentPadding ?? 30;
+
+        const cropArea = this.config.cropArea || {};
+        const cropX = dialog.querySelector('#export-crop-x');
+        const cropY = dialog.querySelector('#export-crop-y');
+        const cropW = dialog.querySelector('#export-crop-width');
+        const cropH = dialog.querySelector('#export-crop-height');
+        if (cropX) cropX.value = cropArea.x ?? 0;
+        if (cropY) cropY.value = cropArea.y ?? 0;
+        if (cropW) cropW.value = cropArea.width ?? 500;
+        if (cropH) cropH.value = cropArea.height ?? 300;
+
+        const widthInput = dialog.querySelector('#export-width');
+        const heightInput = dialog.querySelector('#export-height');
+        if (widthInput) widthInput.value = this.config.width;
+        if (heightInput) heightInput.value = this.config.height;
+
+        const dpiInput = dialog.querySelector('#export-dpi');
+        if (dpiInput) dpiInput.value = this.config.dpi;
+
+        const strokeScaleInput = dialog.querySelector('#export-stroke-scale');
+        if (strokeScaleInput) strokeScaleInput.value = this.config.strokeScale ?? 1;
+        const fontScaleInput = dialog.querySelector('#export-font-scale');
+        if (fontScaleInput) fontScaleInput.value = this.config.fontScale ?? 1;
+        const iconScaleInput = dialog.querySelector('#export-icon-scale');
+        if (iconScaleInput) iconScaleInput.value = this.config.iconScale ?? 1;
+
+        if (this.config.backgroundColor === 'transparent') {
+            const transparent = dialog.querySelector('#export-transparent');
+            if (transparent) transparent.checked = true;
+        } else {
+            const bgColor = dialog.querySelector('#export-bgcolor');
+            const bgText = dialog.querySelector('#export-bgcolor-text');
+            const transparent = dialog.querySelector('#export-transparent');
+            if (bgColor) bgColor.value = this.config.backgroundColor;
+            if (bgText) bgText.value = this.config.backgroundColor;
+            if (transparent) transparent.checked = false;
+        }
+
+        const annotationsToggle = dialog.querySelector('#export-annotations');
+        if (annotationsToggle) annotationsToggle.checked = this.config.includeAnnotations !== false;
+        const notesToggle = dialog.querySelector('#export-notes');
+        if (notesToggle) notesToggle.checked = this.config.includeNotes !== false;
+        const gridToggle = dialog.querySelector('#export-grid');
+        if (gridToggle) gridToggle.checked = this.config.includeGrid === true;
+        const linksToggle = dialog.querySelector('#export-diagram-links');
+        if (linksToggle) linksToggle.checked = this.config.includeDiagramLinks !== false;
+        const labelsToggle = dialog.querySelector('#export-professional-labels');
+        if (labelsToggle) labelsToggle.checked = this.config.includeProfessionalLabels !== false;
+        const iconsToggle = dialog.querySelector('#export-professional-icons');
+        if (iconsToggle) iconsToggle.checked = this.config.useProfessionalIcons === true;
+
+        this._updateScopeVisibility();
+    }
+
+    /**
+     * 更新范围相关控件显示
+     * @private
+     */
+    _updateScopeVisibility() {
+        if (!this.dialogElement) return;
+        const scope = this.config.exportScope || 'canvas';
+        const dialog = this.dialogElement;
+
+        const paddingGroup = dialog.querySelector('#export-content-padding-group');
+        const cropGroup = dialog.querySelector('#export-crop-group');
+        if (paddingGroup) {
+            paddingGroup.style.display = scope === 'content' || scope === 'crop' ? 'block' : 'none';
+        }
+        if (cropGroup) {
+            cropGroup.style.display = scope === 'crop' ? 'block' : 'none';
+        }
+
+        const widthInput = dialog.querySelector('#export-width');
+        const heightInput = dialog.querySelector('#export-height');
+        const disableSize = scope === 'content' || scope === 'crop';
+        if (widthInput) widthInput.disabled = disableSize;
+        if (heightInput) heightInput.disabled = disableSize;
+
+        const scopeHint = dialog.querySelector('#export-scope-hint');
+        if (scopeHint) {
+            if (scope === 'content') {
+                scopeHint.textContent = '根据图形内容自动计算尺寸';
+            } else if (scope === 'crop') {
+                scopeHint.textContent = '使用指定裁剪区域导出';
+            } else {
+                scopeHint.textContent = '使用当前画布尺寸导出';
+            }
+        }
+
+        if (scope === 'crop' && !this.config.cropArea) {
+            this._updateCropAreaFromInputs();
+        }
+    }
+
+    /**
+     * 从裁剪输入更新配置
+     * @private
+     */
+    _updateCropAreaFromInputs() {
+        if (!this.dialogElement) return;
+        const dialog = this.dialogElement;
+        const x = parseFloat(dialog.querySelector('#export-crop-x')?.value) || 0;
+        const y = parseFloat(dialog.querySelector('#export-crop-y')?.value) || 0;
+        const width = parseFloat(dialog.querySelector('#export-crop-width')?.value) || 0;
+        const height = parseFloat(dialog.querySelector('#export-crop-height')?.value) || 0;
+        if (width > 0 && height > 0) {
+            this.config.cropArea = { x, y, width, height };
+        } else {
+            this.config.cropArea = null;
+        }
+    }
+
+    /**
+     * 设置初始配置覆盖
+     */
+    setInitialConfig(config) {
+        this.initialConfig = config || null;
     }
 
     /**
@@ -363,6 +761,7 @@ export class ExportDialog {
         const previewImage = this.dialogElement.querySelector('.preview-image');
         const previewLoading = this.dialogElement.querySelector('.preview-loading');
         const previewSize = this.dialogElement.querySelector('.preview-size');
+        const previewScope = this.dialogElement.querySelector('.preview-scope');
         const previewFormat = this.dialogElement.querySelector('.preview-format');
         
         // 显示加载状态
@@ -376,12 +775,34 @@ export class ExportDialog {
             previewImage.style.display = 'block';
             previewLoading.style.display = 'none';
             
+            const layout = this.exportEngine.getExportLayout(this.currentScene, this.config);
+
             // 更新信息
-            previewSize.textContent = `${this.config.width} × ${this.config.height} px`;
+            previewSize.textContent = `${layout.width} × ${layout.height} px`;
+            if (previewScope) {
+                const scopeLabel = layout.scope === 'content'
+                    ? '内容自适应'
+                    : layout.scope === 'crop'
+                        ? '裁剪'
+                        : '全画布';
+                const purposeLabel = this.config.exportPurpose === 'paper'
+                    ? '论文'
+                    : this.config.exportPurpose === 'research'
+                        ? '科研'
+                        : '自定义';
+                previewScope.textContent = `${scopeLabel} / ${purposeLabel}`;
+            }
             previewFormat.textContent = this.config.format.toUpperCase();
             
             // 估算文件大小
-            this._estimateFileSize();
+            this._estimateFileSize(layout.width, layout.height);
+
+            if (this.config.exportScope === 'content' || this.config.exportScope === 'crop') {
+                const widthInput = this.dialogElement.querySelector('#export-width');
+                const heightInput = this.dialogElement.querySelector('#export-height');
+                if (widthInput) widthInput.value = layout.width;
+                if (heightInput) heightInput.value = layout.height;
+            }
             
         } catch (error) {
             console.error('ExportDialog: Preview generation failed:', error);
@@ -393,8 +814,8 @@ export class ExportDialog {
      * 估算文件大小
      * @private
      */
-    _estimateFileSize() {
-        const { width, height, dpi, format } = this.config;
+    _estimateFileSize(width, height) {
+        const { dpi, format } = this.config;
         let estimatedSize = 0;
         
         switch (format) {
@@ -595,9 +1016,15 @@ export class ExportDialog {
             .preview-info {
                 display: flex;
                 justify-content: space-between;
+                gap: 8px;
+                flex-wrap: wrap;
                 margin-top: 8px;
                 font-size: 12px;
                 color: var(--text-secondary, #888);
+            }
+
+            .preview-info span {
+                white-space: nowrap;
             }
 
             .export-dialog-options {
@@ -961,6 +1388,8 @@ let exportDialogInstance = null;
 export function getExportDialog(options = {}) {
     if (!exportDialogInstance) {
         exportDialogInstance = new ExportDialog(options);
+    } else if (options.initialConfig) {
+        exportDialogInstance.setInitialConfig(options.initialConfig);
     }
     return exportDialogInstance;
 }

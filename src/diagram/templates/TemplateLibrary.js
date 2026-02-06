@@ -440,6 +440,148 @@ export const TEMPLATE_LIBRARY = {
             magneticGradient: 10,
             atomNumber: 1e7
         }
+    },
+
+    // ========== ADVANCED PAPER-LEVEL TEMPLATES ==========
+    'saturated-absorption-spectroscopy': {
+        id: 'saturated-absorption-spectroscopy',
+        name: 'Saturated Absorption Spectroscopy',
+        category: 'spectroscopy',
+        description: 'Doppler-free saturated absorption setup',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Laser' },
+            { type: 'isolator', x: 140, y: 200, label: 'Isolator' },
+            { type: 'beamsplitter', x: 220, y: 200, label: 'BS', angle: 45 },
+            { type: 'lens', x: 320, y: 200, label: 'Lens' },
+            { type: 'sample', x: 420, y: 200, label: 'Vapor Cell' },
+            { type: 'mirror', x: 520, y: 200, label: 'Retro' },
+            { type: 'detector', x: 220, y: 80, label: 'Probe PD' }
+        ],
+        parameters: {
+            wavelength: 780,
+            modulation: 'FM'
+        }
+    },
+
+    'pump-probe-spectroscopy': {
+        id: 'pump-probe-spectroscopy',
+        name: 'Pump–Probe Spectroscopy',
+        category: 'spectroscopy',
+        description: 'Pump–probe timing and detection layout',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Laser' },
+            { type: 'beamsplitter', x: 160, y: 200, label: 'BS', angle: 45 },
+            { type: 'mirror', x: 160, y: 80, label: 'Delay Line' },
+            { type: 'lens', x: 300, y: 200, label: 'Focus' },
+            { type: 'sample', x: 420, y: 200, label: 'Sample' },
+            { type: 'detector', x: 540, y: 200, label: 'Probe PD' }
+        ],
+        parameters: {
+            delayRange: 'ps–ns'
+        }
+    },
+
+    'homodyne-detection': {
+        id: 'homodyne-detection',
+        name: 'Balanced Homodyne Detection',
+        category: 'quantum',
+        description: 'Local oscillator + balanced detector',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'LO' },
+            { type: 'beamsplitter', x: 200, y: 200, label: '50/50 BS', angle: 45 },
+            { type: 'detector', x: 320, y: 140, label: 'PD1' },
+            { type: 'detector', x: 320, y: 260, label: 'PD2' },
+            { type: 'detector', x: 420, y: 200, label: 'Diff Amp' }
+        ],
+        parameters: {
+            visibility: 0.95
+        }
+    },
+
+    'ramsey-interferometer': {
+        id: 'ramsey-interferometer',
+        name: 'Ramsey Interferometer',
+        category: 'atomic',
+        description: 'Two-pulse Ramsey sequence for atomic coherence',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Laser' },
+            { type: 'AOM', x: 160, y: 200, label: 'AOM' },
+            { type: 'lens', x: 260, y: 200, label: 'Collimator' },
+            { type: 'vacuum-chamber', x: 380, y: 200, label: 'Atoms' },
+            { type: 'detector', x: 520, y: 200, label: 'Detection' }
+        ],
+        parameters: {
+            pulseSeparation: 'us–ms'
+        }
+    },
+
+    'optical-tweezer': {
+        id: 'optical-tweezer',
+        name: 'Optical Tweezer',
+        category: 'atomic',
+        description: 'Single-beam optical trap layout',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Trap Laser' },
+            { type: 'beam-expander', x: 160, y: 200, label: 'Expander' },
+            { type: 'lens', x: 280, y: 200, label: 'Objective' },
+            { type: 'sample', x: 380, y: 200, label: 'Trap Region' },
+            { type: 'camera', x: 520, y: 120, label: 'Imaging' }
+        ],
+        parameters: {
+            wavelength: 1064
+        }
+    },
+
+    'optical-lattice': {
+        id: 'optical-lattice',
+        name: 'Optical Lattice',
+        category: 'atomic',
+        description: 'Counter-propagating beams for lattice',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Lattice Laser' },
+            { type: 'beamsplitter', x: 180, y: 200, label: 'BS', angle: 45 },
+            { type: 'mirror', x: 320, y: 120, label: 'M1' },
+            { type: 'mirror', x: 320, y: 280, label: 'M2' },
+            { type: 'vacuum-chamber', x: 440, y: 200, label: 'Atoms' }
+        ],
+        parameters: {
+            latticeSpacing: 0.5
+        }
+    },
+
+    'frequency-comb': {
+        id: 'frequency-comb',
+        name: 'Optical Frequency Comb',
+        category: 'laser-systems',
+        description: 'Comb generation and stabilization overview',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Mode-locked Laser' },
+            { type: 'beam-expander', x: 160, y: 200, label: 'Dispersion' },
+            { type: 'filter', x: 280, y: 200, label: 'Filter' },
+            { type: 'detector', x: 420, y: 200, label: 'Beat PD' },
+            { type: 'detector', x: 520, y: 200, label: 'Ref Osc' }
+        ],
+        parameters: {
+            repRate: 100,
+            ceo: 20
+        }
+    },
+
+    'balanced-detection': {
+        id: 'balanced-detection',
+        name: 'Balanced Detection',
+        category: 'quantum',
+        description: 'Balanced detector for noise suppression',
+        components: [
+            { type: 'laser', x: 50, y: 200, label: 'Signal' },
+            { type: 'beamsplitter', x: 180, y: 200, label: 'BS', angle: 45 },
+            { type: 'detector', x: 300, y: 140, label: 'PD1' },
+            { type: 'detector', x: 300, y: 260, label: 'PD2' },
+            { type: 'amplifier', x: 420, y: 200, label: 'Diff Amp' }
+        ],
+        parameters: {
+            gain: 10
+        }
     }
 };
 

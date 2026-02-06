@@ -7,16 +7,15 @@ A complete professional optics diagram system for creating publication-quality o
 ## ✨ 主要特性 / Key Features
 
 - 🎨 **94+ 光学元件** - 激光器、透镜、反射镜、偏振器、探测器等
-- 📝 **标注系统** - 文本、尺寸、角度、距离标注
-- 📐 **对齐工具** - 智能对齐和网格系统
-- 📊 **图层管理** - 完整层级结构
-- 🎨 **主题系统** - 6个专业主题
-- 📏 **测量工具** - 距离、角度、面积测量
-- 🧮 **光学计算** - 15+ 光学公式
-- ⌨️ **快捷键** - 50+ 键盘快捷键
-- ↩️ **撤销/重做** - 完整历史记录
-- 📤 **导出** - SVG、PNG、JPEG、PDF、EPS
-- 📥 **导入** - SVG和图像导入
+- 🧭 **双模式工作流** - 模拟/专业绘图自由切换，样式与标注保持
+- 📝 **标注系统** - 文本标注、上下标、拖拽定位、自动布局
+- 🔗 **连接点与光线连接** - 可视化连接点、吸附、手动/自动光线连接
+- 📐 **布局与对齐** - 网格、吸附、对齐参考线、分组与均匀分布
+- 🎨 **样式与主题** - 全局样式、组件样式、专业主题与自定义主题
+- 📋 **技术说明** - 论文式说明区与分节管理
+- 📦 **模板与预设** - 论文/报告/海报模板，一键套用
+- 📤 **高质量导出** - SVG/PNG/JPEG/PDF/EPS，支持用途/范围/裁剪/网格/注释
+- 🔌 **插件扩展** - 工具栏插件与可扩展接口
 
 ## 🚀 快速开始 / Quick Start
 
@@ -25,6 +24,9 @@ A complete professional optics diagram system for creating publication-quality o
 python -m http.server 8080
 # 或
 npx http-server -p 8080
+#
+# Windows 可使用
+# .\\快速启动.bat
 
 # 访问
 http://localhost:8080
@@ -47,6 +49,8 @@ api.annotations.createText('激光源', { x: 100, y: 150 });
 
 - **用户指南**: [UserGuide.md](UserGuide.md)
 - **示例页面**: [example-complete-system.html](example-complete-system.html)
+- **故障排除**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **论文级示例预设**: `presets/diagram_example_mot_paper.json`
 - **API文档**: 查看代码中的JSDoc注释
 
 ## ⌨️ 常用快捷键 / Common Shortcuts
@@ -69,6 +73,7 @@ api.annotations.createText('激光源', { x: 100, y: 150 });
 │   ├── diagram/          # 核心系统
 │   ├── ui/               # UI组件
 │   └── components/       # 光学元件
+├── presets/              # 预设与示例
 ├── tests/                # 测试
 ├── index.html            # 主页面
 └── example-complete-system.html  # 完整示例
@@ -90,5 +95,5 @@ MIT License
 
 ---
 
-**版本 / Version**: 1.0.0  
-**更新 / Updated**: 2026-01-23
+**版本 / Version**: 1.1.0  
+**更新 / Updated**: 2026-02-05

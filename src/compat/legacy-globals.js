@@ -87,6 +87,7 @@ import { ColorUtils, MathUtils, Serialization } from '../utils/index.js';
 import { 
     HistoryManager, Command, AddComponentCommand, DeleteComponentCommand,
     MoveComponentCommand, RotateComponentCommand, SetPropertyCommand,
+    AddLabelCommand, DeleteLabelCommand, MoveLabelCommand,
     ClearAllCommand, CompositeCommand, SelectCommand, MoveComponentsCommand
 } from '../managers/HistoryManager.js';
 import { SceneManager } from '../managers/SceneManager.js';
@@ -224,6 +225,9 @@ if (typeof window !== 'undefined') {
     window.MoveComponentCommand = MoveComponentCommand;
     window.RotateComponentCommand = RotateComponentCommand;
     window.SetPropertyCommand = SetPropertyCommand;
+    window.AddLabelCommand = AddLabelCommand;
+    window.DeleteLabelCommand = DeleteLabelCommand;
+    window.MoveLabelCommand = MoveLabelCommand;
     window.ClearAllCommand = ClearAllCommand;
     window.CompositeCommand = CompositeCommand;
     window.SelectCommand = SelectCommand;

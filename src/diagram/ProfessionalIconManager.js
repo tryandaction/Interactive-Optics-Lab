@@ -47,12 +47,14 @@ export class ProfessionalIconManager {
         this.iconCache = new Map();
         this.loadingPromises = new Map();
         this.categories = new Map();
+        this.aliasMap = new Map();
         this.defaultStyle = {
             color: '#000000',
             fillColor: '#333333',
             strokeWidth: 1.5,
             scale: 1.0,
-            opacity: 1.0
+            opacity: 1.0,
+            preserveSvgColors: true
         };
         this.variants = new Map();
         this._builtinDrawFunctions = {};
@@ -81,12 +83,45 @@ export class ProfessionalIconManager {
         return icon;
     }
 
+    /**
+     * 注册别名，用于将组件类型映射到已有图标类型
+     */
+    registerAlias(aliasType, targetType) {
+        if (!aliasType || !targetType || aliasType === targetType) {
+            return false;
+        }
+        this.aliasMap.set(aliasType, targetType);
+        return true;
+    }
+
+    /**
+     * 解析图标类型（处理别名）
+     */
+    resolveIconType(componentType) {
+        if (!componentType) return componentType;
+        let current = componentType;
+        const visited = new Set([current]);
+        while (this.aliasMap.has(current) && !this.iconDefinitions.has(current)) {
+            const next = this.aliasMap.get(current);
+            if (!next || visited.has(next)) break;
+            visited.add(next);
+            current = next;
+        }
+        return current;
+    }
+
     getIconDefinition(componentType) {
-        return this.iconDefinitions.get(componentType) || null;
+        if (this.iconDefinitions.has(componentType)) {
+            return this.iconDefinitions.get(componentType) || null;
+        }
+        const resolved = this.resolveIconType(componentType);
+        return this.iconDefinitions.get(resolved) || null;
     }
 
     hasIcon(componentType) {
-        return this.iconDefinitions.has(componentType);
+        if (this.iconDefinitions.has(componentType)) return true;
+        const resolved = this.resolveIconType(componentType);
+        return this.iconDefinitions.has(resolved);
     }
 
     getAllIconTypes() {
@@ -152,7 +187,8 @@ export class ProfessionalIconManager {
     }
 
     renderIcon(ctx, componentType, x, y, angle = 0, scale = 1, style = {}) {
-        const icon = this.getIconDefinition(componentType);
+        const resolvedType = this.resolveIconType(componentType);
+        const icon = this.getIconDefinition(resolvedType);
         if (!icon) {
             console.warn(`ProfessionalIconManager: Icon not found for "${componentType}"`);
             this._renderPlaceholder(ctx, x, y, angle, scale, componentType);
@@ -163,10 +199,13 @@ export class ProfessionalIconManager {
         ctx.translate(x, y);
         ctx.rotate(angle);
         ctx.scale(scale, scale);
+        if (mergedStyle.opacity !== undefined) {
+            ctx.globalAlpha = mergedStyle.opacity;
+        }
         if (icon.svgContent) {
             this._renderSVGToCanvas(ctx, icon, mergedStyle);
         } else {
-            this._renderBuiltinIcon(ctx, componentType, icon, mergedStyle);
+            this._renderBuiltinIcon(ctx, resolvedType, icon, mergedStyle);
         }
         ctx.restore();
     }
@@ -198,6 +237,9 @@ export class ProfessionalIconManager {
     }
 
     _applySVGStyle(svgContent, style) {
+        if (style.preserveSvgColors) {
+            return svgContent;
+        }
         let styled = svgContent;
         if (style.color) {
             styled = styled.replace(/stroke="[^"]*"/g, `stroke="${style.color}"`);
@@ -209,6 +251,35 @@ export class ProfessionalIconManager {
             styled = styled.replace(/stroke-width="[^"]*"/g, `stroke-width="${style.strokeWidth}"`);
         }
         return styled;
+    }
+
+    /**
+     * 预加载单个专业图标的SVG图像
+     * @param {string} componentType
+     * @param {Object} style
+     * @returns {Promise<boolean>}
+     */
+    async preloadIcon(componentType, style = {}) {
+        const icon = this.getIconDefinition(componentType);
+        if (!icon || !icon.svgContent) return false;
+        const mergedStyle = { ...icon.defaultStyle, ...style };
+        const cacheKey = icon.id + '_' + JSON.stringify(mergedStyle);
+        if (this.iconCache.has(cacheKey + '_img')) return true;
+        const img = await this._loadSVGAsImage(icon, mergedStyle);
+        this.iconCache.set(cacheKey + '_img', img);
+        return true;
+    }
+
+    /**
+     * 预加载多个图标
+     * @param {string[]} componentTypes
+     * @param {Object} style
+     * @returns {Promise<void>}
+     */
+    async preloadIcons(componentTypes = [], style = {}) {
+        const uniqueTypes = Array.from(new Set(componentTypes));
+        const tasks = uniqueTypes.map(type => this.preloadIcon(type, style));
+        await Promise.all(tasks);
     }
 
     _renderPlaceholder(ctx, x, y, angle, scale, label) {
@@ -494,6 +565,12 @@ export class ProfessionalIconManager {
         // 别名
         this._builtinDrawFunctions['ThinLens'] = this._builtinDrawFunctions['ConvexLens'];
         this.iconDefinitions.set('ThinLens', this.iconDefinitions.get('ConvexLens'));
+        this.registerAlias('ThinLens', 'ConvexLens');
+        this.registerAlias('SphericalMirror', 'CurvedMirror');
+        this.registerAlias('ConcaveMirror', 'CurvedMirror');
+        this.registerAlias('ConvexMirror', 'CurvedMirror');
+        this.registerAlias('ParabolicMirror', 'CurvedMirror');
+        this.registerAlias('ParabolicMirrorToolbar', 'ParabolicMirror');
 
         // ========== 分束器 ==========
         this.registerIcon('BeamSplitter', {

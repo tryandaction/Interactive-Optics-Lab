@@ -235,6 +235,83 @@ export class SetPropertyCommand extends Command {
     }
 }
 
+// --- 标注命令 ---
+
+export class AddLabelCommand extends Command {
+    constructor(label, labelManager) {
+        super();
+        this.label = label;
+        this.labelManager = labelManager;
+    }
+
+    execute() {
+        if (!this.label || !this.labelManager) return;
+        if (this.labelManager.labels && !this.labelManager.labels.has(this.label.id)) {
+            this.labelManager.labels.set(this.label.id, this.label);
+        }
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+
+    undo() {
+        if (!this.labelManager || !this.label) return;
+        if (this.labelManager.deleteLabel) {
+            this.labelManager.deleteLabel(this.label.id);
+        } else if (this.labelManager.labels) {
+            this.labelManager.labels.delete(this.label.id);
+        }
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+}
+
+export class DeleteLabelCommand extends Command {
+    constructor(label, labelManager) {
+        super();
+        this.label = label;
+        this.labelManager = labelManager;
+    }
+
+    execute() {
+        if (!this.labelManager || !this.label) return;
+        if (this.labelManager.deleteLabel) {
+            this.labelManager.deleteLabel(this.label.id);
+        } else if (this.labelManager.labels) {
+            this.labelManager.labels.delete(this.label.id);
+        }
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+
+    undo() {
+        if (!this.label || !this.labelManager) return;
+        if (this.labelManager.labels && !this.labelManager.labels.has(this.label.id)) {
+            this.labelManager.labels.set(this.label.id, this.label);
+        }
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+}
+
+export class MoveLabelCommand extends Command {
+    constructor(label, oldPos, newPos) {
+        super();
+        this.label = label;
+        this.oldPos = { x: oldPos.x, y: oldPos.y };
+        this.newPos = { x: newPos.x, y: newPos.y };
+    }
+
+    execute() {
+        if (!this.label) return;
+        this.label.position.x = this.newPos.x;
+        this.label.position.y = this.newPos.y;
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+
+    undo() {
+        if (!this.label) return;
+        this.label.position.x = this.oldPos.x;
+        this.label.position.y = this.oldPos.y;
+        if (typeof window !== 'undefined') window.needsRetrace = true;
+    }
+}
+
 export class ClearAllCommand extends Command {
     constructor(componentsArrayRef) {
         super();
@@ -405,6 +482,9 @@ if (typeof window !== 'undefined') {
     window.MoveComponentCommand = MoveComponentCommand;
     window.RotateComponentCommand = RotateComponentCommand;
     window.SetPropertyCommand = SetPropertyCommand;
+    window.AddLabelCommand = AddLabelCommand;
+    window.DeleteLabelCommand = DeleteLabelCommand;
+    window.MoveLabelCommand = MoveLabelCommand;
     window.ClearAllCommand = ClearAllCommand;
     window.CompositeCommand = CompositeCommand;
     window.SelectCommand = SelectCommand;

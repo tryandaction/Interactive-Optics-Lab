@@ -277,6 +277,38 @@ export class TemplateManager {
                 includeNotes: true,
                 includeGrid: false,
                 includeParameters: true
+            },
+            {
+                id: 'report',
+                name: '科研报告',
+                description: '适用于实验报告/周报的标准图像',
+                type: TemplateType.BUILTIN,
+                format: ExportFormat.PNG,
+                width: 2000,
+                height: 1400,
+                dpi: 200,
+                backgroundColor: '#ffffff',
+                margin: 25,
+                includeAnnotations: true,
+                includeNotes: true,
+                includeGrid: false,
+                includeParameters: false
+            },
+            {
+                id: 'conference',
+                name: '会议图',
+                description: '适用于会议摘要与PPT的高质量图',
+                type: TemplateType.BUILTIN,
+                format: ExportFormat.PNG,
+                width: 2200,
+                height: 1400,
+                dpi: 200,
+                backgroundColor: '#ffffff',
+                margin: 30,
+                includeAnnotations: true,
+                includeNotes: false,
+                includeGrid: false,
+                includeParameters: false
             }
         ];
 

@@ -20,16 +20,20 @@ import { getBatchExportManager } from './BatchExport.js';
 // 专业绘图模式新模块
 import { getProfessionalIconManager } from './ProfessionalIconManager.js';
 import { registerProfessionalIcons } from './ProfessionalIconLibrary.js';
+import { registerExtendedIcons } from './ProfessionalIconLibraryExtended.js';
 import { getConnectionPointManager } from './ConnectionPointManager.js';
 import { getRayLinkManager } from './RayLinkManager.js';
 import { getIconBrowserPanel } from './IconBrowserPanel.js';
-import { getProfessionalLabelManager } from './ProfessionalLabelSystem.js';
+import { getProfessionalLabelManager, LABEL_COLOR_PRESETS } from './ProfessionalLabelSystem.js';
 import { getTechnicalNotesArea } from './TechnicalNotesArea.js';
 import { getInteractionManager } from './InteractionManager.js';
 import { getAdvancedTemplateManager, TemplateBrowser } from './templates/index.js';
 import { getCustomConnectionPointEditor } from './CustomConnectionPointEditor.js';
 import { getMinimap } from './Minimap.js';
 import { getDiagnosticSystem } from './DiagnosticSystem.js';
+import { getStyleManager } from './styling/StyleManager.js';
+import { getThemeManager } from './styling/ThemeManager.js';
+import { getPluginManager } from './plugins/PluginManager.js';
 
 /**
  * 专业绘图模式集成类
@@ -67,7 +71,10 @@ export class DiagramModeIntegration {
             templateManager: null,
             templateBrowser: null,
             customConnectionPointEditor: null,
-            minimap: null
+            minimap: null,
+            styleManager: null,
+            themeManager: null,
+            pluginManager: null
         };
         
         /** @type {HTMLElement|null} */
@@ -78,6 +85,12 @@ export class DiagramModeIntegration {
         
         /** @type {Array<Function>} 清理函数 */
         this.cleanupFunctions = [];
+
+        /** @type {Object|null} 绘图模式状态缓存 */
+        this.diagramModeState = null;
+
+        /** @type {boolean} 本次进入绘图模式是否已恢复状态 */
+        this._diagramStateRestored = false;
         
         /** @type {DiagnosticSystem} 诊断系统 */
         this.diagnosticSystem = getDiagnosticSystem();
@@ -108,6 +121,12 @@ export class DiagramModeIntegration {
         
         // 注入样式
         this._injectStyles();
+
+        // 导出插件注册接口
+        if (typeof window !== 'undefined') {
+            window.registerDiagramPlugin = (plugin) => this.registerToolbarPlugin(plugin);
+            window.unregisterDiagramPlugin = (pluginId) => this.unregisterToolbarPlugin(pluginId);
+        }
         
         this.initialized = true;
         console.log('DiagramModeIntegration: Initialization complete');
@@ -138,7 +157,7 @@ export class DiagramModeIntegration {
             stateProvider,
             onModeChange: (oldMode, newMode, phase) => {
                 if (phase === 'after') {
-                    this._handleModeChange(newMode);
+                    this._handleModeChange(oldMode, newMode);
                 }
             }
         });
@@ -209,9 +228,17 @@ export class DiagramModeIntegration {
                 }
             }
         });
+
+        // 初始化样式与主题管理器
+        this.modules.styleManager = getStyleManager();
+        this.modules.themeManager = getThemeManager();
+
+        // 初始化插件管理器
+        this.modules.pluginManager = getPluginManager();
         
         // 注册专业SVG图标
         registerProfessionalIcons();
+        registerExtendedIcons();
     }
 
     /**
@@ -315,18 +342,43 @@ export class DiagramModeIntegration {
         const pasteHandler = (e) => {
             const { items, links } = e.detail;
             if (items && items.length > 0) {
+                const clone = (value) => {
+                    try {
+                        return JSON.parse(JSON.stringify(value));
+                    } catch (err) {
+                        return value;
+                    }
+                };
+                const clonedItems = items.map(item => clone(item));
+                const clonedLinks = (links || []).map(link => clone(link));
+                
                 // 添加粘贴的组件到场景
                 if (window.components) {
-                    items.forEach(item => {
+                    clonedItems.forEach(item => {
                         window.components.push(item);
                     });
                 }
                 // 添加粘贴的链接
-                if (links && links.length > 0 && this.modules.rayLinkManager) {
-                    links.forEach(link => {
+                if (clonedLinks.length > 0 && this.modules.rayLinkManager) {
+                    clonedLinks.forEach(link => {
                         this.modules.rayLinkManager.links.set(link.id, link);
                     });
                 }
+                
+                // 记录历史（绘图模式）
+                const interactionManager = this.modules.interactionManager;
+                if (interactionManager) {
+                    const { ActionType } = require('./InteractionManager.js');
+                    interactionManager.recordAction(
+                        ActionType.ADD_COMPONENT,
+                        { components: clonedItems, links: clonedLinks }
+                    );
+                    if (typeof window !== 'undefined') {
+                        window.updateUndoRedoUI?.();
+                        window.markSceneAsModified?.();
+                    }
+                }
+                
                 this._triggerRedraw();
             }
         };
@@ -337,14 +389,46 @@ export class DiagramModeIntegration {
         const deleteHandler = (e) => {
             const { items } = e.detail;
             if (items && items.length > 0 && window.components) {
+                const clone = (value) => {
+                    try {
+                        return JSON.parse(JSON.stringify(value));
+                    } catch (err) {
+                        return value;
+                    }
+                };
                 const itemIds = items.map(i => i.id || i.uuid);
+                const removedComponents = window.components
+                    .filter(c => itemIds.includes(c.id || c.uuid))
+                    .map(c => clone(c));
+                const rayLinkManager = this.modules.rayLinkManager;
+                const removedLinks = rayLinkManager
+                    ? rayLinkManager.getAllLinks()
+                        .filter(link => itemIds.includes(link.sourceComponentId) || itemIds.includes(link.targetComponentId))
+                        .map(link => link.serialize())
+                    : [];
+                
+                // 记录历史（绘图模式）
+                const interactionManager = this.modules.interactionManager;
+                if (interactionManager) {
+                    const { ActionType } = require('./InteractionManager.js');
+                    interactionManager.recordAction(
+                        ActionType.DELETE_COMPONENT,
+                        { componentIds: itemIds },
+                        { components: removedComponents, links: removedLinks }
+                    );
+                    if (typeof window !== 'undefined') {
+                        window.updateUndoRedoUI?.();
+                        window.markSceneAsModified?.();
+                    }
+                }
+                
                 window.components = window.components.filter(c => 
                     !itemIds.includes(c.id || c.uuid)
                 );
                 // 删除相关链接
-                if (this.modules.rayLinkManager) {
+                if (rayLinkManager) {
                     itemIds.forEach(id => {
-                        this.modules.rayLinkManager.removeLinksForComponent(id);
+                        rayLinkManager.deleteLinksForComponent(id);
                     });
                 }
                 this._triggerRedraw();
@@ -388,23 +472,58 @@ export class DiagramModeIntegration {
      * @private
      */
     _applyUndoAction(action) {
-        if (!action || !action.undoData) return;
+        if (!action) return;
         
         const { ActionType } = require('./InteractionManager.js');
         
         switch (action.type) {
             case ActionType.ADD_COMPONENT:
                 // 撤销添加 = 删除
-                if (window.components && action.data.componentId) {
-                    window.components = window.components.filter(c => 
-                        (c.id || c.uuid) !== action.data.componentId
-                    );
+                if (window.components) {
+                    const ids = action.data?.componentIds
+                        || (Array.isArray(action.data?.components)
+                            ? action.data.components.map(c => c.id || c.uuid).filter(Boolean)
+                            : action.data?.componentId ? [action.data.componentId] : []);
+                    if (ids.length > 0) {
+                        window.components = window.components.filter(c => !ids.includes(c.id || c.uuid));
+                    }
+                }
+                // 删除链接
+                if (this.modules.rayLinkManager && Array.isArray(action.data?.links)) {
+                    action.data.links.forEach(link => {
+                        const linkId = link?.id;
+                        if (linkId) this.modules.rayLinkManager.deleteLink(linkId);
+                    });
                 }
                 break;
             case ActionType.DELETE_COMPONENT:
                 // 撤销删除 = 恢复
-                if (window.components && action.undoData.component) {
+                if (window.components && Array.isArray(action.undoData.components)) {
+                    action.undoData.components.forEach(comp => {
+                        const id = comp.id || comp.uuid;
+                        const exists = window.components.some(c => (c.id || c.uuid) === id);
+                        if (!exists) window.components.push(comp);
+                    });
+                } else if (window.components && action.undoData.component) {
                     window.components.push(action.undoData.component);
+                }
+                if (Array.isArray(action.undoData.links) && this.modules.rayLinkManager) {
+                    const connectionPointManager = this.modules.connectionPointManager;
+                    if (connectionPointManager && Array.isArray(window.components)) {
+                        window.components.forEach(comp => {
+                            const compId = comp.id || comp.uuid;
+                            if (!connectionPointManager.componentPoints.has(compId)) {
+                                connectionPointManager.initializeComponentPoints(comp);
+                            }
+                        });
+                    }
+                    action.undoData.links.forEach(linkData => {
+                        if (!linkData) return;
+                        this.modules.rayLinkManager.createLink({
+                            ...linkData,
+                            style: linkData.style ? { ...linkData.style } : undefined
+                        });
+                    });
                 }
                 break;
             case ActionType.MOVE_COMPONENT:
@@ -421,8 +540,112 @@ export class DiagramModeIntegration {
                     }
                 }
                 break;
+            case ActionType.ROTATE_COMPONENT:
+                if (window.components && action.undoData?.angle !== undefined) {
+                    const comp = window.components.find(c =>
+                        (c.id || c.uuid) === action.data.componentId
+                    );
+                    if (comp) {
+                        comp.angle = action.undoData.angle;
+                        if (typeof comp.onAngleChanged === 'function') comp.onAngleChanged();
+                    }
+                }
+                break;
+            case ActionType.ADD_LINK:
+                if (this.modules.rayLinkManager && action.data?.link?.id) {
+                    this.modules.rayLinkManager.deleteLink(action.data.link.id);
+                }
+                break;
+            case ActionType.DELETE_LINK:
+                if (this.modules.rayLinkManager && action.undoData?.link) {
+                    const linkData = action.undoData.link;
+                    this.modules.rayLinkManager.createLink({
+                        ...linkData,
+                        style: linkData.style ? { ...linkData.style } : undefined
+                    });
+                }
+                break;
+            case ActionType.ADD_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelId = action.data?.label?.id || action.data?.labelId;
+                if (labelManager && labelId) {
+                    labelManager.deleteLabel?.(labelId);
+                }
+                break;
+            }
+            case ActionType.DELETE_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelData = action.undoData?.label;
+                if (labelManager && labelData) {
+                    if (labelManager.createLabel) {
+                        labelManager.createLabel(labelData);
+                    } else if (labelManager.labels) {
+                        labelManager.labels.set(labelData.id, labelData);
+                    }
+                }
+                break;
+            }
+            case ActionType.MOVE_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelId = action.data?.labelId;
+                const pos = action.undoData?.position;
+                if (labelManager && labelId && pos) {
+                    const label = labelManager.labels?.get(labelId);
+                    if (label) {
+                        label.position.x = pos.x;
+                        label.position.y = pos.y;
+                    }
+                }
+                break;
+            }
+            case ActionType.MODIFY_STYLE: {
+                const target = action.data?.target;
+                const items = action.undoData?.items || [];
+                if (target === 'component' && this.modules.styleManager) {
+                    items.forEach(item => {
+                        if (!item?.id) return;
+                        if (item.style) {
+                            this.modules.styleManager.setComponentStyle(item.id, item.style, false);
+                        } else {
+                            this.modules.styleManager.removeComponentStyle(item.id);
+                        }
+                    });
+                } else if (target === 'link' && this.modules.rayLinkManager) {
+                    items.forEach(item => {
+                        const link = this.modules.rayLinkManager.getLink(item.id);
+                        if (!link) return;
+                        if (item.style) link.style = { ...item.style };
+                        link.label = item.label ?? null;
+                        if (item.labelPosition !== undefined) link.labelPosition = item.labelPosition;
+                        if (item.labelOffset) link.labelOffset = { ...item.labelOffset };
+                    });
+                } else if (target === 'label' && this.modules.professionalLabelManager) {
+                    items.forEach(item => {
+                        const label = this.modules.professionalLabelManager.labels?.get(item.id);
+                        if (!label) return;
+                        if (item.text !== undefined) label.text = item.text;
+                        if (item.style) label.style = { ...item.style };
+                        if (item.leaderLine !== undefined) label.leaderLine = item.leaderLine;
+                        if (item.leaderLineStyle) label.leaderLineStyle = { ...item.leaderLineStyle };
+                    });
+                }
+                break;
+            }
+            case ActionType.GROUP:
+                if (this.modules.interactionManager?.groups) {
+                    this.modules.interactionManager.groups.dissolveGroup(action.data.groupId);
+                }
+                break;
+            case ActionType.UNGROUP:
+                if (this.modules.interactionManager?.groups && action.undoData?.group) {
+                    this.modules.interactionManager.groups.restoreGroup(action.undoData.group);
+                }
+                break;
         }
         
+        if (typeof window !== 'undefined') {
+            window.updateUndoRedoUI?.();
+        }
         this._triggerRedraw();
     }
 
@@ -438,16 +661,47 @@ export class DiagramModeIntegration {
         switch (action.type) {
             case ActionType.ADD_COMPONENT:
                 // 重做添加
-                if (window.components && action.data.component) {
+                if (window.components && Array.isArray(action.data?.components)) {
+                    action.data.components.forEach(comp => {
+                        const id = comp.id || comp.uuid;
+                        const exists = window.components.some(c => (c.id || c.uuid) === id);
+                        if (!exists) window.components.push(comp);
+                    });
+                } else if (window.components && action.data.component) {
                     window.components.push(action.data.component);
+                }
+                if (Array.isArray(action.data?.links) && this.modules.rayLinkManager) {
+                    const connectionPointManager = this.modules.connectionPointManager;
+                    if (connectionPointManager && Array.isArray(window.components)) {
+                        window.components.forEach(comp => {
+                            const compId = comp.id || comp.uuid;
+                            if (!connectionPointManager.componentPoints.has(compId)) {
+                                connectionPointManager.initializeComponentPoints(comp);
+                            }
+                        });
+                    }
+                    action.data.links.forEach(linkData => {
+                        if (!linkData) return;
+                        this.modules.rayLinkManager.createLink({
+                            ...linkData,
+                            style: linkData.style ? { ...linkData.style } : undefined
+                        });
+                    });
                 }
                 break;
             case ActionType.DELETE_COMPONENT:
                 // 重做删除
-                if (window.components && action.data.componentId) {
-                    window.components = window.components.filter(c => 
-                        (c.id || c.uuid) !== action.data.componentId
-                    );
+                if (window.components) {
+                    const ids = action.data?.componentIds
+                        || (Array.isArray(action.undoData?.components)
+                            ? action.undoData.components.map(c => c.id || c.uuid).filter(Boolean)
+                            : action.data?.componentId ? [action.data.componentId] : []);
+                    if (ids.length > 0) {
+                        window.components = window.components.filter(c => !ids.includes(c.id || c.uuid));
+                        if (this.modules.rayLinkManager) {
+                            ids.forEach(id => this.modules.rayLinkManager.deleteLinksForComponent(id));
+                        }
+                    }
                 }
                 break;
             case ActionType.MOVE_COMPONENT:
@@ -464,8 +718,112 @@ export class DiagramModeIntegration {
                     }
                 }
                 break;
+            case ActionType.ROTATE_COMPONENT:
+                if (window.components && action.data?.angle !== undefined) {
+                    const comp = window.components.find(c =>
+                        (c.id || c.uuid) === action.data.componentId
+                    );
+                    if (comp) {
+                        comp.angle = action.data.angle;
+                        if (typeof comp.onAngleChanged === 'function') comp.onAngleChanged();
+                    }
+                }
+                break;
+            case ActionType.ADD_LINK:
+                if (this.modules.rayLinkManager && action.data?.link) {
+                    const linkData = action.data.link;
+                    this.modules.rayLinkManager.createLink({
+                        ...linkData,
+                        style: linkData.style ? { ...linkData.style } : undefined
+                    });
+                }
+                break;
+            case ActionType.DELETE_LINK:
+                if (this.modules.rayLinkManager && action.data?.linkId) {
+                    this.modules.rayLinkManager.deleteLink(action.data.linkId);
+                }
+                break;
+            case ActionType.ADD_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelData = action.data?.label;
+                if (labelManager && labelData) {
+                    if (labelManager.createLabel) {
+                        labelManager.createLabel(labelData);
+                    } else if (labelManager.labels) {
+                        labelManager.labels.set(labelData.id, labelData);
+                    }
+                }
+                break;
+            }
+            case ActionType.DELETE_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelId = action.data?.labelId || action.data?.id;
+                if (labelManager && labelId) {
+                    labelManager.deleteLabel?.(labelId);
+                }
+                break;
+            }
+            case ActionType.MOVE_LABEL: {
+                const labelManager = this.modules.professionalLabelManager;
+                const labelId = action.data?.labelId;
+                const pos = action.data?.position;
+                if (labelManager && labelId && pos) {
+                    const label = labelManager.labels?.get(labelId);
+                    if (label) {
+                        label.position.x = pos.x;
+                        label.position.y = pos.y;
+                    }
+                }
+                break;
+            }
+            case ActionType.MODIFY_STYLE: {
+                const target = action.data?.target;
+                const items = action.data?.items || [];
+                if (target === 'component' && this.modules.styleManager) {
+                    items.forEach(item => {
+                        if (!item?.id) return;
+                        if (item.style) {
+                            this.modules.styleManager.setComponentStyle(item.id, item.style, false);
+                        } else {
+                            this.modules.styleManager.removeComponentStyle(item.id);
+                        }
+                    });
+                } else if (target === 'link' && this.modules.rayLinkManager) {
+                    items.forEach(item => {
+                        const link = this.modules.rayLinkManager.getLink(item.id);
+                        if (!link) return;
+                        if (item.style) link.style = { ...item.style };
+                        link.label = item.label ?? null;
+                        if (item.labelPosition !== undefined) link.labelPosition = item.labelPosition;
+                        if (item.labelOffset) link.labelOffset = { ...item.labelOffset };
+                    });
+                } else if (target === 'label' && this.modules.professionalLabelManager) {
+                    items.forEach(item => {
+                        const label = this.modules.professionalLabelManager.labels?.get(item.id);
+                        if (!label) return;
+                        if (item.text !== undefined) label.text = item.text;
+                        if (item.style) label.style = { ...item.style };
+                        if (item.leaderLine !== undefined) label.leaderLine = item.leaderLine;
+                        if (item.leaderLineStyle) label.leaderLineStyle = { ...item.leaderLineStyle };
+                    });
+                }
+                break;
+            }
+            case ActionType.GROUP:
+                if (this.modules.interactionManager?.groups && action.undoData?.group) {
+                    this.modules.interactionManager.groups.restoreGroup(action.undoData.group);
+                }
+                break;
+            case ActionType.UNGROUP:
+                if (this.modules.interactionManager?.groups) {
+                    this.modules.interactionManager.groups.dissolveGroup(action.data.groupId);
+                }
+                break;
         }
         
+        if (typeof window !== 'undefined') {
+            window.updateUndoRedoUI?.();
+        }
         this._triggerRedraw();
     }
 
@@ -690,6 +1048,15 @@ export class DiagramModeIntegration {
                     </svg>
                     <span>链接</span>
                 </button>
+                <button class="toolbar-btn" id="btn-auto-link" title="根据光线路径自动生成链接">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
+                        <circle cx="12" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M6 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 2v3M8 11v3M6.5 4.5h3M6.5 11.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>
+                    <span>自动连</span>
+                </button>
                 <button class="toolbar-btn" id="btn-connection-points" title="连接点编辑">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <rect x="3" y="3" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>
@@ -739,12 +1106,31 @@ export class DiagramModeIntegration {
                     <span>样式</span>
                 </button>
             </div>
+            <div class="toolbar-group diagram-plugin-group" id="diagram-plugin-group"></div>
         `;
         
         this.toolbarContainer.appendChild(toolbar);
         
         // 绑定按钮事件
         this._bindToolbarEvents(toolbar);
+
+        // 挂载插件工具栏
+        const pluginContainer = toolbar.querySelector('#diagram-plugin-group');
+        this.modules.pluginManager?.attachToolbar(pluginContainer);
+    }
+
+    /**
+     * 注册工具栏插件
+     */
+    registerToolbarPlugin(plugin) {
+        return this.modules.pluginManager?.registerPlugin(plugin);
+    }
+
+    /**
+     * 注销工具栏插件
+     */
+    unregisterToolbarPlugin(pluginId) {
+        return this.modules.pluginManager?.unregisterPlugin(pluginId);
     }
 
     /**
@@ -793,6 +1179,11 @@ export class DiagramModeIntegration {
         // 光线链接按钮
         toolbar.querySelector('#btn-raylink')?.addEventListener('click', (e) => {
             this._toggleRayLinkMode(e.currentTarget);
+        });
+
+        // 自动连接按钮
+        toolbar.querySelector('#btn-auto-link')?.addEventListener('click', (e) => {
+            this._showAutoLinkMenu(e.currentTarget);
         });
         
         // 图标浏览器按钮
@@ -1074,15 +1465,37 @@ export class DiagramModeIntegration {
         // 确认添加标注
         const confirmAdd = () => {
             const text = input.value.trim();
-            if (text && this.modules.annotationManager) {
-                this.modules.annotationManager.addAnnotation({
-                    text,
-                    position: { x, y },
-                    style: {
-                        fontSize: 14,
-                        color: '#ffffff'
+            if (text) {
+                if (this.modules.professionalLabelManager) {
+                    const createdLabel = this.modules.professionalLabelManager.createLabel({
+                        text,
+                        position: { x, y },
+                        targetType: 'free'
+                    });
+                    const interactionManager = this.modules.interactionManager;
+                    if (interactionManager) {
+                        const { ActionType } = require('./InteractionManager.js');
+                        interactionManager.recordAction(
+                            ActionType.ADD_LABEL,
+                            { label: createdLabel.serialize ? createdLabel.serialize() : { ...createdLabel } }
+                        );
+                        window.updateUndoRedoUI?.();
+                        window.markSceneAsModified?.();
+                    } else if (typeof window !== 'undefined' && window.historyManager && window.AddLabelCommand) {
+                        window.historyManager.addCommand(new window.AddLabelCommand(createdLabel, this.modules.professionalLabelManager));
+                        window.updateUndoRedoUI?.();
+                        window.markSceneAsModified?.();
                     }
-                });
+                } else if (this.modules.annotationManager) {
+                    this.modules.annotationManager.addAnnotation({
+                        text,
+                        position: { x, y },
+                        style: {
+                            fontSize: 14,
+                            color: '#ffffff'
+                        }
+                    });
+                }
                 this._triggerRedraw();
             }
             container.remove();
@@ -1145,7 +1558,67 @@ export class DiagramModeIntegration {
         `;
         
         const rayStyleManager = this.modules.rayStyleManager;
+        const rayLinkManager = this.modules.rayLinkManager;
+        const labelManager = this.modules.professionalLabelManager;
+        const styleManager = this.modules.styleManager;
+        const themeManager = this.modules.themeManager;
+        const connectionPointManager = this.modules.connectionPointManager;
         const currentScheme = rayStyleManager?.getCurrentScheme?.() || 'DEFAULT';
+        const rayDefaultStyle = rayStyleManager?.defaultStyle || {};
+        const rayDefaultWidth = rayDefaultStyle.lineWidth || 2;
+        const rayDefaultLineStyle = rayDefaultStyle.lineStyle || 'solid';
+        const rayLineStyleSolid = rayDefaultLineStyle === 'solid';
+        const rayLineStyleDashed = rayDefaultLineStyle === 'dashed';
+        const rayLineStyleDotted = rayDefaultLineStyle === 'dotted';
+        const selectedLink = rayLinkManager?.selectedLink || null;
+        const linkStyle = selectedLink?.style || rayLinkManager?.defaultStyle || {};
+        const linkColor = linkStyle.color || '#ff0000';
+        const linkWidth = linkStyle.width || 2;
+        const linkLineStyle = linkStyle.lineStyle || 'solid';
+        const linkArrowStart = !!linkStyle.arrowStart;
+        const linkArrowEnd = linkStyle.arrowEnd !== false;
+        const linkArrowSize = linkStyle.arrowSize || 8;
+        const linkLabel = selectedLink?.label || '';
+        const linkLabelPosition = typeof selectedLink?.labelPosition === 'number' ? selectedLink.labelPosition : 0.5;
+        const linkLabelOffset = selectedLink?.labelOffset || { x: 0, y: -15 };
+
+        const selectedLabel = labelManager?.selectedLabel || null;
+        const labelStyle = selectedLabel?.style || labelManager?.defaultStyle || {};
+        const labelText = selectedLabel?.text || '';
+        const labelFontSize = labelStyle.fontSize || 14;
+        const labelColor = labelStyle.color || '#000000';
+        const labelBold = !!labelStyle.bold;
+        const labelItalic = !!labelStyle.italic;
+        const labelLeaderLine = selectedLabel ? selectedLabel.leaderLine !== false : true;
+        const leaderLineStyle = selectedLabel?.leaderLineStyle || {};
+        const leaderLineColor = leaderLineStyle.color || '#666666';
+        const leaderLineWidth = leaderLineStyle.width || 1;
+        const leaderLineDash = Array.isArray(leaderLineStyle.dashPattern) && leaderLineStyle.dashPattern.length ? 'dashed' : 'solid';
+        const labelPresetOptions = Object.entries(LABEL_COLOR_PRESETS || {})
+            .map(([key, preset]) => `<option value="${key}">${preset.name}</option>`)
+            .join('');
+
+        const selectedComponents = this._getSelectedDiagramComponents();
+        const globalComponentStyle = styleManager?.getGlobalStyle?.() || {};
+        const primaryComponentStyle = selectedComponents.length === 1 && styleManager
+            ? (styleManager.getComponentStyle(selectedComponents[0].id || selectedComponents[0].uuid) || {})
+            : {};
+        const componentStroke = primaryComponentStyle.color || globalComponentStyle.color || '#000000';
+        const componentFill = primaryComponentStyle.fillColor || globalComponentStyle.fillColor || '#666666';
+        const componentLineWidth = primaryComponentStyle.lineWidth || globalComponentStyle.lineWidth || 2;
+        const componentOpacity = primaryComponentStyle.opacity ?? globalComponentStyle.opacity ?? 1;
+        const componentForceIconColor = primaryComponentStyle.forceIconColor === true;
+
+        const connectionPointVisible = connectionPointManager?.visible !== false;
+        const connectionPointShowLabels = connectionPointManager?.showLabels !== false;
+        const connectionPointSnapEnabled = connectionPointManager?.snapEnabled !== false;
+        const connectionPointSnapDistance = connectionPointManager?.snapDistance || 20;
+
+        const builtinThemes = themeManager?.getBuiltinThemes?.() || [];
+        const currentThemeId = themeManager?.getCurrentTheme?.()?.id || '';
+        const themeOptions = builtinThemes
+            .map(theme => `<option value="${theme.id}" ${theme.id === currentThemeId ? 'selected' : ''}>${theme.name}</option>`)
+            .join('');
         
         panel.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color, #444);">
@@ -1172,9 +1645,24 @@ export class DiagramModeIntegration {
                     </select>
                 </div>
                 <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-color-secondary, #888);">主题</label>
+                    <select class="theme-select" style="
+                        width: 100%;
+                        padding: 8px 12px;
+                        border: 1px solid var(--border-color, #444);
+                        border-radius: 4px;
+                        background: var(--input-bg, #343a40);
+                        color: var(--text-color, #fff);
+                        font-size: 13px;
+                    ">
+                        <option value="">(保持当前)</option>
+                        ${themeOptions}
+                    </select>
+                </div>
+                <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-color-secondary, #888);">默认线宽</label>
-                    <input type="range" class="line-width-slider" min="1" max="5" step="0.5" value="2" style="width: 100%;">
-                    <span class="line-width-value" style="font-size: 12px; color: var(--text-color-secondary, #888);">2px</span>
+                    <input type="range" class="line-width-slider" min="1" max="5" step="0.5" value="${rayDefaultWidth}" style="width: 100%;">
+                    <span class="line-width-value" style="font-size: 12px; color: var(--text-color-secondary, #888);">${rayDefaultWidth}px</span>
                 </div>
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-color-secondary, #888);">线条样式</label>
@@ -1184,31 +1672,210 @@ export class DiagramModeIntegration {
                             padding: 8px;
                             border: 1px solid var(--border-color, #444);
                             border-radius: 4px;
-                            background: var(--primary-color, #0078d4);
-                            color: #fff;
+                            background: ${rayLineStyleSolid ? 'var(--primary-color, #0078d4)' : 'transparent'};
+                            color: ${rayLineStyleSolid ? '#fff' : 'var(--text-color, #fff)'};
                             cursor: pointer;
                             font-size: 12px;
-                        ">实线</button>
+                        " data-active="${rayLineStyleSolid}">实线</button>
                         <button class="line-style-btn" data-style="dashed" style="
                             flex: 1;
                             padding: 8px;
                             border: 1px solid var(--border-color, #444);
                             border-radius: 4px;
-                            background: transparent;
-                            color: var(--text-color, #fff);
+                            background: ${rayLineStyleDashed ? 'var(--primary-color, #0078d4)' : 'transparent'};
+                            color: ${rayLineStyleDashed ? '#fff' : 'var(--text-color, #fff)'};
                             cursor: pointer;
                             font-size: 12px;
-                        ">虚线</button>
+                        " data-active="${rayLineStyleDashed}">虚线</button>
                         <button class="line-style-btn" data-style="dotted" style="
                             flex: 1;
                             padding: 8px;
                             border: 1px solid var(--border-color, #444);
                             border-radius: 4px;
-                            background: transparent;
-                            color: var(--text-color, #fff);
+                            background: ${rayLineStyleDotted ? 'var(--primary-color, #0078d4)' : 'transparent'};
+                            color: ${rayLineStyleDotted ? '#fff' : 'var(--text-color, #fff)'};
                             cursor: pointer;
                             font-size: 12px;
-                        ">点线</button>
+                        " data-active="${rayLineStyleDotted}">点线</button>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border-color, #444); margin: 16px 0;"></div>
+                <div style="margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">元件样式</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">描边颜色</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="color" class="component-stroke-input" value="${componentStroke}" style="width: 36px; height: 28px; border: none; background: transparent;">
+                                <input type="text" class="component-stroke-text" value="${componentStroke}" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">填充颜色</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="color" class="component-fill-input" value="${componentFill}" style="width: 36px; height: 28px; border: none; background: transparent;">
+                                <input type="text" class="component-fill-text" value="${componentFill}" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">线宽</label>
+                            <input type="range" class="component-line-width" min="0.5" max="6" step="0.5" value="${componentLineWidth}" style="width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">不透明度</label>
+                            <input type="range" class="component-opacity" min="0.2" max="1" step="0.05" value="${componentOpacity}" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="component-force-icon-color" ${componentForceIconColor ? 'checked' : ''}/> 使用自定义颜色渲染专业图标
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end;">
+                        <button class="component-apply-selected" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到选中</button>
+                        <button class="component-apply-all" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到全部</button>
+                        <button class="component-clear-selected" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">清除选中样式</button>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border-color, #444); margin: 16px 0;"></div>
+                <div style="margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">连接点设置</h4>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="cp-visible" ${connectionPointVisible ? 'checked' : ''}/> 显示连接点
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="cp-labels" ${connectionPointShowLabels ? 'checked' : ''}/> 显示连接点标签
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="cp-snap" ${connectionPointSnapEnabled ? 'checked' : ''}/> 启用连接点吸附
+                        </label>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">吸附距离</label>
+                            <input type="range" class="cp-snap-distance" min="5" max="40" step="1" value="${connectionPointSnapDistance}" style="width: 100%;" ${connectionPointSnapEnabled ? '' : 'disabled'}>
+                        </div>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border-color, #444); margin: 16px 0;"></div>
+                <div style="margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">连接光线样式</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">颜色</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="color" class="link-color-input" value="${linkColor}" style="width: 36px; height: 28px; border: none; background: transparent;">
+                                <input type="text" class="link-color-text" value="${linkColor}" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">线宽</label>
+                            <input type="range" class="link-width-slider" min="1" max="6" step="0.5" value="${linkWidth}" style="width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">线型</label>
+                            <select class="link-style-select" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                                <option value="solid" ${linkLineStyle === 'solid' ? 'selected' : ''}>实线</option>
+                                <option value="dashed" ${linkLineStyle === 'dashed' ? 'selected' : ''}>虚线</option>
+                                <option value="dotted" ${linkLineStyle === 'dotted' ? 'selected' : ''}>点线</option>
+                                <option value="dashDot" ${linkLineStyle === 'dashDot' ? 'selected' : ''}>点划线</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">箭头大小</label>
+                            <input type="range" class="link-arrow-size" min="4" max="14" step="1" value="${linkArrowSize}" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="link-arrow-start" ${linkArrowStart ? 'checked' : ''}/> 起始箭头
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="link-arrow-end" ${linkArrowEnd ? 'checked' : ''}/> 末端箭头
+                        </label>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">标签文本（选中链接）</label>
+                        <input type="text" class="link-label-input" value="${linkLabel}" placeholder="输入链接标签..." style="width: 100%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">标签位置</label>
+                            <input type="range" class="link-label-position" min="0" max="1" step="0.05" value="${linkLabelPosition}" style="width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">标签偏移</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="number" class="link-label-offset-x" value="${linkLabelOffset.x ?? 0}" style="width: 50%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;" />
+                                <input type="number" class="link-label-offset-y" value="${linkLabelOffset.y ?? -15}" style="width: 50%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;" />
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end;">
+                        <button class="link-apply-selected" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到选中</button>
+                        <button class="link-apply-all" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到全部</button>
+                        <button class="link-set-default" style="padding: 6px 10px; border: none; border-radius: 4px; background: var(--primary-color, #0078d4); color: #fff; cursor: pointer; font-size: 12px;">设为默认</button>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--border-color, #444); margin: 16px 0;"></div>
+                <div style="margin-bottom: 8px;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">专业标注样式</h4>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">标注文本（选中标注）</label>
+                        <input type="text" class="label-text-input" value="${labelText}" placeholder="输入标注文本..." style="width: 100%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">标注预设</label>
+                        <select class="label-preset-select" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            <option value="">(不使用预设)</option>
+                            ${labelPresetOptions}
+                        </select>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">字体大小</label>
+                            <input type="range" class="label-font-size" min="10" max="28" step="1" value="${labelFontSize}" style="width: 100%;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">字体颜色</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="color" class="label-color-input" value="${labelColor}" style="width: 36px; height: 28px; border: none; background: transparent;">
+                                <input type="text" class="label-color-text" value="${labelColor}" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="label-bold" ${labelBold ? 'checked' : ''}/> 粗体
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="label-italic" ${labelItalic ? 'checked' : ''}/> 斜体
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
+                            <input type="checkbox" class="label-leader-line" ${labelLeaderLine ? 'checked' : ''}/> 引线
+                        </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">引线颜色</label>
+                            <input type="color" class="label-leader-color" value="${leaderLineColor}" style="width: 100%; height: 28px; border: none; background: transparent;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">引线线宽</label>
+                            <input type="range" class="label-leader-width" min="1" max="4" step="1" value="${leaderLineWidth}" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">引线样式</label>
+                        <select class="label-leader-style" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: var(--input-bg, #343a40); color: var(--text-color, #fff); font-size: 12px;">
+                            <option value="solid" ${leaderLineDash === 'solid' ? 'selected' : ''}>实线</option>
+                            <option value="dashed" ${leaderLineDash === 'dashed' ? 'selected' : ''}>虚线</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; flex-wrap: wrap;">
+                        <button class="label-apply-selected" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到选中</button>
+                        <button class="label-apply-all" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">应用到全部</button>
+                        <button class="label-auto-arrange" style="padding: 6px 10px; border: 1px solid var(--border-color, #444); border-radius: 4px; background: transparent; color: var(--text-color, #fff); cursor: pointer; font-size: 12px;">自动避让</button>
+                        <button class="label-set-default" style="padding: 6px 10px; border: none; border-radius: 4px; background: var(--primary-color, #0078d4); color: #fff; cursor: pointer; font-size: 12px;">设为默认</button>
                     </div>
                 </div>
             </div>
@@ -1240,6 +1907,66 @@ export class DiagramModeIntegration {
                 rayStyleManager.setColorScheme(e.target.value);
             }
         });
+
+        // 主题切换
+        const themeSelect = panel.querySelector('.theme-select');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', (e) => {
+                const themeId = e.target.value;
+                if (themeId && themeManager?.applyTheme) {
+                    themeManager.applyTheme(themeId);
+                    this._triggerRedraw();
+                }
+            });
+        }
+
+        // 连接点设置
+        const cpVisibleInput = panel.querySelector('.cp-visible');
+        if (cpVisibleInput) {
+            cpVisibleInput.addEventListener('change', (e) => {
+                if (connectionPointManager?.setVisible) {
+                    connectionPointManager.setVisible(e.target.checked);
+                } else if (connectionPointManager) {
+                    connectionPointManager.visible = e.target.checked;
+                }
+                this._triggerRedraw();
+            });
+        }
+
+        const cpLabelsInput = panel.querySelector('.cp-labels');
+        if (cpLabelsInput) {
+            cpLabelsInput.addEventListener('change', (e) => {
+                if (connectionPointManager?.setShowLabels) {
+                    connectionPointManager.setShowLabels(e.target.checked);
+                } else if (connectionPointManager) {
+                    connectionPointManager.showLabels = e.target.checked;
+                }
+                this._triggerRedraw();
+            });
+        }
+
+        const cpSnapInput = panel.querySelector('.cp-snap');
+        const cpSnapDistanceInput = panel.querySelector('.cp-snap-distance');
+        if (cpSnapInput) {
+            cpSnapInput.addEventListener('change', (e) => {
+                if (connectionPointManager?.setSnapEnabled) {
+                    connectionPointManager.setSnapEnabled(e.target.checked);
+                } else if (connectionPointManager) {
+                    connectionPointManager.snapEnabled = e.target.checked;
+                }
+                if (cpSnapDistanceInput) {
+                    cpSnapDistanceInput.disabled = !e.target.checked;
+                }
+            });
+        }
+        if (cpSnapDistanceInput) {
+            cpSnapDistanceInput.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                if (Number.isFinite(value) && connectionPointManager) {
+                    connectionPointManager.snapDistance = value;
+                }
+            });
+        }
         
         // 线宽滑块
         const lineWidthSlider = panel.querySelector('.line-width-slider');
@@ -1254,17 +1981,347 @@ export class DiagramModeIntegration {
                 panel.querySelectorAll('.line-style-btn').forEach(b => {
                     b.style.background = 'transparent';
                     b.style.color = 'var(--text-color, #fff)';
+                    b.dataset.active = 'false';
                 });
                 btn.style.background = 'var(--primary-color, #0078d4)';
                 btn.style.color = '#fff';
+                btn.dataset.active = 'true';
             });
         });
         
         // 应用按钮
         panel.querySelector('.style-panel-apply').addEventListener('click', () => {
+            const selectedLineStyleBtn = panel.querySelector('.line-style-btn[data-active="true"]');
+            const lineStyle = selectedLineStyleBtn?.dataset?.style || 'solid';
+            const lineWidth = parseFloat(lineWidthSlider.value) || 2;
+            if (rayStyleManager?.setDefaultStyle) {
+                rayStyleManager.setDefaultStyle({ lineWidth, lineStyle });
+            }
             this._triggerRedraw();
             overlay.remove();
         });
+
+        const bindColorInputs = (colorInput, textInput) => {
+            if (!colorInput || !textInput) return;
+            colorInput.addEventListener('input', (e) => {
+                textInput.value = e.target.value;
+            });
+            textInput.addEventListener('input', (e) => {
+                if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                    colorInput.value = e.target.value;
+                }
+            });
+        };
+
+        const linkColorInput = panel.querySelector('.link-color-input');
+        const linkColorText = panel.querySelector('.link-color-text');
+        const labelColorInput = panel.querySelector('.label-color-input');
+        const labelColorText = panel.querySelector('.label-color-text');
+        const componentStrokeInput = panel.querySelector('.component-stroke-input');
+        const componentStrokeText = panel.querySelector('.component-stroke-text');
+        const componentFillInput = panel.querySelector('.component-fill-input');
+        const componentFillText = panel.querySelector('.component-fill-text');
+
+        bindColorInputs(linkColorInput, linkColorText);
+        bindColorInputs(labelColorInput, labelColorText);
+        bindColorInputs(componentStrokeInput, componentStrokeText);
+        bindColorInputs(componentFillInput, componentFillText);
+
+        const buildComponentStyle = () => {
+            return {
+                color: componentStrokeInput.value || '#000000',
+                fillColor: componentFillInput.value || '#666666',
+                lineWidth: parseFloat(panel.querySelector('.component-line-width').value) || 2,
+                opacity: parseFloat(panel.querySelector('.component-opacity').value) || 1,
+                forceIconColor: panel.querySelector('.component-force-icon-color').checked
+            };
+        };
+
+        const applyComponentStyle = (components, style, clear = false) => {
+            if (!styleManager || !components || components.length === 0) return;
+            const dataItems = [];
+            const undoItems = [];
+            components.forEach(comp => {
+                const id = comp.id || comp.uuid;
+                if (!id) return;
+                const prevStyle = styleManager.getComponentStyle(id);
+                const nextStyle = clear ? null : { ...(prevStyle || {}), ...(style || {}) };
+                undoItems.push({ id, style: prevStyle ? { ...prevStyle } : null });
+                dataItems.push({ id, style: nextStyle ? { ...nextStyle } : null });
+                if (nextStyle) {
+                    styleManager.setComponentStyle(id, nextStyle, false);
+                } else {
+                    styleManager.removeComponentStyle(id);
+                }
+            });
+            if (dataItems.length > 0) {
+                const interactionManager = this.modules.interactionManager;
+                if (interactionManager) {
+                    const { ActionType } = require('./InteractionManager.js');
+                    interactionManager.recordAction(
+                        ActionType.MODIFY_STYLE,
+                        { target: 'component', items: dataItems },
+                        { items: undoItems }
+                    );
+                    if (typeof window !== 'undefined') {
+                        window.updateUndoRedoUI?.();
+                        window.markSceneAsModified?.();
+                    }
+                }
+            }
+            this._triggerRedraw();
+        };
+
+        panel.querySelector('.component-apply-selected').addEventListener('click', () => {
+            const selected = this._getSelectedDiagramComponents();
+            if (selected.length === 0) {
+                console.warn('未选择元件，无法应用样式');
+                return;
+            }
+            applyComponentStyle(selected, buildComponentStyle());
+        });
+
+        panel.querySelector('.component-apply-all').addEventListener('click', () => {
+            if (!window.components || window.components.length === 0) return;
+            applyComponentStyle(window.components, buildComponentStyle());
+        });
+
+        panel.querySelector('.component-clear-selected').addEventListener('click', () => {
+            const selected = this._getSelectedDiagramComponents();
+            if (selected.length === 0) {
+                console.warn('未选择元件，无法清除样式');
+                return;
+            }
+            applyComponentStyle(selected, null, true);
+        });
+
+        const buildLinkStyle = () => {
+            const color = linkColorInput.value || '#ff0000';
+            const width = parseFloat(panel.querySelector('.link-width-slider').value) || 2;
+            const lineStyle = panel.querySelector('.link-style-select').value || 'solid';
+            const arrowStart = panel.querySelector('.link-arrow-start').checked;
+            const arrowEnd = panel.querySelector('.link-arrow-end').checked;
+            const arrowSize = parseFloat(panel.querySelector('.link-arrow-size').value) || 8;
+            return { color, width, lineStyle, arrowStart, arrowEnd, arrowSize };
+        };
+
+        const captureLinkState = (link) => {
+            if (!link) return null;
+            return {
+                id: link.id,
+                style: link.style ? { ...link.style } : null,
+                label: link.label || null,
+                labelPosition: link.labelPosition,
+                labelOffset: link.labelOffset ? { ...link.labelOffset } : null
+            };
+        };
+
+        const updateSelectedLinkLabel = () => {
+            const link = rayLinkManager?.selectedLink;
+            if (!link) return;
+            const labelText = panel.querySelector('.link-label-input').value.trim();
+            link.label = labelText.length > 0 ? labelText : null;
+            const labelPosValue = parseFloat(panel.querySelector('.link-label-position').value);
+            link.labelPosition = Number.isFinite(labelPosValue) ? labelPosValue : 0.5;
+            const offsetX = parseFloat(panel.querySelector('.link-label-offset-x').value);
+            const offsetY = parseFloat(panel.querySelector('.link-label-offset-y').value);
+            link.labelOffset = {
+                x: Number.isFinite(offsetX) ? offsetX : 0,
+                y: Number.isFinite(offsetY) ? offsetY : -15
+            };
+            if (link.labelPosition === undefined || link.labelPosition === null) {
+                link.labelPosition = 0.5;
+            }
+            if (!link.labelOffset) {
+                link.labelOffset = { x: 0, y: -15 };
+            }
+            this._triggerRedraw();
+        };
+
+        panel.querySelector('.link-apply-selected').addEventListener('click', () => {
+            const link = rayLinkManager?.selectedLink;
+            if (!link) {
+                console.warn('未选择链接，无法应用样式');
+                return;
+            }
+            const prevState = captureLinkState(link);
+            const style = buildLinkStyle();
+            rayLinkManager.applyStyleToLink(link.id, style, true);
+            updateSelectedLinkLabel();
+            const nextState = captureLinkState(link);
+            const interactionManager = this.modules.interactionManager;
+            if (interactionManager && prevState && nextState) {
+                const { ActionType } = require('./InteractionManager.js');
+                interactionManager.recordAction(
+                    ActionType.MODIFY_STYLE,
+                    { target: 'link', items: [nextState] },
+                    { items: [prevState] }
+                );
+                if (typeof window !== 'undefined') {
+                    window.updateUndoRedoUI?.();
+                    window.markSceneAsModified?.();
+                }
+            }
+        });
+
+        panel.querySelector('.link-apply-all').addEventListener('click', () => {
+            if (!rayLinkManager) return;
+            const prevStates = rayLinkManager.getAllLinks().map(link => captureLinkState(link)).filter(Boolean);
+            const style = buildLinkStyle();
+            rayLinkManager.applyStyleToAll(style, true);
+            const nextStates = rayLinkManager.getAllLinks().map(link => captureLinkState(link)).filter(Boolean);
+            const interactionManager = this.modules.interactionManager;
+            if (interactionManager && nextStates.length > 0) {
+                const { ActionType } = require('./InteractionManager.js');
+                interactionManager.recordAction(
+                    ActionType.MODIFY_STYLE,
+                    { target: 'link', items: nextStates },
+                    { items: prevStates }
+                );
+                if (typeof window !== 'undefined') {
+                    window.updateUndoRedoUI?.();
+                    window.markSceneAsModified?.();
+                }
+            }
+            this._triggerRedraw();
+        });
+
+        panel.querySelector('.link-set-default').addEventListener('click', () => {
+            if (!rayLinkManager) return;
+            const style = buildLinkStyle();
+            rayLinkManager.setDefaultStyle(style, true);
+            this._triggerRedraw();
+        });
+
+        const buildLabelStyle = () => {
+            const fontSize = parseFloat(panel.querySelector('.label-font-size').value) || 14;
+            const color = labelColorInput.value || '#000000';
+            const bold = panel.querySelector('.label-bold').checked;
+            const italic = panel.querySelector('.label-italic').checked;
+            return { fontSize, color, bold, italic };
+        };
+
+        const buildLeaderStyle = () => {
+            const color = panel.querySelector('.label-leader-color').value || '#666666';
+            const width = parseFloat(panel.querySelector('.label-leader-width').value) || 1;
+            const dash = panel.querySelector('.label-leader-style').value === 'dashed' ? [4, 3] : [];
+            return { color, width, dashPattern: dash };
+        };
+
+        const captureLabelState = (label) => {
+            if (!label) return null;
+            return {
+                id: label.id,
+                text: label.text,
+                style: label.style ? { ...label.style } : null,
+                leaderLine: !!label.leaderLine,
+                leaderLineStyle: label.leaderLineStyle ? { ...label.leaderLineStyle } : null
+            };
+        };
+
+        const updateSelectedLabelText = () => {
+            const label = labelManager?.selectedLabel;
+            if (!label) return;
+            const text = panel.querySelector('.label-text-input').value.trim();
+            if (text) {
+                label.text = text;
+                this._triggerRedraw();
+            }
+        };
+
+        panel.querySelector('.label-apply-selected').addEventListener('click', () => {
+            const label = labelManager?.selectedLabel;
+            if (!label) {
+                console.warn('未选择标注，无法应用样式');
+                return;
+            }
+            const prevState = captureLabelState(label);
+            const text = panel.querySelector('.label-text-input').value.trim();
+            if (text) label.text = text;
+            label.style = { ...label.style, ...buildLabelStyle() };
+            label.leaderLine = panel.querySelector('.label-leader-line').checked;
+            label.leaderLineStyle = { ...label.leaderLineStyle, ...buildLeaderStyle() };
+            const presetKey = panel.querySelector('.label-preset-select')?.value;
+            if (presetKey && label.applyPreset) {
+                label.applyPreset(presetKey);
+            }
+            const nextState = captureLabelState(label);
+            const interactionManager = this.modules.interactionManager;
+            if (interactionManager && prevState && nextState) {
+                const { ActionType } = require('./InteractionManager.js');
+                interactionManager.recordAction(
+                    ActionType.MODIFY_STYLE,
+                    { target: 'label', items: [nextState] },
+                    { items: [prevState] }
+                );
+                if (typeof window !== 'undefined') {
+                    window.updateUndoRedoUI?.();
+                    window.markSceneAsModified?.();
+                }
+            }
+            this._triggerRedraw();
+        });
+
+        panel.querySelector('.label-apply-all').addEventListener('click', () => {
+            if (!labelManager) return;
+            const labels = labelManager.getAllLabels?.() || [];
+            if (!labels.length) return;
+            const prevStates = labels.map(label => captureLabelState(label)).filter(Boolean);
+            const style = buildLabelStyle();
+            const leaderStyle = buildLeaderStyle();
+            const leaderLineEnabled = panel.querySelector('.label-leader-line').checked;
+            const presetKey = panel.querySelector('.label-preset-select')?.value;
+            labels.forEach(label => {
+                label.style = { ...label.style, ...style };
+                label.leaderLine = leaderLineEnabled;
+                label.leaderLineStyle = { ...label.leaderLineStyle, ...leaderStyle };
+                if (presetKey && label.applyPreset) {
+                    label.applyPreset(presetKey);
+                }
+            });
+            const nextStates = labels.map(label => captureLabelState(label)).filter(Boolean);
+            const interactionManager = this.modules.interactionManager;
+            if (interactionManager && nextStates.length > 0) {
+                const { ActionType } = require('./InteractionManager.js');
+                interactionManager.recordAction(
+                    ActionType.MODIFY_STYLE,
+                    { target: 'label', items: nextStates },
+                    { items: prevStates }
+                );
+                if (typeof window !== 'undefined') {
+                    window.updateUndoRedoUI?.();
+                    window.markSceneAsModified?.();
+                }
+            }
+            this._triggerRedraw();
+        });
+
+        panel.querySelector('.label-auto-arrange').addEventListener('click', () => {
+            if (!labelManager) return;
+            const labels = labelManager.getAllLabels?.() || [];
+            if (!labels.length) return;
+            const components = window.components || [];
+            const targetLabels = labelManager.selectedLabel ? [labelManager.selectedLabel] : labels;
+            targetLabels.forEach(label => {
+                labelManager.autoPositionLabel?.(label, components, labels);
+            });
+            this._triggerRedraw();
+        });
+
+        panel.querySelector('.label-set-default').addEventListener('click', () => {
+            if (!labelManager) return;
+            labelManager.defaultStyle = { ...labelManager.defaultStyle, ...buildLabelStyle() };
+            labelManager.defaultStyle.leaderLineStyle = { ...buildLeaderStyle() };
+            this._triggerRedraw();
+        });
+
+        // 链接标签实时预览
+        ['.link-label-input', '.link-label-position', '.link-label-offset-x', '.link-label-offset-y'].forEach(selector => {
+            panel.querySelector(selector)?.addEventListener('input', updateSelectedLinkLabel);
+        });
+
+        // 标注文本实时预览（仅选中标注）
+        panel.querySelector('.label-text-input')?.addEventListener('input', updateSelectedLabelText);
         
         console.log('DiagramModeIntegration: Style panel opened');
     }
@@ -1293,16 +2350,114 @@ export class DiagramModeIntegration {
      * 处理模式切换
      * @private
      */
-    _handleModeChange(newMode) {
-        console.log(`DiagramModeIntegration: Mode changed to ${newMode}`);
+    _handleModeChange(oldMode, newMode) {
+        console.log(`DiagramModeIntegration: Mode changed from ${oldMode} to ${newMode}`);
         
         if (newMode === APP_MODES.DIAGRAM) {
-            // 进入绘图模式
+            // 进入绘图模式前先恢复数据，避免自动生成导致重复
+            this._restoreDiagramModeState();
             this._enterDiagramMode();
         } else {
-            // 退出绘图模式
+            // 离开绘图模式时缓存数据
+            if (oldMode === APP_MODES.DIAGRAM) {
+                this._saveDiagramModeState();
+            }
             this._exitDiagramMode();
         }
+    }
+
+    /**
+     * 保存绘图模式关键状态
+     * @private
+     */
+    _saveDiagramModeState() {
+        this.diagramModeState = {
+            timestamp: Date.now(),
+            annotations: this.modules.annotationManager?.serialize?.(),
+            professionalLabels: this.modules.professionalLabelManager?.serialize?.(),
+            styles: this.modules.styleManager?.serialize?.(),
+            layoutEngine: this.modules.layoutEngine?.serialize?.(),
+            rayLinks: this.modules.rayLinkManager?.serialize?.(),
+            connectionPoints: this.modules.connectionPointManager?.serialize?.(),
+            rayStyles: this.modules.rayStyleManager?.serialize?.(),
+            technicalNotes: this.modules.technicalNotesManager?.serialize?.(),
+            technicalNotesArea: this.modules.technicalNotesArea?.serialize?.(),
+            parameterDisplay: this.modules.parameterDisplayManager?.serialize?.(),
+            minimapVisible: this.modules.minimap?.visible
+        };
+    }
+
+    /**
+     * 恢复绘图模式关键状态
+     * @private
+     */
+    _restoreDiagramModeState() {
+        const state = this.diagramModeState;
+        if (!state) {
+            this._diagramStateRestored = false;
+            return;
+        }
+        this._diagramStateRestored = true;
+
+        if (state.annotations && this.modules.annotationManager?.deserialize) {
+            this.modules.annotationManager.deserialize(state.annotations);
+        }
+
+        if (state.professionalLabels && this.modules.professionalLabelManager) {
+            this.modules.professionalLabelManager.clear();
+            this.modules.professionalLabelManager.deserialize(state.professionalLabels);
+        }
+
+        if (state.styles && this.modules.styleManager) {
+            this.modules.styleManager.clear();
+            this.modules.styleManager.deserialize(state.styles);
+        }
+
+        if (state.layoutEngine && this.modules.layoutEngine?.deserialize) {
+            this.modules.layoutEngine.deserialize(state.layoutEngine);
+        }
+
+        if (state.rayLinks && this.modules.rayLinkManager) {
+            this.modules.rayLinkManager.clear();
+            this.modules.rayLinkManager.deserialize(state.rayLinks);
+        }
+
+        if (state.connectionPoints && this.modules.connectionPointManager) {
+            const connectionPointManager = this.modules.connectionPointManager;
+            connectionPointManager.clear();
+            if (typeof window !== 'undefined' && Array.isArray(window.components)) {
+                window.components.forEach(comp => {
+                    connectionPointManager.initializeComponentPoints(comp);
+                });
+            }
+            connectionPointManager.deserialize(state.connectionPoints);
+        }
+
+        if (state.rayStyles && this.modules.rayStyleManager?.deserialize) {
+            this.modules.rayStyleManager.deserialize(state.rayStyles);
+        }
+
+        if (state.technicalNotes && this.modules.technicalNotesManager?.deserialize) {
+            this.modules.technicalNotesManager.deserialize(state.technicalNotes);
+        }
+
+        if (state.technicalNotesArea && this.modules.technicalNotesArea?.deserialize) {
+            this.modules.technicalNotesArea.deserialize(state.technicalNotesArea);
+        }
+
+        if (state.parameterDisplay && this.modules.parameterDisplayManager?.deserialize) {
+            this.modules.parameterDisplayManager.deserialize(state.parameterDisplay);
+        }
+
+        if (state.minimapVisible !== undefined && this.modules.minimap) {
+            if (state.minimapVisible) {
+                this.modules.minimap.show();
+            } else {
+                this.modules.minimap.hide();
+            }
+        }
+
+        this._triggerRedraw();
     }
 
     /**
@@ -1311,16 +2466,22 @@ export class DiagramModeIntegration {
      */
     _enterDiagramMode() {
         // 启用布局引擎功能
-        this.modules.layoutEngine.setShowAlignmentGuides(true);
+        if (!this._diagramStateRestored) {
+            this.modules.layoutEngine.setShowAlignmentGuides(true);
+        }
         
         // 启用连接点显示
         if (this.modules.connectionPointManager) {
-            this.modules.connectionPointManager.visible = true;
+            if (!this._diagramStateRestored) {
+                this.modules.connectionPointManager.visible = true;
+            }
         }
         
         // 显示小地图
         if (this.modules.minimap) {
-            this.modules.minimap.show();
+            if (!this._diagramStateRestored) {
+                this.modules.minimap.show();
+            }
         }
         
         // 更新左侧栏图标为专业图标
@@ -1334,6 +2495,19 @@ export class DiagramModeIntegration {
                     this.modules.connectionPointManager.initializeComponentPoints(comp);
                 }
             });
+        }
+
+        // 自动生成光线连接（仅当当前没有任何链接时）
+        if (this.modules.rayLinkManager && this.modules.rayLinkManager.getAllLinks().length === 0) {
+            const rayCount = (typeof window !== 'undefined' && Array.isArray(window.currentRayPaths))
+                ? window.currentRayPaths.length
+                : 0;
+            if (rayCount > 0) {
+                const result = this._generateRayLinksFromSimulation({ replace: false });
+                if (result?.created) {
+                    console.log(`DiagramModeIntegration: Auto generated ${result.created} ray links`);
+                }
+            }
         }
         
         console.log('DiagramModeIntegration: Entered diagram mode');
@@ -1455,6 +2629,81 @@ export class DiagramModeIntegration {
     }
 
     /**
+     * 显示自动连接菜单
+     * @private
+     */
+    _showAutoLinkMenu(button) {
+        const existingMenu = document.querySelector('.auto-link-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+            return;
+        }
+
+        const menu = document.createElement('div');
+        menu.className = 'auto-link-menu dropdown-menu';
+        menu.innerHTML = `
+            <div class="menu-section">
+                <div class="menu-label">光线生成</div>
+                <button data-action="append">生成链接（追加）</button>
+                <button data-action="rebuild">生成链接（重建）</button>
+                <button data-action="append-route">生成并自动布线</button>
+            </div>
+            <hr>
+            <div class="menu-section">
+                <div class="menu-hint">基于当前光线路径匹配连接点</div>
+            </div>
+        `;
+
+        const rect = button.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = `${rect.bottom + 5}px`;
+        menu.style.left = `${rect.left}px`;
+        menu.style.zIndex = '9000';
+
+        document.body.appendChild(menu);
+
+        menu.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (action) {
+                this._executeAutoLinkAction(action);
+            }
+            menu.remove();
+        });
+
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu(e) {
+                if (!menu.contains(e.target) && e.target !== button) {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                }
+            });
+        }, 0);
+    }
+
+    /**
+     * 执行自动连接操作
+     * @private
+     */
+    _executeAutoLinkAction(action) {
+        const options = {
+            replace: action === 'rebuild',
+            applyAutoRouting: action === 'append-route'
+        };
+        const result = this._generateRayLinksFromSimulation(options);
+        if (!result) return;
+        const message = result.error
+            ? `自动连接失败：${result.error}`
+            : `自动连接完成：新增 ${result.created} 条，跳过 ${result.skipped} 条`;
+        if (typeof window !== 'undefined' && typeof window.showTemporaryMessage === 'function') {
+            window.showTemporaryMessage(message, result.error ? 'error' : 'success');
+        } else {
+            console.log(message);
+        }
+    }
+
+    /**
      * 显示自动布线菜单
      * @private
      */
@@ -1567,6 +2816,128 @@ export class DiagramModeIntegration {
     }
 
     /**
+     * 从模拟光线路径生成连接
+     * @private
+     */
+    _generateRayLinksFromSimulation(options = {}) {
+        const rayLinkManager = this.modules.rayLinkManager;
+        const connectionPointManager = this.modules.connectionPointManager;
+        const components = window.components || [];
+        const rays = options.rays || window.currentRayPaths || [];
+
+        if (!rayLinkManager || !connectionPointManager) {
+            return { created: 0, skipped: 0, total: 0, error: '连接系统未初始化' };
+        }
+        if (!Array.isArray(rays) || rays.length === 0) {
+            return { created: 0, skipped: 0, total: 0, error: '当前没有可用光线路径' };
+        }
+
+        if (options.replace) {
+            rayLinkManager.clear();
+        }
+
+        components.forEach(comp => {
+            const componentId = comp.id || comp.uuid;
+            if (!connectionPointManager.getComponentPoints(componentId).length) {
+                connectionPointManager.initializeComponentPoints(comp);
+            }
+            connectionPointManager.updateComponentPoints(comp);
+        });
+
+        const maxDistance = typeof options.maxDistance === 'number' ? options.maxDistance : 28;
+        const allowDuplicates = options.allowDuplicates === true;
+        const existingKeys = new Set();
+
+        const makeEndpointKey = (point) => `${point.componentId}:${point.pointId}`;
+        const makePairKey = (a, b) => [makeEndpointKey(a), makeEndpointKey(b)].sort().join('|');
+
+        if (!allowDuplicates) {
+            rayLinkManager.getAllLinks().forEach(link => {
+                existingKeys.add(makePairKey(
+                    { componentId: link.sourceComponentId, pointId: link.sourcePointId },
+                    { componentId: link.targetComponentId, pointId: link.targetPointId }
+                ));
+            });
+        }
+
+        let created = 0;
+        let skipped = 0;
+        const createdLinks = [];
+
+        rays.forEach(ray => {
+            const pathPoints = this._extractRayPathPoints(ray);
+            if (!pathPoints || pathPoints.length < 2) {
+                skipped += 1;
+                return;
+            }
+
+            const start = pathPoints[0];
+            const end = pathPoints[pathPoints.length - 1];
+            const startPoint = connectionPointManager.findNearestPoint(start, null, maxDistance, { ignoreSnap: true });
+            const endPoint = connectionPointManager.findNearestPoint(end, null, maxDistance, { ignoreSnap: true });
+
+            if (!startPoint || !endPoint || startPoint.componentId === endPoint.componentId) {
+                skipped += 1;
+                return;
+            }
+
+            const pairKey = makePairKey(startPoint, endPoint);
+            if (!allowDuplicates && existingKeys.has(pairKey)) {
+                skipped += 1;
+                return;
+            }
+
+            const color = typeof ray.getColor === 'function' ? ray.getColor() : (ray.color || '#ff0000');
+            const width = typeof ray.getLineWidth === 'function' ? ray.getLineWidth() : (ray.lineWidth || 2);
+            const lineStyle = ray.lineStyle || 'solid';
+
+            const link = rayLinkManager.createLink({
+                sourceComponentId: startPoint.componentId,
+                sourcePointId: startPoint.pointId,
+                targetComponentId: endPoint.componentId,
+                targetPointId: endPoint.pointId,
+                style: { color, width, lineStyle }
+            });
+
+            if (link) {
+                created += 1;
+                createdLinks.push(link);
+                existingKeys.add(pairKey);
+            } else {
+                skipped += 1;
+            }
+        });
+
+        if (options.applyAutoRouting && createdLinks.length > 0) {
+            createdLinks.forEach(link => rayLinkManager.applyAutoRouting(link.id, components));
+        }
+
+        this._triggerRedraw();
+        return { created, skipped, total: rays.length };
+    }
+
+    /**
+     * 提取光线路径点（兼容Ray对象与普通点数组）
+     * @private
+     */
+    _extractRayPathPoints(ray) {
+        if (!ray) return null;
+        let points = null;
+        if (typeof ray.getPathPoints === 'function') {
+            points = ray.getPathPoints();
+        } else if (Array.isArray(ray.pathPoints)) {
+            points = ray.pathPoints;
+        } else if (Array.isArray(ray.path)) {
+            points = ray.path;
+        }
+        if (!Array.isArray(points)) return null;
+        const normalized = points
+            .filter(p => p && typeof p.x === 'number' && typeof p.y === 'number')
+            .map(p => ({ x: p.x, y: p.y }));
+        return normalized.length > 1 ? normalized : null;
+    }
+
+    /**
      * 渲染专业绘图模式元素
      * 在主渲染循环中调用
      */
@@ -1622,12 +2993,36 @@ export class DiagramModeIntegration {
         const pos = component.pos || { x: component.x || 0, y: component.y || 0 };
         const angle = component.angle || 0;
         const scale = component.scale || 1;
+        const componentId = component.id || component.uuid;
+        const styleManager = this.modules.styleManager;
+        const componentStyle = componentId && styleManager ? styleManager.getComponentStyle(componentId) : null;
+        const useCustomColor = componentStyle?.forceIconColor === true;
+        const iconStyle = useCustomColor ? {
+            preserveSvgColors: false,
+            color: componentStyle?.color,
+            fillColor: componentStyle?.fillColor,
+            strokeWidth: componentStyle?.lineWidth,
+            opacity: componentStyle?.opacity
+        } : { preserveSvgColors: true, opacity: componentStyle?.opacity };
         
         this.modules.professionalIconManager.renderIcon(
-            ctx, componentType, pos.x, pos.y, angle, scale
+            ctx, componentType, pos.x, pos.y, angle, scale, iconStyle
         );
         
         return true;
+    }
+
+    /**
+     * 获取当前选中的绘图元件
+     * @private
+     */
+    _getSelectedDiagramComponents() {
+        if (typeof window !== 'undefined' && Array.isArray(window.components)) {
+            const selected = window.components.filter(c => c && c.selected);
+            if (selected.length > 0) return selected;
+        }
+        const selection = this.modules.interactionManager?.selection?.getSelectedItems?.() || [];
+        return selection;
     }
 
     /**
@@ -2048,6 +3443,17 @@ export class DiagramModeIntegration {
         const sceneData = scene || this._getCurrentScene();
         openExportDialog(sceneData, {
             exportEngine: this.modules.exportEngine,
+            initialConfig: {
+                exportPurpose: 'paper',
+                exportScope: 'content',
+                contentPadding: 40,
+                useProfessionalIcons: true,
+                includeNotes: false,
+                includeGrid: false,
+                format: 'pdf',
+                dpi: 300,
+                styleManager: this.modules.styleManager
+            },
             onExport: (result, config) => {
                 console.log('DiagramModeIntegration: Export completed', config);
             }
@@ -2059,10 +3465,20 @@ export class DiagramModeIntegration {
      * @private
      */
     _getCurrentScene() {
-        const components = window.components || [];
+        const styleManager = this.modules.styleManager;
+        const components = (window.components || []).map(comp => {
+            const id = comp.id || comp.uuid;
+            const style = id && styleManager ? styleManager.getComponentStyle(id) : null;
+            return style ? { ...comp, style: { ...style } } : comp;
+        });
         const rays = window.rays || [];
         const annotations = this.modules.annotationManager.getAllAnnotations();
         const notes = this.modules.technicalNotesManager.getAllNotes().map(n => n.text);
+        const diagramLinks = this._buildDiagramLinksForExport(components);
+        const professionalLabels = this.modules.professionalLabelManager?.getAllLabels().map(label => label.serialize()) || [];
+        const gridSpacing = this.modules.layoutEngine?.gridSize || 20;
+        const theme = this.modules.themeManager?.getCurrentTheme?.();
+        const gridColor = theme?.globalStyle?.gridColor;
 
         return {
             name: 'Optical Diagram',
@@ -2074,8 +3490,46 @@ export class DiagramModeIntegration {
                 lineStyle: ray.lineStyle
             })),
             annotations: annotations.map(a => a.serialize()),
-            notes
+            notes,
+            diagramLinks,
+            professionalLabels,
+            grid: {
+                spacing: gridSpacing,
+                color: gridColor
+            }
         };
+    }
+
+    /**
+     * 构建绘图模式连接光线导出数据
+     * @private
+     */
+    _buildDiagramLinksForExport(components) {
+        const rayLinkManager = this.modules.rayLinkManager;
+        const connectionPointManager = this.modules.connectionPointManager;
+        if (!rayLinkManager || !connectionPointManager) return [];
+
+        components.forEach(comp => {
+            const componentId = comp.id || comp.uuid;
+            if (!connectionPointManager.getComponentPoints(componentId).length) {
+                connectionPointManager.initializeComponentPoints(comp);
+            }
+            connectionPointManager.updateComponentPoints(comp);
+        });
+
+        return rayLinkManager.getAllLinks()
+            .map(link => {
+                const pathPoints = link.getPathPoints(connectionPointManager);
+                return {
+                    id: link.id,
+                    pathPoints: Array.isArray(pathPoints) ? pathPoints.map(p => ({ x: p.x, y: p.y })) : [],
+                    style: { ...link.style },
+                    label: link.label || null,
+                    labelPosition: link.labelPosition,
+                    labelOffset: link.labelOffset ? { ...link.labelOffset } : null
+                };
+            })
+            .filter(link => link.pathPoints.length >= 2);
     }
 
     /**
@@ -2151,6 +3605,24 @@ export class DiagramModeIntegration {
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
                 z-index: 1000;
                 min-width: 150px;
+            }
+
+            .dropdown-menu .menu-section {
+                padding: 4px 0;
+            }
+
+            .dropdown-menu .menu-label {
+                padding: 4px 12px;
+                font-size: 11px;
+                color: var(--text-secondary, #aaa);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .dropdown-menu .menu-hint {
+                padding: 4px 12px 6px;
+                font-size: 11px;
+                color: var(--text-secondary, #888);
             }
 
             .dropdown-menu button {
@@ -2235,6 +3707,14 @@ export class DiagramModeIntegration {
      */
     switchToSimulationMode() {
         this.modules.modeManager?.switchMode(APP_MODES.SIMULATION);
+    }
+
+    /**
+     * 是否处于光线链接模式
+     * @returns {boolean}
+     */
+    isRayLinkModeActive() {
+        return !!this._rayLinkModeActive;
     }
 }
 

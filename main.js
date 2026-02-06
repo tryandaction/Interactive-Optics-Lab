@@ -48,6 +48,10 @@ let draggingComponents = []; // Array for multiple components being dragged
 let dragStartOffsets = new Map(); // Store offset for each dragged component { compId -> Vector }
 let dragStartMousePos = null; // Mouse position when drag started
 let isDragging = false; // General dragging flag (position or angle)
+let isLabelDragging = false; // Dragging professional label
+let draggedLabel = null;
+let labelDragOffset = null;
+let labelDragStartPos = null;
 let needsRetrace = true; // Flag to recalculate ray paths
 let componentToAdd = null; // Type string of component selected from toolbar
 let currentRayPaths = []; // Stores the results of the last ray trace (Ray objects)
@@ -57,6 +61,23 @@ let eventListenersSetup = false; // Ensure listeners are only added once
 let lastTimestamp = 0; // For calculating delta time in game loop
 let nextFrameActiveRays = []; // Store rays generated this frame to activate next frame (e.g., fiber output)
 // window.ignoreMaxBounces = false; // Make it global via window object
+
+// 同步关键状态到全局，供模块化绘图系统访问
+if (typeof window !== 'undefined') {
+    if (Array.isArray(window.components)) {
+        components = window.components;
+    }
+    Object.defineProperty(window, 'components', {
+        get: () => components,
+        set: (value) => { components = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'currentRayPaths', {
+        get: () => currentRayPaths,
+        set: (value) => { currentRayPaths = value; },
+        configurable: true
+    });
+}
 
 let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)
 let cameraOffset = null; // Current pan offset (canvas origin relative to view origin, initialized later)
@@ -364,6 +385,7 @@ function gameLoop(timestamp) {
         // traceResult should be an object: { completedPaths: [], generatedRays: [] }
         if (traceResult && Array.isArray(traceResult.completedPaths)) {
             currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
+            window.currentRayPaths = currentRayPaths;
             if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
                 // Store newly generated rays (fiber outputs) for the *next* frame
                 nextFrameActiveRays.push(...traceResult.generatedRays);
@@ -372,11 +394,13 @@ function gameLoop(timestamp) {
         } else {
             console.error("traceAllRays returned invalid result:", traceResult);
             currentRayPaths = [];
+            window.currentRayPaths = currentRayPaths;
         }
 
     } catch (e) {
         console.error("!!! Error during traceAllRays:", e);
         currentRayPaths = []; // Clear paths on error
+        window.currentRayPaths = currentRayPaths;
         nextFrameActiveRays = []; // Also clear pending rays on error
     } finally { // Ensure timing ends even on error
         console.timeEnd("RayTrace");
@@ -2038,27 +2062,64 @@ function handleMouseDown(event) {
         const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
         
         // 检查是否点击了连接点（用于开始创建光线链接）
-        if (connectionPointManager && rayLinkManager) {
+        const rayLinkModeActive = diagramModeIntegration?.isRayLinkModeActive?.() || false;
+        if (connectionPointManager && rayLinkManager && (rayLinkModeActive || rayLinkManager.isCreatingLink?.())) {
             const clickedPoint = connectionPointManager.findPointAtPosition(mousePos, 15);
             if (clickedPoint) {
                 // 如果正在创建链接，尝试完成
-                if (rayLinkManager.editingLink) {
-                    const link = rayLinkManager.finishLinkCreation();
+                if (rayLinkManager.isCreatingLink?.()) {
+                    const link = rayLinkManager.completeLinkCreation(
+                        clickedPoint.componentId,
+                        clickedPoint.pointId
+                    );
                     if (link) {
                         console.log('光线链接创建完成:', link.id);
+                        const interactionManager = diagramModeIntegration.getModule?.('interactionManager');
+                        if (interactionManager && window.ActionType) {
+                            interactionManager.recordAction(
+                                window.ActionType.ADD_LINK,
+                                { link: link.serialize ? link.serialize() : { ...link } }
+                            );
+                            updateUndoRedoUI();
+                            markSceneAsModified();
+                        }
                         needsRetrace = true;
                         return;
                     }
-                } else {
+                } else if (rayLinkModeActive) {
                     // 开始创建新链接
                     rayLinkManager.startLinkCreation(clickedPoint.componentId, clickedPoint.pointId);
                     console.log('开始创建光线链接:', clickedPoint.componentId, clickedPoint.pointId);
                     return;
                 }
-            } else if (rayLinkManager.editingLink) {
+            } else if (rayLinkManager.isCreatingLink?.()) {
                 // 点击空白处取消链接创建
                 rayLinkManager.cancelLinkCreation();
                 console.log('取消光线链接创建');
+            }
+        }
+
+        // 优先选择专业标注或链接
+        if (!componentToAdd) {
+            const labelManager = diagramModeIntegration.getModule('professionalLabelManager');
+            if (labelManager && labelManager.handleMouseClick(mousePos)) {
+                const selectedLabel = labelManager.selectedLabel;
+                if (selectedLabel) {
+                    isLabelDragging = true;
+                    draggedLabel = selectedLabel;
+                    labelDragStartPos = { x: selectedLabel.position.x, y: selectedLabel.position.y };
+                    labelDragOffset = {
+                        x: selectedLabel.position.x - mousePos.x,
+                        y: selectedLabel.position.y - mousePos.y
+                    };
+                    canvas.style.cursor = 'grabbing';
+                }
+                needsRetrace = true;
+                return;
+            }
+            if (rayLinkManager && rayLinkManager.handleMouseClick(mousePos)) {
+                needsRetrace = true;
+                return;
             }
         }
     }
@@ -2374,7 +2435,7 @@ function handleMouseMove(event) {
         const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
         
         // 更新正在创建的链接
-        if (rayLinkManager?.editingLink) {
+        if (rayLinkManager?.isCreatingLink?.()) {
             rayLinkManager.updateLinkCreation(currentMousePos);
             needsRetrace = true;
         }
@@ -2386,10 +2447,32 @@ function handleMouseMove(event) {
         
         // 更新光线链接悬停状态
         if (rayLinkManager) {
-            rayLinkManager.handleMouseMove(currentMousePos);
+            const prevHoveredLink = rayLinkManager.hoveredLink;
+            const hoveredLink = rayLinkManager.handleMouseMove(currentMousePos);
+            if (prevHoveredLink !== hoveredLink) {
+                needsRetrace = true;
+            }
+        }
+
+        const labelManager = diagramModeIntegration.getModule('professionalLabelManager');
+        if (labelManager) {
+            const prevHovered = labelManager.hoveredLabel;
+            const hovered = labelManager.handleMouseMove(currentMousePos);
+            if (prevHovered !== hovered) {
+                needsRetrace = true;
+            }
         }
     }
     // --- End 绘图模式下的光线链接更新 ---
+
+    if (isLabelDragging && draggedLabel && labelDragOffset) {
+        draggedLabel.position.x = currentMousePos.x + labelDragOffset.x;
+        draggedLabel.position.y = currentMousePos.y + labelDragOffset.y;
+        needsRetrace = true;
+        sceneModified = true;
+        canvas.style.cursor = 'grabbing';
+        return;
+    }
 
     // --- Panning Logic ---
     if (isPanning) {
@@ -2582,6 +2665,38 @@ function handleMouseUp(event) {
 
     mouseIsDown = false;
     let dragJustEnded = false;
+
+    if (isLabelDragging && draggedLabel) {
+        const endPos = { x: draggedLabel.position.x, y: draggedLabel.position.y };
+        const startPos = labelDragStartPos || endPos;
+        const moved = Math.hypot(endPos.x - startPos.x, endPos.y - startPos.y) > 0.5;
+        if (moved) {
+            const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+            const interactionManager = isDiagramModeActive
+                ? diagramModeIntegration.getModule?.('interactionManager')
+                : null;
+            if (isDiagramModeActive && interactionManager && window.ActionType) {
+                interactionManager.recordAction(
+                    window.ActionType.MOVE_LABEL,
+                    { labelId: draggedLabel.id, position: endPos },
+                    { position: startPos }
+                );
+                updateUndoRedoUI();
+                markSceneAsModified();
+            } else if (historyManager && typeof MoveLabelCommand !== 'undefined') {
+                historyManager.addCommand(new MoveLabelCommand(draggedLabel, startPos, endPos));
+                updateUndoRedoUI();
+                markSceneAsModified();
+            }
+        }
+        isLabelDragging = false;
+        draggedLabel = null;
+        labelDragOffset = null;
+        labelDragStartPos = null;
+        needsRetrace = true;
+        handleMouseMove(event);
+        return;
+    }
 
     // Check if a drag operation (single or multi) was in progress
     if (isDragging && draggingComponents.length > 0) {
@@ -2808,26 +2923,39 @@ function handleKeyDown(event) {
     const undoPressed = (isMac && event.metaKey && !event.shiftKey && event.key === 'z') || (!isMac && event.ctrlKey && event.key === 'z');
     const redoPressed = (isMac && event.metaKey && event.shiftKey && event.key === 'z') || (!isMac && event.ctrlKey && event.key === 'y');
 
+    const diagramIntegration = window.getDiagramModeIntegration?.();
+    const interactionManager = diagramIntegration?.isDiagramMode?.()
+        ? diagramIntegration.getModule?.('interactionManager')
+        : null;
+    if ((undoPressed || redoPressed) && interactionManager) {
+        return; // 交给绘图模式的交互管理器处理
+    }
+
     if (undoPressed) {
         event.preventDefault();
-        if (historyManager.canUndo()) {
-            historyManager.undo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Undo (快捷键)");
-            markSceneAsModified(); // 标记场景已修改
-        } return;
+        performUndo();
+        markSceneAsModified(); // 标记场景已修改
+        return;
     }
     if (redoPressed) {
         event.preventDefault();
-        if (historyManager.canRedo()) {
-            historyManager.redo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Redo (快捷键)");
-            markSceneAsModified(); // 标记场景已修改
-        } return;
+        performRedo();
+        markSceneAsModified(); // 标记场景已修改
+        return;
     }
     // --- End Undo/Redo Shortcuts ---
 
-    // --- Delete selected component ---
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedComponents.length > 0) {
-        event.preventDefault();
-        deleteSelectedComponents(); // Call the new function
+    // --- Delete selected label/component ---
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+        const deletedLabel = deleteSelectedLabel();
+        if (deletedLabel) {
+            event.preventDefault();
+            return;
+        }
+        if (selectedComponents.length > 0) {
+            event.preventDefault();
+            deleteSelectedComponents(); // Call the new function
+        }
     }
 
     // --- Rotate selected component (R key, Shift+R for reverse) ---
@@ -2982,6 +3110,35 @@ function deleteSelectedComponents() {
     }
 }
 // --- END deleteSelectedComponents ---
+
+function deleteSelectedLabel() {
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (!isDiagramModeActive || !diagramModeIntegration) return false;
+    const labelManager = diagramModeIntegration.getModule('professionalLabelManager');
+    const label = labelManager?.selectedLabel;
+    if (!label) return false;
+
+    const interactionManager = diagramModeIntegration.getModule?.('interactionManager');
+    if (interactionManager && window.ActionType) {
+        interactionManager.recordAction(
+            window.ActionType.DELETE_LABEL,
+            { labelId: label.id },
+            { label: label.serialize ? label.serialize() : { ...label } }
+        );
+        labelManager.deleteLabel?.(label.id);
+        updateUndoRedoUI();
+        markSceneAsModified();
+    } else if (historyManager && typeof DeleteLabelCommand !== 'undefined') {
+        historyManager.addCommand(new DeleteLabelCommand(label, labelManager));
+        updateUndoRedoUI();
+        markSceneAsModified();
+    } else if (labelManager?.deleteLabel) {
+        labelManager.deleteLabel(label.id);
+    }
+    labelManager.selectedLabel = null;
+    needsRetrace = true;
+    return true;
+}
 
 
 function clearToolbarSelection() {
@@ -3280,6 +3437,7 @@ function gameLoop(timestamp) {
         // traceResult should be an object: { completedPaths: [], generatedRays: [] }
         if (traceResult && Array.isArray(traceResult.completedPaths)) {
             currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
+            window.currentRayPaths = currentRayPaths;
             if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
                 // Store newly generated rays (fiber outputs) for the *next* frame
                 nextFrameActiveRays.push(...traceResult.generatedRays);
@@ -3288,11 +3446,13 @@ function gameLoop(timestamp) {
         } else {
             console.error("traceAllRays returned invalid result:", traceResult);
             currentRayPaths = [];
+            window.currentRayPaths = currentRayPaths;
         }
 
     } catch (e) {
         console.error("!!! Error during traceAllRays:", e);
         currentRayPaths = []; // Clear paths on error
+        window.currentRayPaths = currentRayPaths;
         nextFrameActiveRays = []; // Also clear pending rays on error
     } finally { // Ensure timing ends even on error
         console.timeEnd("RayTrace");
@@ -3949,17 +4109,19 @@ function updateUndoRedoUI() {
     const undoMenuItem = document.getElementById('menu-undo');
     const redoMenuItem = document.getElementById('menu-redo');
 
-    // 确保 historyManager 已初始化
-    if (!historyManager) {
-        if (undoBtn) { undoBtn.classList.add('disabled'); undoBtn.title = "无法撤销"; }
-        if (undoMenuItem) { undoMenuItem.classList.add('disabled-link'); }
-        if (redoBtn) { redoBtn.classList.add('disabled'); redoBtn.title = "无法重做"; }
-        if (redoMenuItem) { redoMenuItem.classList.add('disabled-link'); }
-        return;
-    }
+    const diagramIntegration = window.getDiagramModeIntegration?.();
+    const interactionManager = diagramIntegration?.isDiagramMode?.()
+        ? diagramIntegration.getModule?.('interactionManager')
+        : null;
+    const canUndo = interactionManager
+        ? interactionManager.history?.canUndo?.()
+        : historyManager?.canUndo?.();
+    const canRedo = interactionManager
+        ? interactionManager.history?.canRedo?.()
+        : historyManager?.canRedo?.();
 
     // Update Undo Button and Menu Item
-    if (historyManager.canUndo()) {
+    if (canUndo) {
         if (undoBtn) { undoBtn.classList.remove('disabled'); undoBtn.title = "撤销 (Ctrl+Z)"; }
         if (undoMenuItem) { undoMenuItem.classList.remove('disabled-link'); }
     } else {
@@ -3968,7 +4130,7 @@ function updateUndoRedoUI() {
     }
 
     // Update Redo Button and Menu Item
-    if (historyManager.canRedo()) {
+    if (canRedo) {
         if (redoBtn) { redoBtn.classList.remove('disabled'); redoBtn.title = "重做 (Ctrl+Y)"; }
         if (redoMenuItem) { redoMenuItem.classList.remove('disabled-link'); }
     } else {
@@ -3977,6 +4139,46 @@ function updateUndoRedoUI() {
     }
 }
 // --- End of REPLACEMENT for updateUndoRedoUI ---
+
+function performUndo() {
+    const diagramIntegration = window.getDiagramModeIntegration?.();
+    const interactionManager = diagramIntegration?.isDiagramMode?.()
+        ? diagramIntegration.getModule?.('interactionManager')
+        : null;
+    if (interactionManager && interactionManager.history?.canUndo?.()) {
+        interactionManager.undo();
+        updateUndoRedoUI();
+        needsRetrace = true;
+        updateInspector();
+        return;
+    }
+    if (historyManager && historyManager.canUndo()) {
+        historyManager.undo();
+        updateUndoRedoUI();
+        needsRetrace = true;
+        updateInspector();
+    }
+}
+
+function performRedo() {
+    const diagramIntegration = window.getDiagramModeIntegration?.();
+    const interactionManager = diagramIntegration?.isDiagramMode?.()
+        ? diagramIntegration.getModule?.('interactionManager')
+        : null;
+    if (interactionManager && interactionManager.history?.canRedo?.()) {
+        interactionManager.redo();
+        updateUndoRedoUI();
+        needsRetrace = true;
+        updateInspector();
+        return;
+    }
+    if (historyManager && historyManager.canRedo()) {
+        historyManager.redo();
+        updateUndoRedoUI();
+        needsRetrace = true;
+        updateInspector();
+    }
+}
 
 
 
@@ -4755,23 +4957,11 @@ function setupEventListeners() {
     // 在 Edit Menu 部分
     document.getElementById('menu-undo')?.addEventListener('click', (e) => {
         e.preventDefault();
-        if (historyManager.canUndo()) {
-            historyManager.undo();
-            updateUndoRedoUI();
-            needsRetrace = true; // 撤销/重做通常需要重新计算
-            updateInspector(); // 更新检查器以反映状态变化
-            console.log("执行 Undo 操作");
-        }
+        performUndo();
     });
     document.getElementById('menu-redo')?.addEventListener('click', (e) => {
         e.preventDefault();
-        if (historyManager.canRedo()) {
-            historyManager.redo();
-            updateUndoRedoUI();
-            needsRetrace = true;
-            updateInspector();
-            console.log("执行 Redo 操作");
-        }
+        performRedo();
     });
     // 同时启用菜单项（移除 disabled-link class）
     document.getElementById('menu-undo')?.classList.remove('disabled-link');
@@ -4782,42 +4972,13 @@ function setupEventListeners() {
 
     // --- Undo/Redo Buttons (Top Bar) ---
     document.getElementById('undo-button')?.addEventListener('click', () => {
-        if (historyManager.canUndo()) {
-            historyManager.undo();
-            updateUndoRedoUI();
-            needsRetrace = true;
-            updateInspector(); // Update inspector after undo/redo
-            console.log("执行 Undo (按钮)");
-        }
+        performUndo();
     });
 
     document.getElementById('redo-button')?.addEventListener('click', () => {
-        if (historyManager.canRedo()) {
-            historyManager.redo();
-            updateUndoRedoUI();
-            needsRetrace = true;
-            updateInspector(); // Update inspector after undo/redo
-            console.log("执行 Redo (按钮)");
-        }
+        performRedo();
     });
     // --- End Undo/Redo Buttons ---
-
-    // 保持原来的菜单项监听器，但它们现在是次要的
-    document.getElementById('menu-undo')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (historyManager.canUndo()) { // 调用与按钮相同的逻辑
-            historyManager.undo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Undo (菜单)");
-        }
-    });
-    document.getElementById('menu-redo')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (historyManager.canRedo()) { // 调用与按钮相同的逻辑
-            historyManager.redo(); updateUndoRedoUI(); needsRetrace = true; updateInspector(); console.log("执行 Redo (菜单)");
-        }
-    });
-    // 移除菜单项的 disabled-link 类（如果之前添加了）
-    document.getElementById('menu-undo')?.classList.remove('disabled-link');
-    document.getElementById('menu-redo')?.classList.remove('disabled-link');
 
 
 

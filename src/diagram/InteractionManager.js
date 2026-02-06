@@ -24,6 +24,7 @@ export const ActionType = {
     DELETE_LINK: 'delete_link',
     ADD_LABEL: 'add_label',
     DELETE_LABEL: 'delete_label',
+    MOVE_LABEL: 'move_label',
     MODIFY_STYLE: 'modify_style',
     GROUP: 'group',
     UNGROUP: 'ungroup',
@@ -537,6 +538,18 @@ export class GroupManager {
     }
 
     /**
+     * 恢复分组
+     */
+    restoreGroup(group) {
+        if (!group || !group.id) return null;
+        this.groups.set(group.id, {
+            ...group,
+            itemIds: Array.isArray(group.itemIds) ? [...group.itemIds] : []
+        });
+        return group;
+    }
+
+    /**
      * 序列化
      */
     serialize() {
@@ -720,7 +733,7 @@ export class InteractionManager {
         if (items.length >= 2) {
             const group = this.groups.createGroup(items);
             if (group) {
-                this.recordAction(ActionType.GROUP, { groupId: group.id, itemIds: group.itemIds });
+                this.recordAction(ActionType.GROUP, { groupId: group.id, itemIds: group.itemIds }, { group: { ...group } });
                 console.log(`InteractionManager: Created group with ${items.length} items`);
             }
         }
@@ -736,7 +749,7 @@ export class InteractionManager {
             const group = this.groups.getGroupForItem(itemId);
             if (group) {
                 this.groups.dissolveGroup(group.id);
-                this.recordAction(ActionType.UNGROUP, { groupId: group.id });
+                this.recordAction(ActionType.UNGROUP, { groupId: group.id }, { group: { ...group } });
                 console.log(`InteractionManager: Dissolved group ${group.id}`);
             }
         }

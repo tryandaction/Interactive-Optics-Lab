@@ -173,6 +173,9 @@ export class ConnectionPointManager {
         
         /** @type {number} 吸附距离 */
         this.snapDistance = config.snapDistance || 20;
+
+        /** @type {boolean} 是否启用吸附 */
+        this.snapEnabled = config.snapEnabled !== false;
         
         /** @type {number} 命中测试容差 */
         this.hitTestTolerance = config.hitTestTolerance || 10;
@@ -350,6 +353,15 @@ export class ConnectionPointManager {
         this.visible = visible;
         this.eventBus.emit('connectionpoint:visibility-changed', { visible });
     }
+
+    /**
+     * 设置吸附开关
+     * @param {boolean} enabled
+     */
+    setSnapEnabled(enabled) {
+        this.snapEnabled = enabled;
+        this.eventBus.emit('connectionpoint:snap-changed', { enabled });
+    }
     
     /**
      * 切换标签显示
@@ -391,7 +403,8 @@ export class ConnectionPointManager {
     /**
      * 查找最近的连接点
      */
-    findNearestPoint(position, excludeComponentId = null, maxDistance = null) {
+    findNearestPoint(position, excludeComponentId = null, maxDistance = null, options = {}) {
+        if (!this.snapEnabled && options.ignoreSnap !== true) return null;
         const searchDistance = maxDistance || this.snapDistance;
         let nearest = null;
         let minDist = searchDistance;
@@ -553,6 +566,7 @@ export class ConnectionPointManager {
         const data = {
             visible: this.visible,
             showLabels: this.showLabels,
+            snapEnabled: this.snapEnabled,
             snapDistance: this.snapDistance,
             customPoints: []
         };
@@ -573,6 +587,7 @@ export class ConnectionPointManager {
     deserialize(data) {
         if (data.visible !== undefined) this.visible = data.visible;
         if (data.showLabels !== undefined) this.showLabels = data.showLabels;
+        if (data.snapEnabled !== undefined) this.snapEnabled = data.snapEnabled;
         if (data.snapDistance !== undefined) this.snapDistance = data.snapDistance;
         
         // 恢复自定义连接点

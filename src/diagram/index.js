@@ -70,6 +70,14 @@ export {
     resetDiagramModeIntegration
 } from './DiagramModeIntegration.js';
 
+// ========== 插件管理器 ==========
+export {
+    PluginManager,
+    getPluginManager,
+    resetPluginManager
+} from './plugins/PluginManager.js';
+export { registerSampleDiagramPlugins } from './plugins/SamplePlugins.js';
+
 // ========== 诊断系统 ==========
 export {
     DiagnosticSystem,

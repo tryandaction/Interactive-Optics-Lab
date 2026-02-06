@@ -411,7 +411,12 @@ export class RayLinkManager {
         
         // 配置
         this.enableAutoRouting = config.enableAutoRouting !== false;
+        this.routingStyle = config.routingStyle || ROUTING_STYLES.ORTHOGONAL;
         this.defaultStyle = config.defaultStyle || RAY_LINK_STYLES.DEFAULT;
+
+        if (this.autoRouter?.setStyle) {
+            this.autoRouter.setStyle(this.routingStyle);
+        }
         
         // 统计
         this.stats = {
@@ -419,6 +424,109 @@ export class RayLinkManager {
             createdLinks: 0,
             deletedLinks: 0
         };
+    }
+
+    /**
+     * 设置默认样式
+     */
+    setDefaultStyle(style, merge = true) {
+        if (!style) return;
+        this.defaultStyle = merge ? { ...this.defaultStyle, ...style } : { ...style };
+        this.eventBus?.emit('link:default-style-updated', { style: { ...this.defaultStyle } });
+    }
+
+    /**
+     * 设置自动布线样式
+     */
+    setAutoRoutingStyle(style) {
+        if (!style || !this.autoRouter?.setStyle) return false;
+        this.autoRouter.setStyle(style);
+        this.routingStyle = this.autoRouter.style;
+        this.eventBus?.emit('link:routing-style-updated', { style: this.routingStyle });
+        return true;
+    }
+
+    /**
+     * 应用自动布线到指定链接
+     */
+    applyAutoRouting(linkId, components = null) {
+        const link = this.links.get(linkId);
+        if (!link || !this.enableAutoRouting) return false;
+        const sceneComponents = Array.isArray(components)
+            ? components
+            : (typeof window !== 'undefined' ? (window.components || []) : []);
+        this._syncConnectionPoints(sceneComponents);
+        const routed = this._autoRouteLink(link, sceneComponents);
+        if (routed) {
+            this.eventBus?.emit('link:routed', { linkId: link.id, style: this.routingStyle });
+        }
+        return routed;
+    }
+
+    /**
+     * 批量应用自动布线
+     */
+    applyAutoRoutingToAll(components = null) {
+        if (!this.enableAutoRouting) return 0;
+        const sceneComponents = Array.isArray(components)
+            ? components
+            : (typeof window !== 'undefined' ? (window.components || []) : []);
+        this._syncConnectionPoints(sceneComponents);
+        let count = 0;
+        this.links.forEach(link => {
+            if (this._autoRouteLink(link, sceneComponents)) {
+                count += 1;
+            }
+        });
+        if (count > 0) {
+            this.eventBus?.emit('link:routed-batch', { count, style: this.routingStyle });
+        }
+        return count;
+    }
+
+    /**
+     * 清除所有自动布线路径点
+     */
+    clearAllAutoRouting() {
+        let count = 0;
+        this.links.forEach(link => {
+            if (link.waypoints && link.waypoints.length > 0) {
+                link.waypoints = [];
+                link._cachedPath = null;
+                count += 1;
+            }
+        });
+        if (count > 0) {
+            this.eventBus?.emit('link:route-cleared', { count });
+        }
+        return count;
+    }
+
+    /**
+     * 应用样式到指定链接
+     */
+    applyStyleToLink(linkId, style, merge = true) {
+        const link = this.links.get(linkId);
+        if (!link || !style) return false;
+        link.style = merge ? { ...link.style, ...style } : { ...style };
+        this.eventBus?.emit('link:style-updated', { linkId, style: { ...link.style } });
+        return true;
+    }
+
+    /**
+     * 批量应用样式到所有链接
+     */
+    applyStyleToAll(style, merge = true) {
+        if (!style) return 0;
+        let count = 0;
+        this.links.forEach(link => {
+            link.style = merge ? { ...link.style, ...style } : { ...style };
+            count += 1;
+        });
+        if (count > 0) {
+            this.eventBus?.emit('link:style-batch-updated', { style: { ...style }, count });
+        }
+        return count;
     }
     
     /**
@@ -650,6 +758,13 @@ export class RayLinkManager {
         linksToDelete.forEach(link => this.deleteLink(link.id));
         return linksToDelete.length;
     }
+
+    /**
+     * 兼容旧接口：删除组件相关链接
+     */
+    removeLinksForComponent(componentId) {
+        return this.deleteLinksForComponent(componentId);
+    }
     
     /**
      * 获取统计信息
@@ -775,6 +890,8 @@ export class RayLinkManager {
      */
     serialize() {
         return {
+            enableAutoRouting: this.enableAutoRouting,
+            routingStyle: this.routingStyle,
             defaultStyle: { ...this.defaultStyle },
             links: this.getAllLinks().map(link => link.serialize())
         };
@@ -784,6 +901,15 @@ export class RayLinkManager {
      * 反序列化
      */
     deserialize(data) {
+        if (data.enableAutoRouting !== undefined) {
+            this.enableAutoRouting = !!data.enableAutoRouting;
+        }
+
+        if (data.routingStyle) {
+            this.routingStyle = data.routingStyle;
+            this.autoRouter?.setStyle?.(data.routingStyle);
+        }
+
         if (data.defaultStyle) {
             this.defaultStyle = { ...RAY_LINK_STYLES.DEFAULT, ...data.defaultStyle };
         }
@@ -809,6 +935,70 @@ export class RayLinkManager {
             createdLinks: 0,
             deletedLinks: 0
         };
+    }
+
+    /**
+     * 同步连接点位置
+     * @private
+     */
+    _syncConnectionPoints(components) {
+        if (!this.connectionPointManager || !Array.isArray(components)) return;
+        components.forEach(comp => {
+            const componentId = comp.id || comp.uuid;
+            if (!this.connectionPointManager.getComponentPoints(componentId).length) {
+                this.connectionPointManager.initializeComponentPoints(comp);
+            }
+            this.connectionPointManager.updateComponentPoints(comp);
+        });
+    }
+
+    /**
+     * 对单条链接执行自动布线
+     * @private
+     */
+    _autoRouteLink(link, components) {
+        if (!link || !this.autoRouter || !this.connectionPointManager) return false;
+
+        const sourcePoint = this.connectionPointManager.getPoint(link.sourceComponentId, link.sourcePointId);
+        const targetPoint = this.connectionPointManager.getPoint(link.targetComponentId, link.targetPointId);
+        if (!sourcePoint || !targetPoint) return false;
+
+        const start = {
+            x: sourcePoint.worldPosition.x,
+            y: sourcePoint.worldPosition.y,
+            direction: this._directionFromAngle(sourcePoint.worldDirection)
+        };
+        const end = {
+            x: targetPoint.worldPosition.x,
+            y: targetPoint.worldPosition.y,
+            direction: this._directionFromAngle(targetPoint.worldDirection)
+        };
+
+        const obstacles = Array.isArray(components) ? components : [];
+        const path = this.autoRouter.generatePath(start, end, obstacles) || [];
+        const optimized = this.autoRouter.optimizePath(path);
+        const smoothed = this.autoRouter.cornerRadius > 0
+            ? this.autoRouter.smoothPath(optimized)
+            : optimized;
+
+        link.waypoints = smoothed
+            .filter(point => point.type !== 'start' && point.type !== 'end')
+            .map(point => ({ x: point.x, y: point.y }));
+        link._cachedPath = null;
+        return true;
+    }
+
+    /**
+     * 根据角度推断方向（供自动布线使用）
+     * @private
+     */
+    _directionFromAngle(angleRad) {
+        const dx = Math.cos(angleRad);
+        const dy = Math.sin(angleRad);
+        if (Math.abs(dx) > Math.abs(dy)) {
+            return dx > 0 ? 'right' : 'left';
+        }
+        return dy > 0 ? 'down' : 'up';
     }
     
     /**
