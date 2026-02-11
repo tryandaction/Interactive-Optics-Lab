@@ -1,0 +1,2549 @@
+/* style.css - 统一专业主题系统 v4.0 */
+
+/* 核心原则:
+ * 1. 默认主题为 "白天UI / 深色画布", 确保其在无任何 data 属性时完美显示。
+ * 2. 使用两套独立的 data 属性控制 UI 和画布，JS 负责组合。
+ * 3. 对所有UI元素，特别是输入框，进行细致的样式定义，确保在任何模式下都清晰可读。
+ * 4. 统一间距、圆角、阴影等设计令牌，确保视觉一致性。
+*/
+
+/* --- 0. 设计令牌 (Design Tokens) --- */
+:root {
+    /* 间距系统 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    
+    /* 圆角系统 */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    
+    /* 阴影系统 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.12);
+    
+    /* 过渡动画 */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    
+    /* 字体大小 */
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-md: 13px;
+    --font-lg: 14px;
+    --font-xl: 16px;
+    
+    /* 菜单栏高度 */
+    --menubar-height: 40px;
+}
+
+/* --- 1. 定义颜色变量 --- */
+
+/* 默认主题: 白天UI (Light UI) */
+:root {
+    --primary-color: #0d6efd;
+    --primary-hover: #0b5ed7;
+    --primary-active: #0a58ca;
+    
+    --success-color: #28a745;
+    --warning-color: #f0ad4e;
+    --error-color: #dc3545;
+    --info-color: #17a2b8;
+    
+    --text-color: #212529;
+    --text-color-secondary: #6c757d;
+    --text-color-light: #868e96;
+    --text-color-muted: #adb5bd;
+    
+    --dark-gray: #495057;
+    --secondary-color: #6c757d;
+    
+    --background-color: #f8f9fa;
+    --panel-bg: #ffffff;
+    --border-color: #dee2e6;
+    --border-color-light: #e9ecef;
+    --hover-bg: #e9ecef;
+    --active-bg: #dee2e6;
+    
+    --dropdown-bg: #ffffff;
+    --dropdown-shadow: rgba(0, 0, 0, 0.12);
+    --dropdown-hover-bg: #0d6efd;
+    --dropdown-hover-text: #ffffff;
+    --dropdown-border: #e9ecef;
+
+    --input-bg: #ffffff;
+    --input-text: #212529;
+    --input-border: #ced4da;
+    --input-focus-border: #86b7fe;
+    --input-focus-shadow: rgba(13, 110, 253, 0.25);
+    --input-placeholder: #adb5bd;
+
+    --button-selected-bg: #cfe2ff;
+    --button-selected-border: #b6d4fe;
+    --button-selected-text: #0a58ca;
+    
+    /* 菜单栏专用 */
+    --menu-bg: #ffffff;
+    --menu-border: #e9ecef;
+    --menu-hover-bg: #f1f3f5;
+    --menu-active-bg: #e9ecef;
+    
+    /* 侧边栏专用 */
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e9ecef;
+}
+
+/* 黑夜UI主题 (Dark UI) 的变量覆盖 */
+body[data-ui-theme="dark"] {
+    --primary-color: #3d8bfd;
+    --primary-hover: #5a9cfe;
+    --primary-active: #6ea8fe;
+    
+    --text-color: #e9ecef;
+    --text-color-secondary: #adb5bd;
+    --text-color-light: #868e96;
+    --text-color-muted: #6c757d;
+    
+    --dark-gray: #adb5bd;
+    --secondary-color: #adb5bd;
+    
+    --background-color: #1a1d21;
+    --panel-bg: #212529;
+    --border-color: #343a40;
+    --border-color-light: #495057;
+    --hover-bg: #2c3136;
+    --active-bg: #343a40;
+
+    --dropdown-bg: #2c3136;
+    --dropdown-shadow: rgba(0, 0, 0, 0.35);
+    --dropdown-border: #495057;
+    
+    --input-bg: #343a40;
+    --input-text: #f8f9fa;
+    --input-border: #495057;
+    --input-focus-border: #3d8bfd;
+    --input-focus-shadow: rgba(61, 139, 253, 0.3);
+    --input-placeholder: #6c757d;
+
+    --button-selected-bg: #1a4480;
+    --button-selected-border: #3d8bfd;
+    --button-selected-text: #ffffff;
+    
+    /* 菜单栏专用 */
+    --menu-bg: #212529;
+    --menu-border: #343a40;
+    --menu-hover-bg: #2c3136;
+    --menu-active-bg: #343a40;
+    
+    /* 侧边栏专用 */
+    --sidebar-bg: #212529;
+    --sidebar-border: #343a40;
+    
+    /* 阴影调整 */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* 默认画布主题: 深色画布 (Dark Canvas) */
+:root {
+    --canvas-bg: #1A2027;
+    --canvas-grid: rgba(255, 255, 255, 0.08);
+    --canvas-grid-major: rgba(255, 255, 255, 0.15);
+}
+
+/* 浅色画布 (Light Canvas) 的变量覆盖 */
+body[data-canvas-theme="light"] {
+    --canvas-bg: #ffffff;
+    --canvas-grid: rgba(0, 0, 0, 0.08);
+    --canvas-grid-major: rgba(0, 0, 0, 0.15);
+}
+
+/* --- 2. 全局基础样式 --- */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: var(--font-lg);
+    line-height: 1.5;
+    overflow: hidden;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    padding-top: var(--menubar-height);
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* --- 3. 面板和容器基础样式 --- */
+#top-menubar, #toolbar, #inspector {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color);
+    transition: background-color var(--transition-normal), border-color var(--transition-normal);
+}
+
+#opticsCanvas {
+    background-color: var(--canvas-bg);
+    transition: background-color var(--transition-normal);
+}
+
+/* --- 4. 顶部菜单栏样式 --- */
+#top-menubar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--menubar-height);
+    padding: 0 var(--spacing-md);
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    z-index: 10050;
+}
+
+.menu-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* 下拉菜单按钮 */
+.dropbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-lg);
+    font-weight: 500;
+    color: var(--text-color);
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.dropbtn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.dropbtn:hover {
+    background-color: var(--hover-bg);
+}
+
+.dropbtn:active {
+    background-color: var(--active-bg);
+}
+
+/* 下拉菜单容器 */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+/* 下拉菜单内容 */
+.dropdown-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 220px;
+    margin-top: 4px;
+    padding: var(--spacing-sm) 0;
+    background-color: var(--dropdown-bg);
+    border: 1px solid var(--dropdown-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-dropdown);
+    z-index: 10100;
+    overflow: hidden;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+/* 下拉菜单项 */
+.dropdown-content a {
+    display: block;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-md);
+    color: var(--text-color);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.dropdown-content a:hover {
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.dropdown-content a.disabled-link {
+    color: var(--text-color-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent;
+    color: var(--text-color-muted);
+}
+
+/* 下拉菜单分隔线 */
+.dropdown-content hr {
+    margin: var(--spacing-xs) 0;
+    border: none;
+    border-top: 1px solid var(--border-color-light);
+}
+
+/* 下拉菜单内的表单控件 */
+.dropdown-content .prop {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.dropdown-content .prop label {
+    font-size: var(--font-md);
+    color: var(--text-color-secondary);
+    white-space: nowrap;
+    margin-right: auto;
+}
+
+.dropdown-content .prop select {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px var(--spacing-sm);
+    font-size: var(--font-md);
+    color: var(--input-text);
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.dropdown-content .prop select:hover {
+    border-color: var(--primary-color);
+}
+
+.dropdown-content .prop select:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+/* --- 5. 输入控件统一样式 --- */
+.prop input[type="text"], .prop input[type="number"],
+.prop select, .notes-prop textarea, #combined-theme-switcher {
+    padding: 6px var(--spacing-sm);
+    font-size: var(--font-md);
+    color: var(--input-text);
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-normal);
+}
+
+.prop input::placeholder, .notes-prop textarea::placeholder {
+    color: var(--input-placeholder);
+}
+
+.prop input:hover, .prop select:hover, .notes-prop textarea:hover {
+    border-color: var(--text-color-secondary);
+}
+
+.prop input:focus, .prop select:focus, .notes-prop textarea:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+}
+
+.prop label { 
+    color: var(--text-color-secondary);
+    font-size: var(--font-md);
+}
+
+h4 { 
+    color: var(--text-color-secondary);
+    font-size: var(--font-lg);
+    font-weight: 600;
+}
+
+/* 下拉选项样式 */
+#combined-theme-switcher option,
+.prop select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    padding: var(--spacing-sm);
+}
+
+/* --- 6. 菜单栏图标按钮 --- */
+.menubar-button {
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    margin-left: 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.menubar-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: 0 2px;
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--primary-color);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.menubar-icon-button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.menubar-icon-button:hover {
+    background-color: var(--hover-bg);
+    color: var(--primary-hover);
+}
+
+.menubar-icon-button:active {
+    background-color: var(--active-bg);
+}
+
+.menubar-icon-button.disabled {
+    color: var(--text-color-muted) !important;
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: transparent !important;
+}
+
+/* 菜单栏分隔线 */
+.menubar-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    margin: 0 var(--spacing-sm);
+    align-self: center;
+}
+
+/* 菜单栏弹性空间 */
+.menubar-spacer {
+    flex-grow: 1;
+}
+
+/* --- 7. 主内容区域布局 --- */
+#main-content {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+    height: calc(100vh - var(--menubar-height));
+}
+
+/* --- 8. 左侧工具栏 --- */
+#toolbar {
+    width: 180px;
+    padding: var(--spacing-md) var(--spacing-sm);
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    height: 100%;
+    position: relative;
+    z-index: 50;
+}
+
+#toolbar h4 {
+    margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+    padding-bottom: var(--spacing-xs);
+    font-size: var(--font-md);
+    font-weight: 600;
+    color: var(--text-color-secondary);
+    border-bottom: 1px solid var(--border-color-light);
+    width: calc(100% - 10px);
+    margin-left: 5px;
+}
+
+#toolbar h4:first-of-type {
+    margin-top: 0;
+}
+
+/* 工具栏图标按钮 */
+#toolbar button.icon-button {
+    width: calc(50% - 8px);
+    margin: 4px;
+    padding: var(--spacing-sm) 5px;
+    font-size: var(--font-xs);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 55px;
+    line-height: 1.3;
+    color: var(--text-color);
+    vertical-align: top;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+#toolbar button.icon-button:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-color-secondary);
+    transform: translateY(-1px);
+}
+
+#toolbar button.icon-button:active {
+    transform: translateY(0);
+}
+
+#toolbar button.icon-button svg {
+    width: 20px;
+    height: 20px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    color: var(--text-color-secondary);
+    transition: color var(--transition-fast);
+}
+
+#toolbar button.icon-button:hover svg {
+    color: var(--primary-color);
+}
+
+#toolbar button.icon-button .toolbar-button-text {
+    display: block;
+    white-space: normal;
+    overflow: hidden;
+    max-height: 2.5em;
+}
+
+/* 选中状态 */
+#toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+    font-weight: 600;
+}
+
+#toolbar button.selected-tool svg {
+    color: var(--button-selected-text);
+}
+
+/* 黑夜主题下的工具栏按钮 */
+body[data-ui-theme="dark"] #toolbar button.icon-button {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-text);
+}
+
+body[data-ui-theme="dark"] #toolbar button.icon-button:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-color-secondary);
+}
+
+body[data-ui-theme="dark"] #toolbar button.icon-button svg {
+    color: var(--text-color-secondary);
+}
+
+body[data-ui-theme="dark"] #toolbar button.icon-button:hover svg {
+    color: var(--primary-color);
+}
+
+body[data-ui-theme="dark"] #toolbar button.selected-tool {
+    background-color: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+    color: var(--button-selected-text);
+}
+
+body[data-ui-theme="dark"] #toolbar button.selected-tool svg {
+    color: var(--button-selected-text);
+}
+
+/* 专业图标模式样式 */
+#toolbar button.icon-button .professional-icon-preview {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+    display: none;
+    image-rendering: crisp-edges;
+}
+
+#toolbar button.icon-button.professional-icon .professional-icon-preview {
+    display: block;
+}
+
+#toolbar button.icon-button.professional-icon svg {
+    display: none !important;
+}
+
+/* 绘图模式下的工具栏样式 */
+body[data-app-mode="diagram"] #toolbar button.icon-button {
+    border-color: var(--primary-color-light, #4a90d9);
+}
+
+body[data-app-mode="diagram"] #toolbar button.icon-button:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 4px rgba(0, 120, 212, 0.3);
+}
+
+body[data-app-mode="diagram"] #toolbar button.selected-tool {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* 工具栏分隔线 */
+hr.thin-hr {
+    border: none;
+    border-top: 1px dashed var(--border-color-light);
+    margin: var(--spacing-sm) 5px;
+    width: calc(100% - 10px);
+}
+
+/* --- 9. 中间模拟区域 --- */
+#simulation-area {
+    flex-grow: 1;
+    position: relative;
+    background-color: var(--dark-gray);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+#opticsCanvas {
+    display: block;
+    cursor: default;
+}
+
+#mode-hint {
+    position: absolute;
+    top: var(--spacing-md);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    font-style: italic;
+    color: #f8f9fa;
+    background-color: rgba(44, 62, 80, 0.85);
+    border-radius: var(--radius-sm);
+    z-index: 10;
+    pointer-events: none;
+    display: none;
+    backdrop-filter: blur(4px);
+}
+
+/* --- 10. 右侧检查器面板 --- */
+#inspector {
+    width: 280px;
+    padding: 0;
+    background-color: var(--sidebar-bg);
+    border-left: 1px solid var(--sidebar-border);
+    overflow: hidden;
+    flex-shrink: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 标签页容器 */
+.tab-container {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    background-color: var(--panel-bg);
+}
+
+.tab-button {
+    flex-grow: 1;
+    padding: var(--spacing-sm) 5px;
+    font-size: var(--font-md);
+    font-weight: 500;
+    color: var(--text-color-secondary);
+    background-color: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    text-align: center;
+    transition: color var(--transition-fast), border-bottom-color var(--transition-fast);
+    margin-bottom: -1px;
+    outline: none;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* 标签页内容 */
+.tab-content {
+    padding: var(--spacing-md);
+    flex-grow: 1;
+    overflow-y: auto;
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.tab-content h4 {
+    margin-top: 5px;
+    margin-bottom: var(--spacing-md);
+}
+
+/* 检查器属性行 */
+.tab-content .prop {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    min-height: 28px;
+}
+
+.tab-content .prop label {
+    width: 100px;
+    flex-shrink: 0;
+    font-size: var(--font-md);
+    color: var(--text-color-secondary);
+    padding-right: var(--spacing-sm);
+    text-align: right;
+}
+
+.tab-content .prop input[type="text"],
+.tab-content .prop input[type="number"],
+.tab-content .prop input[type="range"],
+.tab-content .prop select {
+    flex-grow: 1;
+    padding: 5px var(--spacing-sm);
+    font-size: var(--font-md);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    height: 28px;
+    min-width: 50px;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tab-content .prop input:focus,
+.tab-content .prop select:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+/* 黑夜主题下的检查器输入框 */
+body[data-ui-theme="dark"] .tab-content .prop input[type="text"],
+body[data-ui-theme="dark"] .tab-content .prop input[type="number"],
+body[data-ui-theme="dark"] .tab-content .prop input[type="range"],
+body[data-ui-theme="dark"] .tab-content .prop select {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+
+body[data-ui-theme="dark"] .tab-content .prop input::placeholder,
+body[data-ui-theme="dark"] .tab-content .prop input[type="number"]::placeholder,
+body[data-ui-theme="dark"] .notes-prop textarea::placeholder {
+    color: var(--input-placeholder);
+}
+
+body[data-ui-theme="dark"] .tab-content .prop select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+}
+
+body[data-ui-theme="dark"] #inspector select {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+
+body[data-ui-theme="dark"] #inspector select option {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+}
+
+body[data-ui-theme="dark"] #inspector textarea {
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border-color: var(--input-border);
+}
+
+/* 复选框样式 */
+.tab-content .prop input[type="checkbox"] {
+    height: auto;
+    margin-left: 5px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
+
+/* 滑块样式 */
+.tab-content .prop input[type="range"] {
+    padding: 0;
+    height: auto;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
+
+/* 下拉选择框箭头 */
+.tab-content .prop select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236c757d%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20128c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4l128-128c3.6-3.6%205.4-7.8%205.4-12.8%200-5-1.8-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 8px 10px;
+    padding-right: 25px;
+}
+
+/* 数值显示 */
+.tab-content .prop span {
+    font-size: var(--font-sm);
+    margin-left: var(--spacing-sm);
+    color: var(--text-color-secondary);
+    white-space: nowrap;
+    line-height: 28px;
+}
+
+/* 只读/禁用输入框 */
+.readonly-or-disabled {
+    background-color: var(--hover-bg) !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+    border-color: var(--border-color);
+}
+
+.readonly-or-disabled:focus {
+    box-shadow: none;
+    border-color: var(--border-color);
+}
+
+/* 错误文本 */
+.error-text {
+    color: var(--error-color);
+    font-weight: bold;
+}
+
+/* 标签页内按钮 */
+.tab-content button {
+    width: auto;
+    padding: 6px var(--spacing-md);
+    font-size: var(--font-md);
+    margin-top: var(--spacing-sm);
+    margin-right: var(--spacing-sm);
+    display: inline-block;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* 删除按钮 */
+#delete-btn {
+    display: block;
+    width: calc(100% - 30px);
+    margin: var(--spacing-xl) var(--spacing-md) 0 var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-md);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+#delete-btn:hover:not(:disabled) {
+    background-color: #f1c0c5;
+}
+
+#delete-btn:disabled {
+    background-color: var(--hover-bg);
+    border-color: var(--border-color);
+    color: var(--text-color-muted);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* 占位文本 */
+.placeholder-text {
+    color: var(--text-color-secondary);
+    font-style: italic;
+    text-align: center;
+    margin-top: var(--spacing-xl);
+}
+
+.scene-actions button {
+    margin-top: 15px;
+}
+
+/* Buttons below scene list */
+
+
+/* --- Modal Styles (Keep existing, maybe slight adjustments) --- */
+.modal-overlay {
+    /* Keep position fixed etc. */
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    /* Slightly darker overlay */
+    display: none;
+    /* Use JS to control display flex/none */
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+    /* Higher z-index */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.2s ease;
+}
+
+.modal-content {
+    /* General modal content box */
+    background-color: var(--panel-bg);
+    color: var(--text-color);
+    padding: 25px 30px;
+    border-radius: 6px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.25);
+    min-width: 320px;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    transform: translateY(-20px);
+    transition: transform 0.2s ease-out, background-color 0.2s ease, color 0.2s ease;
+}
+
+.modal-overlay.visible .modal-content {
+    transform: translateY(0);
+}
+
+/* 未保存更改对话框样式 */
+.unsaved-changes-dialog {
+    text-align: center;
+}
+
+.unsaved-changes-dialog .dialog-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.unsaved-changes-dialog h3 {
+    margin: 0 0 15px 0;
+    color: var(--text-color);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.unsaved-changes-dialog p {
+    margin: 0 0 10px 0;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.unsaved-changes-dialog .dialog-hint {
+    color: var(--text-color-secondary);
+    font-size: 13px;
+    margin-bottom: 20px;
+}
+
+.unsaved-changes-dialog .dialog-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.unsaved-changes-dialog .btn-discard {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.unsaved-changes-dialog .btn-discard:hover {
+    background-color: var(--hover-bg);
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.unsaved-changes-dialog .btn-save {
+    background-color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    color: white;
+}
+
+.unsaved-changes-dialog .btn-save:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--text-color);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 10px;
+    font-size: 18px;
+}
+
+.modal-close-btn {
+    /* Keep close button style */
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 26px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+}
+
+.modal-close-btn:hover {
+    color: #333;
+}
+
+/* Style for User Guide Modal */
+#guide-modal .modal-content {
+    max-width: 700px;
+}
+
+#guide-content {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-color);
+}
+
+#guide-content h4 {
+    color: var(--text-color);
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+#guide-content h4:first-child {
+    margin-top: 0;
+}
+
+#guide-content p {
+    color: var(--text-color);
+    margin-bottom: 12px;
+}
+
+#guide-content ul {
+    padding-left: 25px;
+    color: var(--text-color);
+}
+
+#guide-content li {
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+#guide-content strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+/* Scrollbar Styling (Keep existing) */
+/* ::-webkit-scrollbar ... */
+
+/* Cursor Styles (Keep existing) */
+/* canvas.cursor-* ... */
+
+
+/* Refined style for icon buttons in the menubar */
+.menubar-icon-button {
+    background-color: transparent;
+    border: none;
+    padding: 6px;
+    /* Slightly more padding for icons */
+    margin: 0 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    vertical-align: middle;
+    line-height: 1;
+    color: #4a80c2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menubar-icon-button svg {
+    display: block;
+    /* Ensure SVG fits well */
+}
+
+/* Keep the :hover and .disabled styles as defined previously */
+
+.menubar-icon-button:hover {
+    background-color: var(--menu-hover-bg);
+    color: #355f99;
+    /* Slightly darker blue on hover */
+}
+
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
+.menubar-icon-button.disabled {
+    color: #adb5bd !important;
+    /* Force disabled color */
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+.menubar-icon-button svg {
+    display: block;
+    /* Remove extra space below SVG */
+}
+
+/* --- Styles for Disabled UI Elements --- */
+
+/* Disabled state for icon buttons in menubar (Undo/Redo) */
+.menubar-icon-button.disabled {
+    color: #adb5bd;
+    /* Light gray icon */
+    opacity: 0.5;
+    /* Make it visually faded */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Prevent hover effect */
+}
+
+/* Disabled state for menu dropdown links (Undo/Redo) */
+.dropdown-content a.disabled-link {
+    color: #adb5bd;
+    /* Light gray text */
+    cursor: not-allowed;
+    /* Show disabled cursor */
+    background-color: transparent !important;
+    /* Ensure transparent background, override hover */
+    opacity: 0.6;
+    /* Optional: further fade */
+}
+
+.dropdown-content a.disabled-link:hover {
+    background-color: transparent !important;
+    /* Explicitly disable hover */
+}
+
+/* --- Menubar Divider --- */
+.menubar-divider {
+    width: 1px;
+    height: 20px;
+    /* Adjust height as needed */
+    background-color: var(--menu-border);
+    /* Use menu border color */
+    margin: 0 10px;
+    /* Add horizontal spacing around divider */
+    align-self: center;
+    /* Center vertically */
+}
+
+/* --- Menubar Spacer --- */
+.menubar-spacer {
+    flex-grow: 1;
+}
+
+/* --- Scene Path Display --- */
+.scene-path-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-color-light);
+    max-width: 450px;
+    min-width: 150px;
+    overflow: hidden;
+    cursor: default;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.scene-path-container:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.scene-path-container.has-scene {
+    color: var(--text-color);
+    background-color: var(--input-bg);
+}
+
+.scene-path-container.is-modified {
+    border-color: var(--warning-color, #f0ad4e);
+    background-color: rgba(240, 173, 78, 0.08);
+    box-shadow: 0 0 0 2px rgba(240, 173, 78, 0.15);
+}
+
+.scene-path-container.is-modified:hover {
+    background-color: rgba(240, 173, 78, 0.12);
+}
+
+.scene-modified-indicator {
+    color: var(--warning-color, #f0ad4e);
+    font-size: 12px;
+    font-weight: bold;
+    animation: pulse-dot 1.2s ease-in-out infinite;
+    text-shadow: 0 0 4px var(--warning-color, #f0ad4e);
+}
+
+@keyframes pulse-dot {
+    0%, 100% { 
+        opacity: 1; 
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.5; 
+        transform: scale(0.9);
+    }
+}
+
+@keyframes pulse-hint {
+    0%, 100% { 
+        opacity: 0.8; 
+    }
+    50% { 
+        opacity: 1;
+        color: #ff9800;
+    }
+}
+
+.scene-path-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.scene-path-text {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'Consolas', 'Monaco', 'SF Mono', monospace;
+    font-size: 12px;
+}
+
+.scene-path-project {
+    color: var(--text-color-secondary);
+    font-weight: 400;
+}
+
+.scene-path-separator {
+    color: var(--text-color-light);
+    opacity: 0.5;
+    margin: 0 3px;
+    font-weight: 300;
+}
+
+.scene-path-name {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.scene-save-hint {
+    font-size: 10px;
+    color: var(--warning-color, #f0ad4e);
+    white-space: nowrap;
+    margin-left: 6px;
+    opacity: 0.9;
+    font-weight: 500;
+    padding: 2px 6px;
+    background-color: rgba(240, 173, 78, 0.15);
+    border-radius: 3px;
+}
+
+/* 黑夜主题下的场景路径显示 */
+body[data-ui-theme="dark"] .scene-path-container {
+    background-color: var(--panel-bg);
+    border-color: var(--border-color);
+}
+
+body[data-ui-theme="dark"] .scene-path-container:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+body[data-ui-theme="dark"] .scene-path-container.has-scene {
+    background-color: var(--input-bg);
+}
+
+body[data-ui-theme="dark"] .scene-path-container.is-modified {
+    border-color: var(--warning-color, #f0ad4e);
+    background-color: rgba(240, 173, 78, 0.1);
+}
+
+body[data-ui-theme="dark"] .scene-path-project {
+    color: var(--text-color-secondary);
+}
+
+body[data-ui-theme="dark"] .scene-path-name {
+    color: var(--text-color);
+}
+
+body[data-ui-theme="dark"] .scene-save-hint {
+    background-color: rgba(240, 173, 78, 0.2);
+}
+
+/* .menu-text {
+    margin-left: 6px;
+} */
+
+/* 场景管理样式 */
+#scenes-tab .scene-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+#scenes-tab .scene-search {
+    flex-grow: 1;
+    min-width: 150px;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--input-text);
+    font-size: 13px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#scenes-tab .scene-search:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#scenes-tab .scene-category-filter,
+#scenes-tab .scene-sort {
+    min-width: 120px;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--input-text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+#scenes-tab .scene-category-filter:focus,
+#scenes-tab .scene-sort:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+#saved-scenes-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin: 4px 0;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.saved-scene-item:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.saved-scene-item.selected {
+    background: var(--button-selected-bg);
+    border-color: var(--button-selected-border);
+}
+
+.scene-item-content {
+    flex-grow: 1;
+    cursor: pointer;
+    min-width: 0; /* 允许内容收缩 */
+}
+
+.scene-name {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-color);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.scene-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-color-secondary);
+}
+
+.scene-category {
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.scene-date {
+    opacity: 0.8;
+}
+
+.scene-tags {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.scene-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.scene-action-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.scene-action-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.scene-action-btn.favorite-btn {
+    padding: 6px;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scene-action-btn.favorite-btn.active {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #000;
+}
+
+.scene-action-btn.load-btn {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.scene-action-btn.load-btn:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.scene-action-btn.edit-btn {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+.scene-action-btn.edit-btn:hover {
+    background: #138496;
+    border-color: #138496;
+}
+
+.scene-action-btn.delete-btn {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.scene-action-btn.delete-btn:hover {
+    background: #c82333;
+    border-color: #c82333;
+}
+
+.scene-details {
+    padding: 12px;
+    margin-top: 15px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+}
+
+.scene-details-content {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.scene-details-content p {
+    margin: 6px 0;
+    color: #ccc;
+}
+
+.scene-details-content strong {
+    color: #fff;
+    font-weight: 500;
+}
+
+.component-type-list {
+    margin: 8px 0;
+    padding-left: 20px;
+    color: #aaa;
+}
+
+.recycle-bin {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #444;
+}
+
+.recycle-bin h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ccc;
+    font-size: 14px;
+}
+
+#recycle-count {
+    color: #888;
+    font-size: 13px;
+    font-weight: normal;
+}
+
+.deleted-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin: 4px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.delete-date {
+    font-size: 0.85em;
+    color: #888;
+    margin: 0 8px;
+}
+
+.restore-btn {
+    padding: 4px 10px;
+    border: 1px solid #446644;
+    border-radius: 3px;
+    background: #335533;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.restore-btn:hover {
+    background: #446644;
+}
+
+.recycle-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+#deleted-scenes-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background: #1a1a1a;
+}
+
+.scene-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.scene-actions button {
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.scene-actions .primary-btn {
+    background: #2c4f7c;
+    border: 1px solid #4a77aa;
+    color: white;
+}
+
+.scene-actions .primary-btn:hover {
+    background: #3a5f8c;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+.error-text {
+    color: #dc3545;
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* --- Styles for Scene Tab Info Box --- */
+.scene-tab-info {
+    font-size: 12px;
+    color: var(--secondary-color);
+    background-color: #f8f9fa;
+    /* Light background */
+    border: 1px solid #e9ecef;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    /* Space below the info box */
+    line-height: 1.4;
+}
+
+/* --- Styles for Saved Scene List Items --- */
+#saved-scenes-list {
+    max-height: 300px;
+    /* Or adjust as needed */
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px;
+    /* Add padding inside the list */
+}
+
+.saved-scene-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    /* Adjust padding */
+    margin-bottom: 4px;
+    /* Space between items */
+    background-color: #fff;
+    border: 1px solid transparent;
+    /* Start transparent */
+    border-radius: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
+    cursor: pointer;
+    /* Indicate clickable name */
+}
+
+.saved-scene-item:hover {
+    background-color: #f1f3f5;
+    /* Light hover */
+    border-color: #dee2e6;
+}
+
+.saved-scene-item span {
+    /* Style for the scene name */
+    flex-grow: 1;
+    /* Allow name to take space */
+    margin-right: 10px;
+    /* Space before delete button */
+    font-size: 13.5px;
+}
+
+.saved-scene-item button.delete-btn {
+    /* Style specific for delete button in list */
+    padding: 3px 8px;
+    /* Smaller button */
+    font-size: 11px;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+    border-radius: 3px;
+    flex-shrink: 0;
+    /* Prevent button shrinking */
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.saved-scene-item button.delete-btn:hover {
+    opacity: 1.0;
+    background-color: #f1c0c5;
+}
+
+/* --- Inspector Info Header --- */
+.inspector-info-header {
+    padding: 5px 0 15px 0;
+    margin: 0;
+}
+
+.inspector-info-header h3 {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 8px 0;
+}
+
+.component-function {
+    font-size: 12.5px;
+    color: var(--secondary-color);
+    text-align: center;
+    font-style: italic;
+    margin: 0 10px 15px 10px;
+    line-height: 1.4;
+}
+
+.notes-prop {
+    flex-direction: column;
+    align-items: flex-start; /* Align label to the left */
+}
+
+.notes-prop label {
+    text-align: left;
+    width: auto;
+    margin-bottom: 5px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.notes-prop textarea {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+    padding: 5px 8px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.notes-prop textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+/* Ensure notes label overrides default inspector label alignment */
+.tab-content .prop.notes-prop label {
+    width: auto !important;
+    text-align: left !important;
+}
+
+/* --- 项目管理样式 --- */
+.project-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    background: var(--panel-bg);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.project-item[data-level] {
+    margin-left: calc(var(--level) * 20px);
+    border-left: 3px solid var(--primary-color);
+    padding-left: 12px;
+}
+
+.project-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.project-info {
+    flex: 1;
+    cursor: pointer;
+}
+
+.project-name {
+    font-weight: bold;
+    font-size: 16px;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.project-meta {
+    font-size: 12px;
+    color: var(--text-color-light);
+    margin-bottom: 4px;
+}
+
+.project-description {
+    font-size: 14px;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+
+.project-stats {
+    font-size: 12px;
+    color: var(--text-color-secondary);
+}
+
+.project-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.project-action-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--input-bg);
+    color: var(--text-color);
+}
+
+.project-action-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.project-action-btn.load-btn {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.project-action-btn.load-btn:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.project-action-btn.create-scene-btn {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.project-action-btn.create-scene-btn:hover {
+    background: #218838;
+    border-color: #1e7e34;
+}
+
+.project-action-btn.edit-btn {
+    background: #17a2b8;
+    color: white;
+    border-color: #17a2b8;
+}
+
+.project-action-btn.edit-btn:hover {
+    background: #138496;
+    border-color: #138496;
+}
+
+.project-action-btn.delete-btn {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.project-action-btn.delete-btn:hover {
+    background: #c82333;
+    border-color: #c82333;
+}
+
+/* --- 通知系统样式 --- */
+.notification {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 10000;
+    min-width: 300px;
+    max-width: 400px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification.success {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+    color: #155724;
+}
+
+.notification.error {
+    background: #f8d7da;
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
+
+.notification.info {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+    color: #0c5460;
+}
+
+.notification-icon {
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.notification-message {
+    flex: 1;
+}
+
+/* --- 加载指示器样式 --- */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: var(--text-color-secondary);
+    font-size: var(--font-lg);
+    font-weight: 500;
+}
+
+
+/* --- 专业绘图模式样式 --- */
+
+/* 模式切换器容器 */
+#mode-switcher-container {
+    display: flex;
+    align-items: center;
+}
+
+/* 绘图模式工具栏容器 */
+.diagram-toolbar-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+/* 绘图模式专属工具栏 */
+.diagram-mode-toolbar {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.diagram-mode-toolbar .toolbar-group {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: 0 var(--spacing-sm);
+    border-right: 1px solid var(--border-color);
+}
+
+.diagram-mode-toolbar .toolbar-group:last-child {
+    border-right: none;
+}
+
+.diagram-mode-toolbar .toolbar-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px var(--spacing-sm);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    font-size: var(--font-xs);
+    transition: all var(--transition-fast);
+}
+
+.diagram-mode-toolbar .toolbar-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.diagram-mode-toolbar .toolbar-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.diagram-mode-toolbar .toolbar-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* 模式特定元素显示控制 */
+body[data-app-mode="simulation"] .diagram-only {
+    display: none !important;
+}
+
+body[data-app-mode="diagram"] .simulation-only {
+    display: none !important;
+}
+
+/* 绘图模式下的画布样式 */
+body[data-app-mode="diagram"] #opticsCanvas {
+    cursor: default;
+}
+
+/* 对齐菜单样式 */
+.align-menu {
+    background: var(--dropdown-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-dropdown);
+    z-index: 10001;
+    min-width: 150px;
+}
+
+.align-menu button {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: none;
+    border: none;
+    color: var(--text-color);
+    text-align: left;
+    cursor: pointer;
+    font-size: var(--font-md);
+    transition: background-color var(--transition-fast);
+}
+
+.align-menu button:hover {
+    background: var(--hover-bg);
+}
+
+.align-menu hr {
+    margin: var(--spacing-xs) 0;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 导出对话框样式 */
+.export-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.export-dialog {
+    background: var(--panel-bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow: auto;
+}
+
+.export-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.export-dialog-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-color);
+}
+
+.export-dialog-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-color-secondary);
+    padding: 0;
+    line-height: 1;
+}
+
+.export-dialog-close:hover {
+    color: var(--text-color);
+}
+
+.export-dialog-body {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+}
+
+.export-preview {
+    flex: 1;
+    min-width: 300px;
+    background: var(--canvas-bg);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+}
+
+.export-preview img {
+    max-width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+}
+
+.export-options {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.export-option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.export-option-group label {
+    font-size: 13px;
+    color: var(--text-color-secondary);
+    font-weight: 500;
+}
+
+.export-option-group select,
+.export-option-group input {
+    padding: 8px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--input-text);
+    font-size: 14px;
+}
+
+.export-option-group select:focus,
+.export-option-group input:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+.export-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.export-dialog-footer button {
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.export-dialog-footer .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.export-dialog-footer .btn-cancel:hover {
+    background: var(--hover-bg);
+}
+
+.export-dialog-footer .btn-export {
+    background: var(--primary-color);
+    border: none;
+    color: #fff;
+}
+
+.export-dialog-footer .btn-export:hover {
+    background: var(--primary-hover);
+}
+
+/* --- 11. 模式切换器样式 --- */
+.mode-switcher {
+    display: inline-flex;
+    align-items: center;
+    background: var(--panel-bg);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-color-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-md);
+    font-family: inherit;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.mode-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.mode-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+body[data-ui-theme="dark"] .mode-btn.active {
+    box-shadow: 0 2px 4px rgba(61, 139, 253, 0.4);
+}
+
+.mode-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+.mode-btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mode-btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.mode-btn-label {
+    font-weight: 500;
+}
+
+/* 紧凑模式 */
+.mode-switcher.compact .mode-btn {
+    padding: 4px 8px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+    .mode-btn-label {
+        display: none;
+    }
+    
+    .mode-btn {
+        padding: 6px 8px;
+    }
+}
+
+/* --- 12. 滚动条美化 --- */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color-secondary);
+}
+
+/* 黑夜主题滚动条 */
+body[data-ui-theme="dark"]::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+}
+
+body[data-ui-theme="dark"]::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color-secondary);
+}
+
+/* --- 13. 响应式布局 --- */
+@media (max-width: 1200px) {
+    #toolbar {
+        width: 160px;
+    }
+    
+    #inspector {
+        width: 260px;
+    }
+}
+
+@media (max-width: 992px) {
+    #toolbar {
+        width: 140px;
+    }
+    
+    #toolbar button.icon-button {
+        width: calc(100% - 8px);
+    }
+    
+    #inspector {
+        width: 240px;
+    }
+    
+    .scene-path-container {
+        max-width: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    #toolbar {
+        width: 60px;
+        padding: var(--spacing-sm) var(--spacing-xs);
+    }
+    
+    #toolbar h4 {
+        display: none;
+    }
+    
+    #toolbar button.icon-button {
+        width: calc(100% - 4px);
+        margin: 2px;
+        padding: var(--spacing-sm) 2px;
+    }
+    
+    #toolbar button.icon-button .toolbar-button-text {
+        display: none;
+    }
+    
+    #inspector {
+        width: 200px;
+    }
+    
+    .tab-button {
+        padding: var(--spacing-sm) 2px;
+        font-size: var(--font-sm);
+    }
+    
+    .scene-path-container {
+        display: none;
+    }
+    
+    .menu-text {
+        display: none;
+    }
+    
+    .dropbtn {
+        padding: var(--spacing-sm);
+    }
+}
+
+/* --- 14. 焦点可见性 (无障碍) --- */
+:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* --- 15. 打印样式 --- */
+@media print {
+    #top-menubar,
+    #toolbar,
+    #inspector {
+        display: none !important;
+    }
+    
+    #simulation-area {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+    
+    body {
+        padding-top: 0;
+    }
+}
+
+/* --- 16. 动画减弱 (无障碍) --- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

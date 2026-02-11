@@ -1,0 +1,229 @@
+{
+  "name": "饱和吸收光谱装置",
+  "description": "铷原子饱和吸收光谱实验装置光路图",
+  "version": "1.0",
+  "diagramMode": true,
+  "components": [
+    {
+      "id": "laser1",
+      "type": "LaserSource",
+      "pos": { "x": 80, "y": 250 },
+      "angle": 0,
+      "wavelength": 780,
+      "power": 20
+    },
+    {
+      "id": "hwp1",
+      "type": "HalfWavePlate",
+      "pos": { "x": 160, "y": 250 },
+      "angle": 0
+    },
+    {
+      "id": "pbs1",
+      "type": "PBS",
+      "pos": { "x": 240, "y": 250 },
+      "angle": 0
+    },
+    {
+      "id": "mirror1",
+      "type": "Mirror",
+      "pos": { "x": 240, "y": 150 },
+      "angle": 0.785
+    },
+    {
+      "id": "cell1",
+      "type": "AtomicCell",
+      "pos": { "x": 400, "y": 150 },
+      "angle": 0
+    },
+    {
+      "id": "mirror2",
+      "type": "Mirror",
+      "pos": { "x": 560, "y": 150 },
+      "angle": 2.356
+    },
+    {
+      "id": "pd1",
+      "type": "Photodiode",
+      "pos": { "x": 400, "y": 350 },
+      "angle": 1.571
+    },
+    {
+      "id": "bs1",
+      "type": "BeamSplitter",
+      "pos": { "x": 320, "y": 250 },
+      "angle": 0.785,
+      "reflectivity": 0.1
+    },
+    {
+      "id": "pd2",
+      "type": "Photodiode",
+      "pos": { "x": 320, "y": 350 },
+      "angle": 1.571
+    }
+  ],
+  "rays": [
+    {
+      "id": "ray_main",
+      "pathPoints": [
+        { "x": 110, "y": 250 },
+        { "x": 225, "y": 250 }
+      ],
+      "color": "#CC0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_pump",
+      "pathPoints": [
+        { "x": 240, "y": 235 },
+        { "x": 240, "y": 165 },
+        { "x": 340, "y": 150 }
+      ],
+      "color": "#CC0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_pump2",
+      "pathPoints": [
+        { "x": 460, "y": 150 },
+        { "x": 545, "y": 150 }
+      ],
+      "color": "#CC0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_probe",
+      "pathPoints": [
+        { "x": 560, "y": 165 },
+        { "x": 560, "y": 250 },
+        { "x": 460, "y": 150 }
+      ],
+      "color": "#FF6666",
+      "lineWidth": 1.5,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "ray_probe2",
+      "pathPoints": [
+        { "x": 340, "y": 150 },
+        { "x": 255, "y": 250 }
+      ],
+      "color": "#FF6666",
+      "lineWidth": 1.5,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "ray_signal",
+      "pathPoints": [
+        { "x": 255, "y": 250 },
+        { "x": 305, "y": 250 }
+      ],
+      "color": "#FF6666",
+      "lineWidth": 1.5,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_to_pd1",
+      "pathPoints": [
+        { "x": 335, "y": 250 },
+        { "x": 400, "y": 250 },
+        { "x": 400, "y": 335 }
+      ],
+      "color": "#FF6666",
+      "lineWidth": 1.5,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_ref",
+      "pathPoints": [
+        { "x": 320, "y": 265 },
+        { "x": 320, "y": 335 }
+      ],
+      "color": "#FF6666",
+      "lineWidth": 1,
+      "lineStyle": "dotted"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "ann_laser",
+      "componentId": "laser1",
+      "text": "ECDL",
+      "offset": { "x": 0, "y": -35 },
+      "style": { "fontSize": 11 }
+    },
+    {
+      "id": "ann_wavelength",
+      "componentId": "laser1",
+      "text": "780 nm",
+      "offset": { "x": 0, "y": 35 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_hwp",
+      "componentId": "hwp1",
+      "text": "λ/2",
+      "offset": { "x": 0, "y": -25 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_pbs",
+      "componentId": "pbs1",
+      "text": "PBS",
+      "offset": { "x": 0, "y": 30 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_cell",
+      "componentId": "cell1",
+      "text": "Rb气室",
+      "offset": { "x": 0, "y": -35 },
+      "style": { "fontSize": 11 }
+    },
+    {
+      "id": "ann_pd1",
+      "componentId": "pd1",
+      "text": "PD_1",
+      "offset": { "x": 30, "y": 0 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_pd2",
+      "componentId": "pd2",
+      "text": "PD_2",
+      "offset": { "x": -30, "y": 0 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_pump",
+      "position": { "x": 500, "y": 130 },
+      "text": "泵浦光",
+      "style": { "fontSize": 10, "color": "#CC0000" }
+    },
+    {
+      "id": "ann_probe",
+      "position": { "x": 500, "y": 200 },
+      "text": "探测光",
+      "style": { "fontSize": 10, "color": "#FF6666" }
+    }
+  ],
+  "notes": [
+    "铷原子饱和吸收光谱装置",
+    "• ECDL: 外腔二极管激光器 (λ = 780 nm)",
+    "• PBS: 偏振分束器",
+    "• Rb气室: 铷原子蒸气室",
+    "• PD₁: 信号探测器",
+    "• PD₂: 参考探测器",
+    "• 实线: 泵浦光; 虚线: 探测光"
+  ],
+  "exportConfig": {
+    "width": 800,
+    "height": 500,
+    "backgroundColor": "#ffffff",
+    "includeAnnotations": true,
+    "includeNotes": true
+  }
+}

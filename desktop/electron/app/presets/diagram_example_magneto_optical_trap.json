@@ -1,0 +1,275 @@
+{
+  "name": "磁光阱光路",
+  "description": "三维磁光阱(MOT)光路系统示意图",
+  "version": "1.0",
+  "diagramMode": true,
+  "components": [
+    {
+      "id": "laser_cool",
+      "type": "LaserSource",
+      "pos": { "x": 80, "y": 200 },
+      "angle": 0,
+      "wavelength": 780,
+      "power": 100
+    },
+    {
+      "id": "aom1",
+      "type": "AcoustoOpticModulator",
+      "pos": { "x": 180, "y": 200 },
+      "angle": 0,
+      "frequency": 80
+    },
+    {
+      "id": "hwp1",
+      "type": "HalfWavePlate",
+      "pos": { "x": 280, "y": 200 },
+      "angle": 0
+    },
+    {
+      "id": "pbs1",
+      "type": "PBS",
+      "pos": { "x": 360, "y": 200 },
+      "angle": 0
+    },
+    {
+      "id": "qwp1",
+      "type": "QuarterWavePlate",
+      "pos": { "x": 440, "y": 200 },
+      "angle": 0
+    },
+    {
+      "id": "mirror1",
+      "type": "Mirror",
+      "pos": { "x": 520, "y": 200 },
+      "angle": 0.785
+    },
+    {
+      "id": "qwp2",
+      "type": "QuarterWavePlate",
+      "pos": { "x": 520, "y": 120 },
+      "angle": 1.571
+    },
+    {
+      "id": "qwp3",
+      "type": "QuarterWavePlate",
+      "pos": { "x": 360, "y": 120 },
+      "angle": 1.571
+    },
+    {
+      "id": "mirror2",
+      "type": "Mirror",
+      "pos": { "x": 280, "y": 120 },
+      "angle": 2.356
+    },
+    {
+      "id": "qwp4",
+      "type": "QuarterWavePlate",
+      "pos": { "x": 280, "y": 40 },
+      "angle": 0
+    },
+    {
+      "id": "cell_mot",
+      "type": "AtomicCell",
+      "pos": { "x": 440, "y": 120 },
+      "angle": 0
+    },
+    {
+      "id": "laser_repump",
+      "type": "LaserSource",
+      "pos": { "x": 80, "y": 320 },
+      "angle": 0,
+      "wavelength": 780
+    },
+    {
+      "id": "aom2",
+      "type": "AcoustoOpticModulator",
+      "pos": { "x": 180, "y": 320 },
+      "angle": 0,
+      "frequency": 80
+    },
+    {
+      "id": "bs1",
+      "type": "BeamSplitter",
+      "pos": { "x": 280, "y": 320 },
+      "angle": 0.785
+    }
+  ],
+  "rays": [
+    {
+      "id": "ray_cool_main",
+      "pathPoints": [
+        { "x": 110, "y": 200 },
+        { "x": 345, "y": 200 }
+      ],
+      "color": "#E41A1C",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_cool_x",
+      "pathPoints": [
+        { "x": 375, "y": 200 },
+        { "x": 505, "y": 200 }
+      ],
+      "color": "#E41A1C",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_cool_y",
+      "pathPoints": [
+        { "x": 520, "y": 185 },
+        { "x": 520, "y": 135 },
+        { "x": 480, "y": 120 }
+      ],
+      "color": "#E41A1C",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_cool_y2",
+      "pathPoints": [
+        { "x": 400, "y": 120 },
+        { "x": 295, "y": 120 }
+      ],
+      "color": "#E41A1C",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_cool_z",
+      "pathPoints": [
+        { "x": 280, "y": 105 },
+        { "x": 280, "y": 55 }
+      ],
+      "color": "#E41A1C",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_repump",
+      "pathPoints": [
+        { "x": 110, "y": 320 },
+        { "x": 265, "y": 320 }
+      ],
+      "color": "#377EB8",
+      "lineWidth": 1.5,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "ray_repump_up",
+      "pathPoints": [
+        { "x": 280, "y": 305 },
+        { "x": 280, "y": 215 }
+      ],
+      "color": "#377EB8",
+      "lineWidth": 1.5,
+      "lineStyle": "dashed"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "ann_cool",
+      "componentId": "laser_cool",
+      "text": "冷却光",
+      "offset": { "x": 0, "y": -30 },
+      "style": { "fontSize": 11 }
+    },
+    {
+      "id": "ann_repump",
+      "componentId": "laser_repump",
+      "text": "回泵光",
+      "offset": { "x": 0, "y": -30 },
+      "style": { "fontSize": 11 }
+    },
+    {
+      "id": "ann_aom1",
+      "componentId": "aom1",
+      "text": "AOM_1",
+      "offset": { "x": 0, "y": 30 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_aom2",
+      "componentId": "aom2",
+      "text": "AOM_2",
+      "offset": { "x": 0, "y": 30 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_mot",
+      "componentId": "cell_mot",
+      "text": "MOT",
+      "offset": { "x": 0, "y": -30 },
+      "style": { "fontSize": 12, "bold": true }
+    },
+    {
+      "id": "ann_pbs",
+      "componentId": "pbs1",
+      "text": "PBS",
+      "offset": { "x": 0, "y": 30 },
+      "style": { "fontSize": 10 }
+    },
+    {
+      "id": "ann_qwp1",
+      "componentId": "qwp1",
+      "text": "λ/4",
+      "offset": { "x": 0, "y": 25 },
+      "style": { "fontSize": 9 }
+    },
+    {
+      "id": "ann_qwp2",
+      "componentId": "qwp2",
+      "text": "λ/4",
+      "offset": { "x": 25, "y": 0 },
+      "style": { "fontSize": 9 }
+    },
+    {
+      "id": "ann_qwp3",
+      "componentId": "qwp3",
+      "text": "λ/4",
+      "offset": { "x": -25, "y": 0 },
+      "style": { "fontSize": 9 }
+    },
+    {
+      "id": "ann_qwp4",
+      "componentId": "qwp4",
+      "text": "λ/4",
+      "offset": { "x": 25, "y": 0 },
+      "style": { "fontSize": 9 }
+    },
+    {
+      "id": "ann_x",
+      "position": { "x": 480, "y": 220 },
+      "text": "X",
+      "style": { "fontSize": 10, "bold": true }
+    },
+    {
+      "id": "ann_y",
+      "position": { "x": 440, "y": 95 },
+      "text": "Y",
+      "style": { "fontSize": 10, "bold": true }
+    },
+    {
+      "id": "ann_z",
+      "position": { "x": 260, "y": 40 },
+      "text": "Z",
+      "style": { "fontSize": 10, "bold": true }
+    }
+  ],
+  "notes": [
+    "三维磁光阱(MOT)光路系统",
+    "• 冷却光: ^{87}Rb D₂线 F=2→F'=3 跃迁",
+    "• 回泵光: F=1→F'=2 跃迁",
+    "• AOM: 声光调制器 (80 MHz)",
+    "• λ/4: 四分之一波片 (产生圆偏振光)",
+    "• X, Y, Z: 三对对射冷却光束"
+  ],
+  "exportConfig": {
+    "width": 700,
+    "height": 450,
+    "backgroundColor": "#ffffff",
+    "includeAnnotations": true,
+    "includeNotes": true
+  }
+}

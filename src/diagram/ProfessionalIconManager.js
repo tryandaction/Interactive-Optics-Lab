@@ -219,6 +219,12 @@ export class ProfessionalIconManager {
         }
         this._loadSVGAsImage(icon, style).then(img => {
             this.iconCache.set(cacheKey + '_img', img);
+            // 异步加载完成后触发重绘，否则用户永远只看到占位符
+            if (typeof window !== 'undefined' && window.needsRetrace !== undefined) {
+                window.needsRetrace = true;
+            }
+        }).catch(err => {
+            console.warn(`ProfessionalIconManager: Failed to load SVG icon "${icon.name}":`, err);
         });
         this._renderPlaceholder(ctx, 0, 0, 0, 1, icon.name);
     }
@@ -345,7 +351,7 @@ export class ProfessionalIconManager {
                     comp.type || comp.constructor?.name,
                     point.id,
                     comp.pos || { x: comp.x, y: comp.y },
-                    comp.angle || 0,
+                    comp.angle ?? comp.angleRad ?? 0,
                     comp.scale || 1
                 );
                 if (!worldPos) continue;
@@ -571,6 +577,9 @@ export class ProfessionalIconManager {
         this.registerAlias('ConvexMirror', 'CurvedMirror');
         this.registerAlias('ParabolicMirror', 'CurvedMirror');
         this.registerAlias('ParabolicMirrorToolbar', 'ParabolicMirror');
+
+        // BS 是 BeamSplitter 的 type 属性值
+        this.registerAlias('BS', 'BeamSplitter');
 
         // ========== 分束器 ==========
         this.registerIcon('BeamSplitter', {
@@ -1579,6 +1588,147 @@ export class ProfessionalIconManager {
             ctx.lineTo(w/2 - 8, 0);
             ctx.stroke();
             ctx.setLineDash([]);
+        };
+
+        // ===== 法拉第旋转器 =====
+        this.registerIcon('FaradayRotator', {
+            name: '法拉第旋转器',
+            category: ICON_CATEGORIES.POLARIZATION,
+            width: 40, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['FaradayRotator'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            const r = s / 2.5;
+            // 外圆
+            ctx.strokeStyle = '#8855cc';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, r, 0, Math.PI * 2);
+            ctx.stroke();
+            // 旋转箭头弧线
+            ctx.strokeStyle = '#aa77ee';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.6, -Math.PI * 0.7, Math.PI * 0.3);
+            ctx.stroke();
+            // 箭头头部
+            const ax = r * 0.6 * Math.cos(Math.PI * 0.3);
+            const ay = r * 0.6 * Math.sin(Math.PI * 0.3);
+            ctx.fillStyle = '#aa77ee';
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(ax - 5, ay - 3);
+            ctx.lineTo(ax - 3, ay + 4);
+            ctx.closePath();
+            ctx.fill();
+            // F标记
+            ctx.fillStyle = '#8855cc';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('F', 0, 0);
+        };
+
+        // ===== 法拉第隔离器 =====
+        this.registerIcon('FaradayIsolator', {
+            name: '法拉第隔离器',
+            category: ICON_CATEGORIES.POLARIZATION,
+            width: 50, height: 35,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['FaradayIsolator'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            // 外框
+            ctx.fillStyle = 'rgba(136, 85, 204, 0.15)';
+            ctx.fillRect(-w/2, -h/2, w, h);
+            ctx.strokeStyle = '#8855cc';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+            // 输入偏振器（左竖线）
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-w/2 + 6, -h/2 + 4);
+            ctx.lineTo(-w/2 + 6, h/2 - 4);
+            ctx.stroke();
+            // 法拉第旋转器（中间圆）
+            ctx.strokeStyle = '#aa77ee';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, h/3.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = '#8855cc';
+            ctx.font = 'bold 8px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('F', 0, 0);
+            // 输出偏振器（右竖线）
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w/2 - 6, -h/2 + 4);
+            ctx.lineTo(w/2 - 6, h/2 - 4);
+            ctx.stroke();
+            // 箭头表示单向
+            ctx.fillStyle = '#8855cc';
+            ctx.beginPath();
+            ctx.moveTo(w/2 - 2, 0);
+            ctx.lineTo(w/2 - 8, -4);
+            ctx.lineTo(w/2 - 8, 4);
+            ctx.closePath();
+            ctx.fill();
+        };
+
+        // ===== WavePlate 别名到 HalfWavePlate =====
+        this.registerIcon('WavePlate', {
+            name: '波片',
+            category: ICON_CATEGORIES.POLARIZATION,
+            width: 12, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['WavePlate'] = this._builtinDrawFunctions['HalfWavePlate'];
+
+        // ===== 自定义元件 =====
+        this.registerIcon('CustomComponent', {
+            name: '自定义元件',
+            category: ICON_CATEGORIES.MISC,
+            width: 40, height: 40,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['CustomComponent'] = (ctx, icon, style) => {
+            const s = Math.min(icon.width, icon.height);
+            // 虚线外框
+            ctx.strokeStyle = '#888888';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(-s/2, -s/2, s, s);
+            ctx.setLineDash([]);
+            // 齿轮图标
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, s/5, 0, Math.PI * 2);
+            ctx.stroke();
+            for (let i = 0; i < 6; i++) {
+                const a = i * Math.PI / 3;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(a) * s/5, Math.sin(a) * s/5);
+                ctx.lineTo(Math.cos(a) * s/3.2, Math.sin(a) * s/3.2);
+                ctx.stroke();
+            }
         };
     }
 }

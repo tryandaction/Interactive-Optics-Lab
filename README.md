@@ -51,6 +51,9 @@ api.annotations.createText('激光源', { x: 100, y: 150 });
 - **示例页面**: [example-complete-system.html](example-complete-system.html)
 - **故障排除**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - **论文级示例预设**: `presets/diagram_example_mot_paper.json`
+- **桌面版打包**: [DESKTOP_GUIDE.md](DESKTOP_GUIDE.md)
+- **商业化规划**: [COMMERCIAL_PLAN.md](COMMERCIAL_PLAN.md)
+- **落地页文案**: [COMMERCIAL_LANDING_PAGE.md](COMMERCIAL_LANDING_PAGE.md)
 - **API文档**: 查看代码中的JSDoc注释
 
 ## ⌨️ 常用快捷键 / Common Shortcuts
@@ -95,5 +98,5 @@ MIT License
 
 ---
 
-**版本 / Version**: 1.1.0  
-**更新 / Updated**: 2026-02-05
+**版本 / Version**: 1.2.0
+**更新 / Updated**: 2026-02-11

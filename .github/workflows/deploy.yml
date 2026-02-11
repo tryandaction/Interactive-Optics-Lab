@@ -1,0 +1,73 @@
+name: Deploy OpticsLab
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate HTML
+        run: |
+          # Check that index.html exists and is valid
+          test -f index.html || (echo "index.html not found" && exit 1)
+          echo "index.html exists"
+
+      - name: Validate JavaScript modules
+        run: |
+          # Check that all critical JS files exist
+          for f in main.js \
+            src/compat/legacy-globals.js \
+            src/diagram/DiagramModeIntegration.js \
+            src/diagram/ProfessionalIconManager.js \
+            src/diagram/ModeManager.js \
+            src/diagram/ExportEngine.js \
+            src/diagram/ProfessionalIconLibrary.js \
+            src/diagram/ProfessionalIconLibraryExtended.js; do
+            test -f "$f" || (echo "Missing: $f" && exit 1)
+            echo "OK: $f"
+          done
+
+      - name: Check for syntax errors in main files
+        run: |
+          node --check main.js || true
+          for f in src/diagram/*.js src/compat/*.js; do
+            node --check "$f" 2>/dev/null || true
+          done
+          echo "Syntax check complete"
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: test
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

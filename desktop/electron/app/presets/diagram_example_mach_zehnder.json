@@ -1,0 +1,169 @@
+{
+  "name": "马赫-曾德尔干涉仪",
+  "description": "经典马赫-曾德尔干涉仪光路图示例",
+  "version": "1.0",
+  "diagramMode": true,
+  "components": [
+    {
+      "id": "laser1",
+      "type": "LaserSource",
+      "pos": { "x": 100, "y": 300 },
+      "angle": 0,
+      "wavelength": 632.8,
+      "power": 5
+    },
+    {
+      "id": "bs1",
+      "type": "BeamSplitter",
+      "pos": { "x": 250, "y": 300 },
+      "angle": 0.785,
+      "reflectivity": 0.5
+    },
+    {
+      "id": "mirror1",
+      "type": "Mirror",
+      "pos": { "x": 250, "y": 150 },
+      "angle": 0.785
+    },
+    {
+      "id": "mirror2",
+      "type": "Mirror",
+      "pos": { "x": 450, "y": 300 },
+      "angle": 0.785
+    },
+    {
+      "id": "bs2",
+      "type": "BeamSplitter",
+      "pos": { "x": 450, "y": 150 },
+      "angle": 0.785,
+      "reflectivity": 0.5
+    },
+    {
+      "id": "screen1",
+      "type": "Screen",
+      "pos": { "x": 600, "y": 150 },
+      "angle": 0
+    }
+  ],
+  "rays": [
+    {
+      "id": "ray_input",
+      "pathPoints": [
+        { "x": 130, "y": 300 },
+        { "x": 235, "y": 300 }
+      ],
+      "color": "#FF0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_arm1",
+      "pathPoints": [
+        { "x": 250, "y": 285 },
+        { "x": 250, "y": 165 },
+        { "x": 435, "y": 150 }
+      ],
+      "color": "#FF0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "ray_arm2",
+      "pathPoints": [
+        { "x": 265, "y": 300 },
+        { "x": 435, "y": 300 },
+        { "x": 450, "y": 165 }
+      ],
+      "color": "#FF0000",
+      "lineWidth": 2,
+      "lineStyle": "dashed"
+    },
+    {
+      "id": "ray_output",
+      "pathPoints": [
+        { "x": 465, "y": 150 },
+        { "x": 585, "y": 150 }
+      ],
+      "color": "#FF0000",
+      "lineWidth": 2,
+      "lineStyle": "solid"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "ann_laser",
+      "componentId": "laser1",
+      "text": "He-Ne激光器",
+      "offset": { "x": 0, "y": -40 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_wavelength",
+      "componentId": "laser1",
+      "text": "λ = 632.8 nm",
+      "offset": { "x": 0, "y": 40 },
+      "style": { "fontSize": 11 }
+    },
+    {
+      "id": "ann_bs1",
+      "componentId": "bs1",
+      "text": "BS_1",
+      "offset": { "x": -40, "y": 30 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_bs2",
+      "componentId": "bs2",
+      "text": "BS_2",
+      "offset": { "x": 30, "y": -30 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_m1",
+      "componentId": "mirror1",
+      "text": "M_1",
+      "offset": { "x": -30, "y": -20 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_m2",
+      "componentId": "mirror2",
+      "text": "M_2",
+      "offset": { "x": 30, "y": 20 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_screen",
+      "componentId": "screen1",
+      "text": "探测器",
+      "offset": { "x": 0, "y": -30 },
+      "style": { "fontSize": 12 }
+    },
+    {
+      "id": "ann_arm1",
+      "position": { "x": 200, "y": 120 },
+      "text": "臂1",
+      "style": { "fontSize": 11, "color": "#666666" }
+    },
+    {
+      "id": "ann_arm2",
+      "position": { "x": 350, "y": 330 },
+      "text": "臂2",
+      "style": { "fontSize": 11, "color": "#666666" }
+    }
+  ],
+  "notes": [
+    "马赫-曾德尔干涉仪示意图",
+    "• 光源: He-Ne激光器 (λ = 632.8 nm)",
+    "• BS₁, BS₂: 50:50分束器",
+    "• M₁, M₂: 平面反射镜",
+    "• 虚线表示第二光路臂"
+  ],
+  "exportConfig": {
+    "width": 800,
+    "height": 500,
+    "backgroundColor": "#ffffff",
+    "includeAnnotations": true,
+    "includeNotes": true
+  }
+}

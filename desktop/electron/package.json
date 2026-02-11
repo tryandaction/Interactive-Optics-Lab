@@ -1,0 +1,33 @@
+{
+  "name": "opticslab-desktop",
+  "version": "1.2.0",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "prepare:assets": "node scripts/prepare-assets.js",
+    "start": "node scripts/prepare-assets.js && electron .",
+    "pack": "node scripts/prepare-assets.js && electron-builder --dir",
+    "dist": "node scripts/prepare-assets.js && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.opticslab.desktop",
+    "productName": "OpticsLab",
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "app/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    }
+  }
+}

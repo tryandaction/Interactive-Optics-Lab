@@ -1,0 +1,1333 @@
+<!DOCTYPE html> <!-- HTML5 Document Declaration -->
+<html lang="zh-CN"> <!-- Root element, language set to Chinese -->
+
+<head>
+    <meta charset="UTF-8"> <!-- Character encoding set to UTF-8 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Viewport settings for responsive design -->
+    <title>交互式光学实验室</title> <!-- Title shown in the browser tab -->
+
+    <!-- Link to the external CSS file -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Unified Project Panel styles -->
+    <link rel="stylesheet" href="src/ui/project-panel.css">
+</head>
+
+<body> <!-- Visible content of the webpage -->
+
+
+    <!-- NEW Top Menubar - V3 Final Structure & Text -->
+    <div id="top-menubar">
+        <div class="menu-left">
+            <!-- Hamburger button for mobile -->
+            <button class="menubar-button menubar-icon-button" id="menu-toggle-sidebars" title="切换侧边栏"
+                style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+
+            <!-- File Menu Dropdown -->
+            <div class="dropdown">
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    <span class="menu-text">文件</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="menu-new-scene">新建场景</a>
+                    <a href="#" id="menu-manage-scenes">管理暂存场景...</a> <!-- Changed Text -->
+                    <hr>
+                    <a href="#" id="menu-new-project">新建项目</a>
+                    <a href="#" id="menu-manage-projects">管理项目...</a>
+                    <hr>
+                    <a href="#" id="menu-import-scene">导入文件...</a>
+                    <a href="#" id="menu-export-scene">导出文件...</a>
+                </div>
+            </div>
+
+            <!-- Edit Menu Dropdown -->
+            <div class="dropdown">
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    <span class="menu-text">编辑</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="menu-undo" class="disabled-link">撤销 (Ctrl+Z)</a>
+                    <a href="#" id="menu-redo" class="disabled-link">重做 (Ctrl+Y)</a>
+                    <hr>
+                    <a href="#" id="menu-delete-selected">删除选中 (Del/Bksp)</a>
+                    <a href="#" id="menu-clear-all">清空所有元件</a>
+                </div>
+            </div>
+
+            <!-- View Menu Dropdown -->
+            <div class="dropdown">
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                    <span class="menu-text">视图</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="menu-reset-view">重置视图</a>
+                    <a href="#" id="menu-toggle-grid">切换网格</a>
+                    <hr>
+                    <div class="prop">
+                        <label for="combined-theme-switcher">外观主题:</label>
+                        <select id="combined-theme-switcher">
+                            <option value="light-ui-dark-canvas">白天 (深色画布)</option>
+                            <option value="light-ui-light-canvas">白天 (浅色画布)</option>
+                            <option value="dark-ui-dark-canvas">黑夜 (深色画布)</option>
+                            <option value="dark-ui-light-canvas">黑夜 (浅色画布)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulate Menu Dropdown -->
+            <div class="dropdown">
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span class="menu-text">模拟</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="menu-mode-raytrace">模式: 光线追踪</a>
+                    <a href="#" id="menu-mode-lensimaging">模式: 透镜成像</a>
+                    <a href="#" id="menu-mode-diagram">模式: 专业绘图</a>
+                    <hr>
+                    <a href="#" id="menu-toggle-arrows">切换动画箭头</a>
+                    <a href="#" id="menu-toggle-selected-arrow">切换仅选中箭头</a>
+                    <hr>
+                    <a href="#" id="menu-open-settings">参数设置...</a>
+                </div>
+            </div>
+
+            <!-- Help Menu Dropdown -->
+            <div class="dropdown">
+                <button class="dropbtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span class="menu-text">帮助</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="menu-user-guide">用户指南...</a>
+                    <a href="#" id="menu-about">关于...</a>
+                </div>
+            </div>
+        </div> <!-- End menu-left -->
+
+        <div class="menubar-divider"></div>
+
+        <!-- Direct Action Icons -->
+        <button class="menubar-button menubar-icon-button" id="menu-icon-new" title="新建场景 (Ctrl+N)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+            </svg>
+        </button>
+        <button class="menubar-button menubar-icon-button" id="menu-icon-save-local" title="暂存到浏览器 (Ctrl+S)">
+            <!-- Changed Title -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+        </button>
+        <button class="menubar-button menubar-icon-button" id="menu-icon-export" title="导出文件... (Ctrl+E)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+        </button>
+        <!-- End Direct Action Icons -->
+
+        <!-- Divider before Undo/Redo -->
+        <div class="menubar-divider"></div>
+
+        <!-- Undo/Redo Buttons -->
+        <button class="menubar-button menubar-icon-button disabled" id="undo-button" title="撤销 (Ctrl+Z)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                    d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
+            </svg>
+        </button>
+        <button class="menubar-button menubar-icon-button disabled" id="redo-button" title="重做 (Ctrl+Y)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                    d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
+            </svg>
+        </button>
+        <!-- END Undo/Redo Buttons -->
+
+        <div class="menubar-divider"></div>
+
+        <!-- Scene Path Display - 显示当前打开的场景及其相对路径 -->
+        <div id="scene-path-display" class="scene-path-container" title="当前编辑的场景">
+            <span class="scene-modified-indicator" id="scene-modified-dot" style="display: none;">●</span>
+            <span class="scene-path-icon">📄</span>
+            <span class="scene-path-text" id="scene-path-text">
+                <span class="scene-path-project" id="scene-project-name"></span>
+                <span class="scene-path-separator" id="scene-path-sep" style="display: none;">/</span>
+                <span class="scene-path-name" id="scene-name">未打开场景</span>
+            </span>
+            <span class="scene-save-hint" id="scene-save-hint" style="display: none;">(Ctrl+S 保存)</span>
+        </div>
+
+        <div class="menubar-spacer"></div>
+
+        <!-- Mode Switcher - 模式切换器 -->
+        <div id="mode-switcher-container"></div>
+
+    </div>
+    <!-- END Top Menubar -->
+
+    <!-- Main Content Area (Flex Container) -->
+    <div id="main-content">
+
+        <!-- Left Toolbar (Component Tools Only) - V3 Representative Icons -->
+        <div id="toolbar">
+            <h4>光源</h4>
+            <button data-type="LaserSource" title="点光源(激光)" class="icon-button">
+                <svg width="20" height="20" viewBox="-5 -5 34 34" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="2" fill="currentColor"></circle>
+                    <line x1="12" y1="12" x2="22" y2="12"></line>
+                    <line x1="12" y1="12" x2="15" y2="5.34"></line>
+                    <line x1="12" y1="12" x2="15" y2="18.66"></line>
+                </svg> <!-- Point source with rays -->
+                <span class="toolbar-button-text">点光源</span>
+            </button>
+            <button data-type="FanSource" title="扇形光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="5" cy="12" r="2" fill="currentColor"></circle>
+                    <path d="M5 12 L 20 4 M5 12 L 20 12 M5 12 L 20 20"></path>
+                </svg> <!-- Point source with fan lines -->
+                <span class="toolbar-button-text">扇形光</span>
+            </button>
+            <button data-type="LineSource" title="线光源" class="icon-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="12" x2="20" y2="12"></line>
+                </svg> <!-- Thicker Line -->
+                <span class="toolbar-button-text">线光源</span>
+            </button>
+            <button data-type="WhiteLightSource" title="白光光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="#888" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="4" fill="white" stroke="currentColor" stroke-width="1"></circle>
+                    <path d="M12 2v2m0 16v2m-7-9H3m18 0h-2m5-5l-1.4 1.4M5.4 5.4L4 4m16 16l-1.4-1.4M4 20l1.4-1.4"></path>
+                </svg> <!-- White circle with rays -->
+                <span class="toolbar-button-text">白光</span>
+            </button>
+            <button data-type="PointSource" title="点光源 (全向)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+                    <line x1="12" y1="3" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="21"></line>
+                    <line x1="3" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="21" y2="12"></line>
+                </svg>
+                <span class="toolbar-button-text">点光源</span>
+            </button>
+            <button data-type="LEDSource" title="LED光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3 L12 8 M8 5 L12 8 L16 5"></path>
+                    <ellipse cx="12" cy="14" rx="5" ry="6"></ellipse>
+                </svg>
+                <span class="toolbar-button-text">LED</span>
+            </button>
+            <button data-type="PulsedLaserSource" title="脉冲激光源" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="8" width="8" height="8" rx="1"></rect>
+                    <line x1="11" y1="12" x2="21" y2="12" stroke-dasharray="3,2"></line>
+                </svg>
+                <span class="toolbar-button-text">脉冲激光</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>透镜</h4>
+            <button data-type="ThinLens" title="薄透镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2 C 16 6, 16 18, 8 22"></path>
+                    <path d="M16 2 C 8 6, 8 18, 16 22"></path>
+                </svg> <!-- Basic Convex Lens Shape -->
+                <span class="toolbar-button-text">薄透镜</span>
+            </button>
+            <button data-type="CylindricalLens" title="柱面透镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="8" y="3" width="8" height="18" rx="4"></rect>
+                </svg>
+                <span class="toolbar-button-text">柱面透镜</span>
+            </button>
+            <button data-type="AsphericLens" title="非球面透镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2 C 18 5, 18 19, 8 22"></path>
+                    <path d="M16 2 C 6 5, 6 19, 16 22"></path>
+                </svg>
+                <span class="toolbar-button-text">非球面</span>
+            </button>
+            <button data-type="GRINLens" title="GRIN透镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="4" width="12" height="16" rx="1"></rect>
+                    <line x1="9" y1="7" x2="15" y2="7" stroke-dasharray="2,1"></line>
+                    <line x1="9" y1="12" x2="15" y2="12"></line>
+                    <line x1="9" y1="17" x2="15" y2="17" stroke-dasharray="2,1"></line>
+                </svg>
+                <span class="toolbar-button-text">GRIN</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>反射镜</h4>
+            <button data-type="Mirror" title="平面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20"></line>
+                    <line x1="6" y1="6" x2="8" y2="4"></line>
+                    <line x1="6" y1="9" x2="8" y2="7"></line>
+                    <line x1="6" y1="12" x2="8" y2="10"></line>
+                    <line x1="6" y1="15" x2="8" y2="13"></line>
+                    <line x1="6" y1="18" x2="8" y2="16"></line>
+                    <line x1="6" y1="21" x2="8" y2="19"></line>
+                </svg> <!-- Vertical mirror with hatch -->
+                <span class="toolbar-button-text">平面镜</span>
+            </button>
+            <button data-type="ConcaveMirror" title="凹面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 4 C 10 8, 10 16, 20 20"></path>
+                    <line x1="21" y1="6" x2="23" y2="4"></line>
+                    <line x1="21" y1="12" x2="23" y2="10"></line>
+                    <line x1="21" y1="18" x2="23" y2="16"></line>
+                </svg> <!-- Concave curve + hatch -->
+                <span class="toolbar-button-text">凹面镜</span>
+            </button>
+            <button data-type="ConvexMirror" title="凸面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4 C 14 8, 14 16, 4 20"></path>
+                    <line x1="3" y1="6" x2="1" y2="4"></line>
+                    <line x1="3" y1="12" x2="1" y2="10"></line>
+                    <line x1="3" y1="18" x2="1" y2="16"></line>
+                </svg> <!-- Convex curve + hatch -->
+                <span class="toolbar-button-text">凸面镜</span>
+            </button>
+            <button data-type="ParabolicMirrorToolbar" title="抛物面镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 4 C 6 8, 6 16, 20 20"></path>
+                    <line x1="21" y1="6" x2="23" y2="4"></line>
+                    <line x1="21" y1="12" x2="23" y2="10"></line>
+                    <line x1="21" y1="18" x2="23" y2="16"></line>
+                </svg> <!-- Similar to concave for now -->
+                <span class="toolbar-button-text">抛物面镜</span>
+            </button>
+            <button data-type="DichroicMirror" title="二向色镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke="red"></line>
+                    <line x1="6" y1="4" x2="6" y2="20" stroke="blue"></line>
+                </svg>
+                <span class="toolbar-button-text">二向色镜</span>
+            </button>
+            <button data-type="MetallicMirror" title="金属镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke-width="3"></line>
+                    <line x1="7" y1="6" x2="9" y2="4"></line>
+                    <line x1="7" y1="12" x2="9" y2="10"></line>
+                    <line x1="7" y1="18" x2="9" y2="16"></line>
+                </svg>
+                <span class="toolbar-button-text">金属镜</span>
+            </button>
+            <button data-type="RingMirror" title="环形镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="8"></circle>
+                    <circle cx="12" cy="12" r="4" fill="white"></circle>
+                </svg>
+                <span class="toolbar-button-text">环形镜</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>其它元件</h4>
+            <button data-type="Screen" title="屏幕" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke-dasharray="3,3"></line>
+                </svg> <!-- Dashed Line -->
+                <span class="toolbar-button-text">屏幕</span>
+            </button>
+            <button data-type="Prism" title="棱镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 4 L 4 20 L 20 20 Z"></path>
+                </svg> <!-- Triangle -->
+                <span class="toolbar-button-text">棱镜</span>
+            </button>
+            <button data-type="DiffractionGrating" title="衍射光栅" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="4" x2="4" y2="20" stroke-width="1.5"></line>
+                    <line x1="7" y1="4" x2="7" y2="20"></line>
+                    <line x1="10" y1="4" x2="10" y2="20"></line>
+                    <line x1="13" y1="4" x2="13" y2="20"></line>
+                    <line x1="16" y1="4" x2="16" y2="20"></line>
+                    <line x1="19" y1="4" x2="19" y2="20"></line>
+                </svg> <!-- Parallel lines -->
+                <span class="toolbar-button-text">衍射光栅</span>
+            </button>
+            <button data-type="Aperture" title="光阑/多缝" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="1" ry="1" fill="#eee" stroke="none"></rect>
+                    <rect x="9" y="3" width="6" height="18" fill="white" stroke="none"></rect>
+                    <rect x="3" y="3" width="18" height="18" rx="1" ry="1" fill="none" stroke="currentColor"></rect>
+                </svg> <!-- Block with opening -->
+                <span class="toolbar-button-text">光阑/多缝</span>
+            </button>
+            <button data-type="BeamSplitter" title="分束器（BS/PBS）" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="4" y1="20" x2="20" y2="4"></line>
+                    <polyline points="12 4 20 4 20 12"></polyline>
+                    <polyline points="4 12 4 4 12 4"></polyline>
+                </svg> <!-- Diagonal with arrows -->
+                <span class="toolbar-button-text">分束器<br/>(BS/PBS)</span>
+            </button>
+            <button data-type="DielectricBlock" title="介质块" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(170, 221, 170, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="1" ry="1"></rect>
+                </svg> <!-- Filled Rectangle -->
+                <span class="toolbar-button-text">介质块</span>
+            </button>
+            <button data-type="Photodiode" title="光度计" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="#333" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="14" r="5"></circle>
+                    <line x1="12" y1="9" x2="12" y2="4"></line>
+                    <polyline points="9 7 12 4 15 7"></polyline>
+                </svg> <!-- Circle + Arrow In -->
+                <span class="toolbar-button-text">光度计</span>
+            </button>
+            <button data-type="CCDCamera" title="CCD相机" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="1"></rect>
+                    <line x1="7" y1="9" x2="7" y2="15"></line>
+                    <line x1="10" y1="9" x2="10" y2="15"></line>
+                    <line x1="13" y1="9" x2="13" y2="15"></line>
+                    <line x1="16" y1="9" x2="16" y2="15"></line>
+                </svg>
+                <span class="toolbar-button-text">CCD相机</span>
+            </button>
+            <button data-type="Spectrometer" title="光谱仪" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="6" width="18" height="12" rx="1"></rect>
+                    <path d="M6 14 L9 10 L12 13 L15 9 L18 12" stroke="red"></path>
+                </svg>
+                <span class="toolbar-button-text">光谱仪</span>
+            </button>
+            <button data-type="PowerMeter" title="功率计" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="8"></circle>
+                    <text x="12" y="14" text-anchor="middle" font-size="6" fill="currentColor">W</text>
+                </svg>
+                <span class="toolbar-button-text">功率计</span>
+            </button>
+            <button data-type="PolarizationAnalyzer" title="偏振分析仪" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="1"></rect>
+                    <ellipse cx="12" cy="12" rx="4" ry="2"></ellipse>
+                </svg>
+                <span class="toolbar-button-text">偏振分析</span>
+            </button>
+            <button data-type="OpticalFiber" title="光纤" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="5" cy="7" r="1.5"></circle>
+                    <circle cx="19" cy="17" r="1.5"></circle>
+                    <path d="M5 7 C 5 17, 19 7, 19 17"></path>
+                </svg> <!-- Curved fiber -->
+                <span class="toolbar-button-text">光纤</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>偏振与波片</h4>
+            <button data-type="Polarizer" title="偏振片" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg> <!-- Circle with axis -->
+                <span class="toolbar-button-text">偏振片</span>
+            </button>
+            <button data-type="HalfWavePlate" title="半波片 (λ/2)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle><text x="50%" y="55%" dominant-baseline="middle"
+                        text-anchor="middle" font-size="7px" fill="currentColor" font-family="sans-serif">λ/2</text>
+                </svg>
+                <span class="toolbar-button-text">半波片</span>
+            </button>
+            <button data-type="QuarterWavePlate" title="四分之一波片 (λ/4)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle><text x="50%" y="55%" dominant-baseline="middle"
+                        text-anchor="middle" font-size="7px" fill="currentColor" font-family="sans-serif">λ/4</text>
+                </svg>
+                <span class="toolbar-button-text">四分之一波片</span>
+            </button>
+            <button data-type="FaradayRotator" title="法拉第旋光器" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="7" width="14" height="10" rx="1"></rect>
+                    <path d="M7 12 A 6 6 0 0 1 17 12"></path>
+                    <polyline points="14 9 17 12 14 15"></polyline>
+                </svg>
+                <span class="toolbar-button-text">法拉第旋光器</span>
+            </button>
+            <button data-type="WollastonPrism" title="Wollaston棱镜" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="1"></rect>
+                    <line x1="4" y1="18" x2="20" y2="6"></line>
+                </svg>
+                <span class="toolbar-button-text">Wollaston</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>高级</h4>
+            <button data-type="AcoustoOpticModulator" title="声光调制器 (AOM)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(100, 149, 237, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="7" width="16" height="10" rx="1"></rect>
+                    <path d="M6 12 Q 8 9, 10 12 T 14 12 T 18 12"></path>
+                </svg> <!-- Box with wave -->
+                <span class="toolbar-button-text">AOM</span>
+            </button>
+            <button data-type="ElectroOpticModulator" title="电光调制器 (EOM)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(255, 200, 100, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="7" width="16" height="10" rx="1"></rect>
+                    <line x1="8" y1="5" x2="8" y2="7"></line>
+                    <line x1="16" y1="5" x2="16" y2="7"></line>
+                    <line x1="8" y1="17" x2="8" y2="19"></line>
+                    <line x1="16" y1="17" x2="16" y2="19"></line>
+                </svg>
+                <span class="toolbar-button-text">EOM</span>
+            </button>
+            <button data-type="VariableAttenuator" title="可调衰减器" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="8" width="16" height="8" rx="1"></rect>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                    <circle cx="12" cy="12" r="2" fill="currentColor"></circle>
+                </svg>
+                <span class="toolbar-button-text">衰减器</span>
+            </button>
+            <button data-type="OpticalChopper" title="光学斩波器" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="8"></circle>
+                    <path d="M12 4 L12 12 L18 6" fill="currentColor"></path>
+                    <path d="M12 12 L12 20 L6 18" fill="currentColor"></path>
+                </svg>
+                <span class="toolbar-button-text">斩波器</span>
+            </button>
+            <button data-type="FaradayIsolator" title="光隔离器" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="8" width="16" height="8" rx="1"></rect>
+                    <line x1="7" y1="12" x2="17" y2="12"></line>
+                    <polyline points="14 9 17 12 14 15"></polyline>
+                </svg>
+                <span class="toolbar-button-text">光隔离器</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>原子物理</h4>
+            <button data-type="AtomicCell" title="原子气室" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="rgba(200, 150, 100, 0.2)" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="6" width="16" height="12" rx="2"></rect>
+                    <circle cx="8" cy="10" r="1" fill="currentColor"></circle>
+                    <circle cx="12" cy="14" r="1" fill="currentColor"></circle>
+                    <circle cx="16" cy="11" r="1" fill="currentColor"></circle>
+                </svg>
+                <span class="toolbar-button-text">原子气室</span>
+            </button>
+            <button data-type="MagneticCoil" title="磁场线圈" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="12" rx="8" ry="4"></ellipse>
+                    <ellipse cx="12" cy="12" rx="8" ry="4" transform="rotate(60 12 12)"></ellipse>
+                    <ellipse cx="12" cy="12" rx="8" ry="4" transform="rotate(120 12 12)"></ellipse>
+                </svg>
+                <span class="toolbar-button-text">磁场线圈</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>干涉仪</h4>
+            <button data-type="FabryPerotCavity" title="法布里-珀罗腔" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="4" x2="5" y2="20" stroke-width="2"></line>
+                    <line x1="19" y1="4" x2="19" y2="20" stroke-width="2"></line>
+                    <line x1="8" y1="12" x2="16" y2="12" stroke-dasharray="2,2"></line>
+                </svg>
+                <span class="toolbar-button-text">F-P腔</span>
+            </button>
+            <hr class="thin-hr">
+
+            <h4>辅助工具</h4>
+            <button data-type="CustomComponent" title="自定义元件 (文本框)" class="icon-button">
+                <svg width="20" height="20" viewBox="-2 -2 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="5" width="18" height="14" rx="2" ry="2"></rect>
+                    <line x1="7" y1="10" x2="17" y2="10"></line>
+                    <line x1="7" y1="14" x2="14" y2="14"></line>
+                </svg>
+                <span class="toolbar-button-text">自定义元件</span>
+            </button>
+
+        </div>
+        <!-- END Left Toolbar -->
+        <!-- Center Simulation Area -->
+        <div id="simulation-area">
+            <canvas id="opticsCanvas"></canvas>
+            <!-- Mode Hint (Keep it here) -->
+            <div id="mode-hint"></div>
+        </div>
+
+        <!-- Right Inspector Panel (with Tabs) -->
+        <div id="inspector">
+            <div class="tab-container">
+                <button class="tab-button active" data-tab="properties-tab">属性</button>
+                <button class="tab-button" data-tab="settings-tab">设置</button>
+                <button class="tab-button" data-tab="unified-project-tab">项目</button>
+                <button class="tab-button" data-tab="info-tab">信息</button>
+            </div>
+
+            <div id="properties-tab" class="tab-content active">
+                <div id="inspector-content">
+                    <!-- Property content will be dynamically added here -->
+                    <p class="placeholder-text">请先选中一个元件...</p>
+                </div>
+                <button id="delete-btn" disabled>删除选中元件</button>
+            </div>
+
+            <div id="settings-tab" class="tab-content">
+                <h4>显示选项</h4>
+                <div class="prop">
+                    <label for="setting-show-grid" title="切换画布背景网格的可见性">显示网格:</label>
+                    <input type="checkbox" id="setting-show-grid">
+                </div>
+                <!-- ADD THIS -->
+                <div class="prop">
+                    <label for="setting-enable-snap" title="拖动元件时自动吸附到网格点">启用网格吸附:</label>
+                    <input type="checkbox" id="setting-enable-snap">
+                </div>
+                <!-- END ADD -->
+                <hr class="thin-hr">
+                <h4>动画选项</h4>
+                <div class="prop">
+                    <label for="setting-show-arrows" title="切换光路动态箭头的可见性">显示箭头:</label>
+                    <input type="checkbox" id="setting-show-arrows">
+                </div>
+                <div class="prop">
+                    <label for="setting-selected-arrow" title="仅显示当前选中光源发出的光线箭头">仅选中箭头:</label>
+                    <input type="checkbox" id="setting-selected-arrow">
+                </div>
+                <!-- 箭头拖影功能已移除 -->
+                <div class="prop">
+                    <label for="arrow-speed" title="调整光路箭头的移动速度">箭头速度:</label>
+                    <input type="range" id="arrow-speed" min="10" max="500" value="100" step="10">
+                </div>
+                <hr class="thin-hr">
+                <h4>性能与精度</h4>
+                <div class="prop">
+                    <label for="setting-max-rays" title="限制每个面/发散光源生成的光线数量上限">每源最大光线数:</label>
+                    <input type="number" id="setting-max-rays" min="1" max="1001" step="10">
+                    <span id="setting-max-rays-value"></span>
+                </div>
+                <div class="prop">
+                    <label for="setting-max-bounces" title="光线追踪的最大反射/折射次数">最大反/折射次数:</label>
+                    <input type="number" id="setting-max-bounces" min="1" max="1000" step="1">
+                    <span id="setting-max-bounces-value"></span>
+                </div>
+                <div class="prop">
+                    <label for="setting-min-intensity" title="光线强度低于此值时停止追踪">最低强度阈值:</label>
+                    <input type="number" id="setting-min-intensity" min="1e-6" max="0.1" step="1e-4" title="例如: 0.001">
+                    <span id="setting-min-intensity-value"></span>
+                </div>
+                <div class="prop">
+                    <label for="setting-fast-wls" title="启用后，白光每个方向只发一条随机波长光线，可提高性能，但光源处可能闪烁。">快速白光模拟:</label>
+                    <input type="checkbox" id="setting-fast-wls">
+                </div>
+                <hr class="thin-hr">
+                <h4>交互增强</h4>
+                <div class="prop">
+                    <label for="setting-alignment-lines" title="拖动元件时显示对齐辅助线">显示对齐辅助线:</label>
+                    <input type="checkbox" id="setting-alignment-lines" checked>
+                </div>
+                <div class="prop">
+                    <label for="setting-snap-to-grid" title="拖动元件时自动吸附到网格点">网格吸附:</label>
+                    <input type="checkbox" id="setting-snap-to-grid" checked>
+                </div>
+                <div class="prop">
+                    <label for="setting-snap-to-objects" title="拖动元件时自动吸附到其他元件">元件吸附:</label>
+                    <input type="checkbox" id="setting-snap-to-objects" checked>
+                </div>
+                <div class="prop">
+                    <label for="setting-snap-threshold" title="吸附检测的像素距离阈值">吸附阈值:</label>
+                    <input type="range" id="setting-snap-threshold" min="5" max="20" value="10" step="1">
+                    <span id="setting-snap-threshold-value">10px</span>
+                </div>
+            </div>
+
+            <!-- 新的统一项目面板 -->
+            <div id="unified-project-tab" class="tab-content">
+                <!-- 由 UnifiedProjectPanel 动态渲染 -->
+            </div>
+
+            <div id="info-tab" class="tab-content">
+                <h4>信息</h4>
+                <p>交互式光学实验室 v2.1</p>
+                <p>统一项目管理版本</p>
+                <p>支持本地文件夹和 GitHub 仓库</p>
+                <hr class="thin-hr">
+                <p><a href="https://github.com/tryandaction/Interactive-Optics-Lab" target="_blank">GitHub 项目主页</a></p>
+                <p>更多信息和帮助请查阅用户指南。</p>
+            </div>
+        </div> <!-- End Inspector -->
+
+    </div> <!-- End Main Content Area -->
+
+    <!-- Modals (Now potentially smaller/more focused, or removed if integrated) -->
+    <!-- Projects Modal -->
+    <div id="projects-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
+            <span class="modal-close-btn" id="projects-modal-close-btn">×</span>
+
+            <h2>项目管理</h2>
+            <p style="text-align: center; color: var(--secondary-color); font-size: 13px; margin-bottom: 15px;">
+                <i>创建和管理本地项目，所有数据保存在浏览器中</i>
+            </p>
+
+            <div id="projects-modal-content">
+                <div class="cloud-scenes-toolbar">
+                    <input type="text" id="projects-modal-search" placeholder="搜索项目..." class="scene-search">
+                    <button id="refresh-projects" class="secondary-btn">刷新</button>
+                    <button id="create-project-modal-btn" class="primary-btn">创建项目</button>
+                </div>
+
+                <div id="projects-modal-list">
+                    <p class="placeholder-text">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div id="create-project-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="modal-close-btn" id="create-project-modal-close-btn">×</span>
+
+            <h2>创建新项目</h2>
+
+            <form id="create-project-form">
+                <div class="form-group">
+                    <label for="project-name">项目名称:</label>
+                    <input type="text" id="project-name" required placeholder="输入项目名称">
+                </div>
+                <div class="form-group">
+                    <label for="project-description">项目描述:</label>
+                    <textarea id="project-description" placeholder="描述项目的目的和内容（可选）" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="project-parent">父项目:</label>
+                    <select id="project-parent">
+                        <option value="">无父项目（顶级项目）</option>
+                        <!-- 动态加载项目选项 -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="project-tags">标签:</label>
+                    <input type="text" id="project-tags" placeholder="用逗号分隔多个标签（可选）">
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="project-is-public"> 公开项目（允许其他人查看）
+                    </label>
+                </div>
+                <button type="submit" class="primary-btn" style="width: 100%;">创建项目</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Guide Modal (Placeholder) -->
+    <div id="guide-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; max-height: 85vh;">
+            <span class="modal-close-btn" id="guide-modal-close-btn">×</span>
+
+            <h2>交互式光学实验室 - 用户指南 (v1.1)</h2>
+
+            <div id="guide-content">
+
+            <h4>1. 概述</h4>
+            <p>欢迎使用交互式光学实验室！这是一个基于 Web
+                的强大而直观的仿真工具，旨在帮助您探索奇妙的光学世界。通过直接交互，您可以搭建虚拟光学系统、可视化光线传播，并理解基本的光学原理。本模拟器适合学生、教育工作者、光学爱好者以及任何对光学感兴趣的人士。</p>
+
+            <h4>2. 界面布局</h4>
+            <p>模拟器界面主要分为三个区域和一个顶部菜单栏：</p>
+            <ul>
+                <li><strong>顶部菜单栏:</strong> 包含文件操作（新建、导入、导出、场景管理）、编辑（撤销/重做、删除）、视图（重置、网格）、模拟（模式切换、设置、动画控制）、帮助等功能。
+                </li>
+                <li><strong>左侧工具栏:</strong> 陈列所有可用的光学元件，按类别分组，点击即可选择用于添加到画布。</li>
+                <li><strong>中间模拟区域 (画布):</strong> 主要的工作区域，您可以在此放置、移动、旋转光学元件，并观察光线的实时传播。</li>
+                <li><strong>右侧检查器面板:</strong> 包含多个标签页：
+                    <ul>
+                        <li><strong>属性:</strong> 当选中一个元件时，显示并允许编辑该元件的特定参数。</li>
+                        <li><strong>设置:</strong> 提供全局模拟参数和显示选项的调整（如网格、光线数量、反射次数等）。</li>
+                        <li><strong>场景:</strong> 管理保存在浏览器本地存储中的场景（加载、另存为、删除）。</li>
+                        <li><strong>信息:</strong> 显示关于模拟器的基本信息。</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>3. 主要特性</h4>
+            <ul>
+                <li><strong>直观交互:</strong>
+                    <ul>
+                        <li>添加元件: 点击左侧工具栏按钮，然后在画布上单击放置。</li>
+                        <li>选择元件: 直接在画布上单击元件 (Shift/Ctrl+单击可多选)。</li>
+                        <li>移动元件: 拖动选中元件的主体 (可多选拖动)。</li>
+                        <li>旋转元件: 拖动选中元件的角度控制柄，或选中元件并将鼠标悬停其上滚动滚轮 (Shift+滚轮微调)。</li>
+                        <li>撤销/重做: 使用顶部按钮或 Ctrl+Z/Ctrl+Y 撤销/重做大部分操作。</li>
+                    </ul>
+                </li>
+                <li><strong>丰富元件库:</strong> 包含光源、透镜、反射镜、棱镜、光栅、偏振元件、分束器、探测器等多种元件 (详见第 5 节)。</li>
+                <li><strong>实时光线追踪:</strong> 基于物理定律精确可视化光线路径。</li>
+                <li><strong>元件属性调整:</strong> 选中元件后，在右侧“属性”标签页中实时修改参数。</li>
+                <li><strong>灵活视图控制:</strong>
+                    <ul>
+                        <li>缩放: 在画布空白区域滚动鼠标滚轮或双指捏合。</li>
+                        <li>平移: 按住鼠标中键拖动画布或双指拖动。</li>
+                        <li>重置视图: 通过顶部“视图”菜单操作。</li>
+                    </ul>
+                </li>
+                <li><strong>多模拟模式:</strong>
+                    <ul>
+                        <li>光线追踪: 默认模式，模拟光线传播与物理效应。</li>
+                        <li>透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
+                    </ul>
+                </li>
+                <li><strong>物理效应模拟:</strong> 波长相关颜色、偏振、色散、衍射基础、干涉基础、高斯光束初步模拟。</li>
+                <li><strong>场景管理:</strong>
+                    <ul>
+                        <li>本地保存/加载: 通过右侧“场景”标签页或顶部“文件”菜单管理保存在浏览器中的多个场景。</li>
+                        <li>文件导入/导出: 通过顶部“文件”菜单或图标按钮导入/导出 `.json` 场景文件。</li>
+                    </ul>
+                </li>
+                <li><strong>全局设置:</strong> 通过右侧“设置”标签页或顶部“模拟”菜单调整显示和性能参数。</li>
+                <li><strong>动画控制:</strong> 通过顶部“模拟”菜单切换光路箭头的显示和速度。</li>
+            </ul>
+
+            <h4>4. 快速入门</h4>
+            <ul>
+                <li><strong>开始:</strong> 页面加载后画布为空。</li>
+                <li><strong>添加元件:</strong> 点击左侧工具栏图标按钮 (如“点光源”)，鼠标移到画布上会看到预览，单击放置。</li>
+                <li><strong>观察:</strong> 光线会自动从光源发出并与元件交互。</li>
+                <li><strong>选中与调整:</strong> 单击画布上的元件，右侧面板自动切换到“属性”标签页。在此修改参数（如光源波长、透镜焦距），观察模拟结果变化。</li>
+                <li><strong>移动与旋转:</strong> 拖动元件移动，使用角度控制柄或鼠标滚轮（悬停在选中的元件上）旋转。</li>
+                <li><strong>视图操作:</strong> 滚动滚轮/双指捏合缩放，按住中键/双指拖动平移。通过“视图”菜单重置。</li>
+                <li><strong>保存场景(浏览器):</strong> 打开右侧“场景”标签页，点击“另存到浏览器存储...”按钮，输入名称保存。</li>
+                <li><strong>加载场景(浏览器):</strong> 在“场景”标签页点击已保存的场景名称。</li>
+                <li><strong>导出/导入文件:</strong> 使用顶部文件菜单或快捷图标进行 `.json` 文件操作。</li>
+                <li><strong>删除元件:</strong> 选中元件后按 `Delete` 或 `Backspace` 键，或通过“编辑”菜单操作。</li>
+                <li><strong>撤销/重做:</strong> 使用顶部撤销/重做图标按钮或 Ctrl+Z / Ctrl+Y。</li>
+            </ul>
+
+            <h4>5. 可用元件一览 (部分)</h4>
+            <ul>
+                <li><strong>光源:</strong> 点光源(激光), 扇形光源, 线光源, 白光光源(模拟光谱, 可选高斯)</li>
+                <li><strong>透镜:</strong> 薄透镜 (f>0 凸, f<0 凹)</li>
+                <li><strong>反射镜:</strong> 平面镜, 球面镜 (凹/凸), 抛物面镜 (凹)</li>
+                <li><strong>折射/色散:</strong> 棱镜, 介质块</li>
+                <li><strong>衍射:</strong> 衍射光栅, 光阑/多缝 (Aperture), 声光调制器 (AOM)</li>
+                <li><strong>偏振:</strong> 偏振片 (线偏振), 半波片 (λ/2), 四分之一波片 (λ/4)</li>
+                <li><strong>光束控制:</strong> 分束器 (标准/偏振), 光纤</li>
+                <li><strong>探测:</strong> 屏幕 (显示相干光强分布), 光度计 (测量总光强)</li>
+            </ul>
+
+            <h4>6. 模拟模式详解</h4>
+            <ul>
+                <li><strong>光线追踪 (Ray Tracing):</strong> (菜单: 模拟 -> 模式: 光线追踪)
+                    默认模式。模拟大量独立光线的行为，考虑相位进行相干叠加（在屏幕上）。适合观察反射、折射、TIR、色散、衍射级次、偏振效果和干涉图样。</li>
+                <li><strong>透镜成像 (Lens Imaging):</strong> (菜单: 模拟 -> 模式: 透镜成像)
+                    仅当场景中<strong>恰好包含一个受支持的光源和一个薄透镜</strong>时可用。绘制理想薄透镜成像的三条主光线、物和像，并在画布左上角显示 u, v, M, hₒ, hᵢ
+                    及像的性质。不进行复杂的光线追踪。</li>
+            </ul>
+
+            <h4>7. 全局设置与选项 (右侧“设置”标签页)</h4>
+            <ul>
+                <li><strong>显示网格:</strong> 控制画布背景网格的可见性。</li>
+                <li><strong>显示箭头:</strong> 控制光路动画箭头的全局开关。</li>
+                <li><strong>仅选中箭头:</strong> 仅显示当前选中光源的动画箭头。</li>
+                <li><strong>箭头速度:</strong> 调整动画箭头的速度。</li>
+                <li><strong>每源最大光线数:</strong> 限制 Fan/Line/WhiteLight 光源生成的光线数量上限（影响性能和视觉密度）。</li>
+                <li><strong>最大反/折射次数:</strong> 光线追踪的最大弹射次数上限（影响性能和复杂光路显示）。</li>
+                <li><strong>最低强度阈值:</strong> 光线强度低于此值时停止追踪（影响性能和暗光线显示）。</li>
+                <li><strong>快速白光模拟:</strong> 切换白光光源的光线生成方式（精确混合 vs. 随机采样，后者性能更好）。</li>
+                <li><strong>启用网格吸附:</strong> 拖动元件时是否自动吸附到网格点。</li>
+            </ul>
+
+            <h4>8. 场景管理 (右侧“场景”标签页 / 顶部“文件”菜单)</h4>
+            <ul>
+                <li><strong>本地场景列表:</strong> 显示、加载、删除保存在当前浏览器中的场景。</li>
+                <li><strong>另存到浏览器存储:</strong> 将当前画布布局命名并保存到本地浏览器存储。</li>
+                <li><strong>导入文件:</strong> 从本地选择 `.json` 文件加载场景（会覆盖当前场景，加载前会提示）。</li>
+                <li><strong>导出文件:</strong> 将当前画布布局下载为 `.json` 文件。</li>
+            </ul>
+
+            <h4>9. 使用建议</h4>
+            <ul>
+                <li><strong>由简入繁:</strong> 从简单设置开始，理解元件行为，再组合。</li>
+                <li><strong>善用视图:</strong> 缩放和平移对于观察细节和管理复杂布局至关重要。</li>
+                <li><strong>关注属性:</strong> 通过右侧“属性”标签精确控制元件参数。</li>
+                <li><strong>利用设置:</strong> 根据需要调整“设置”标签页中的参数以平衡效果和性能。</li>
+                <li><strong>保存场景:</strong> 经常使用“场景”标签页或文件菜单保存你的工作。</li>
+                <li><strong>利用撤销/重做:</strong> 不怕操作失误，随时可以通过撤销返回上一步。</li>
+                <li><strong>查看信息:</strong> “信息”标签页和“帮助”菜单提供版本和基本指南。</li>
+            </ul>
+
+            <h4>10. 未来展望</h4>
+            <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、更丰富的可视化选项等。</p>
+            
+            </div> <!-- End guide-content -->
+        </div>
+    </div>
+
+    <!-- About Modal (Placeholder) -->
+    <div id="about-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close-btn" id="about-modal-close-btn">×</span>
+            <h2>关于</h2>
+            <p>交互式光学实验室 v1.1</p>
+            <p>一个用于学习和探索光学原理的 Web 仿真工具。</p>
+            <p>开发: [你的名字或组织]</p>
+            <p>(C) 2024</p>
+        </div>
+    </div>
+
+
+    <!-- Hidden File Input (Keep for import) -->
+    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+
+    <!-- Preloaded Audio Elements (Keep as is) -->
+    <!-- ... -->
+
+    <!-- JavaScript Files -->
+    <!-- 
+        注意：如果控制台出现 installHook.js 相关错误，这是浏览器扩展引起的，
+        不是本项目的代码问题，可以安全忽略。
+    -->
+    
+    <!-- 错误处理 -->
+    <script>
+        // 捕获模块加载错误
+        window.addEventListener('error', (e) => {
+            if (e.filename && e.filename.includes('.js')) {
+                console.error('❌ 脚本加载错误:', e.filename, e.message);
+            }
+        }, true);
+        
+        // 捕获未处理的 Promise 拒绝
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('❌ Promise 拒绝:', e.reason);
+        });
+    </script>
+    
+    <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
+    <script type="module" src="src/compat/legacy-globals.js" onerror="console.error('❌ 无法加载 legacy-globals.js')"></script>
+    
+    <!-- 统一项目管理模块 -->
+    <script type="module">
+        import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';
+        
+        /**
+         * SceneStatusDisplay - 场景状态显示管理器
+         * 负责在顶部菜单栏显示当前打开的场景路径和修改状态
+         */
+        class SceneStatusDisplay {
+            constructor() {
+                // DOM 元素引用
+                this.container = document.getElementById('scene-path-display');
+                this.projectNameEl = document.getElementById('scene-project-name');
+                this.pathSepEl = document.getElementById('scene-path-sep');
+                this.sceneNameEl = document.getElementById('scene-name');
+                this.modifiedDot = document.getElementById('scene-modified-dot');
+                this.saveHint = document.getElementById('scene-save-hint');
+                
+                // 状态
+                this.currentProject = null;
+                this.currentScene = null;
+                this.isModified = false;
+                
+                this.bindEvents();
+                console.log('[SceneStatusDisplay] Initialized');
+            }
+            
+            bindEvents() {
+                // 监听全局场景修改事件
+                document.addEventListener('sceneModified', () => {
+                    console.log('[SceneStatusDisplay] sceneModified event received');
+                    this.setModified(true);
+                });
+                
+                // 监听全局场景保存事件
+                document.addEventListener('sceneSaved', () => {
+                    console.log('[SceneStatusDisplay] sceneSaved event received');
+                    this.setModified(false);
+                });
+                
+                // 点击路径显示区域时，如果有未保存的更改，高亮提示
+                if (this.container) {
+                    this.container.addEventListener('click', () => {
+                        if (this.isModified && this.currentScene) {
+                            this.highlightSaveHint();
+                        }
+                    });
+                }
+            }
+            
+            /**
+             * 更新显示内容
+             * @param {Object|null} project - 当前项目
+             * @param {Object|null} scene - 当前场景
+             */
+            updateDisplay(project, scene) {
+                console.log('[SceneStatusDisplay] updateDisplay:', { project: project?.name, scene: scene?.name });
+                
+                this.currentProject = project;
+                this.currentScene = scene;
+                
+                if (!this.container) return;
+                
+                // 没有打开的场景
+                if (!scene) {
+                    if (this.projectNameEl) {
+                        this.projectNameEl.textContent = '';
+                        this.projectNameEl.style.display = 'none';
+                    }
+                    if (this.pathSepEl) this.pathSepEl.style.display = 'none';
+                    if (this.sceneNameEl) this.sceneNameEl.textContent = '未打开场景';
+                    
+                    this.container.classList.remove('has-scene');
+                    this.container.title = '当前没有打开的场景\n点击项目面板中的场景来打开';
+                    this.setModified(false);
+                    return;
+                }
+                
+                this.container.classList.add('has-scene');
+                
+                // 显示项目名称
+                if (project && this.projectNameEl) {
+                    this.projectNameEl.textContent = project.name;
+                    this.projectNameEl.style.display = 'inline';
+                    if (this.pathSepEl) this.pathSepEl.style.display = 'inline';
+                } else {
+                    if (this.projectNameEl) {
+                        this.projectNameEl.textContent = '';
+                        this.projectNameEl.style.display = 'none';
+                    }
+                    if (this.pathSepEl) this.pathSepEl.style.display = 'none';
+                }
+                
+                // 显示场景名称
+                if (this.sceneNameEl) {
+                    this.sceneNameEl.textContent = scene.name;
+                }
+                
+                // 更新 title 显示完整路径
+                this.updateTooltip();
+            }
+            
+            /**
+             * 设置修改状态
+             * @param {boolean} modified - 是否已修改
+             */
+            setModified(modified) {
+                // 强制更新，不检查是否相同（确保状态始终正确）
+                this.isModified = modified;
+                console.log('[SceneStatusDisplay] setModified:', modified);
+                
+                this.isModified = modified;
+                console.log('[SceneStatusDisplay] setModified:', modified);
+                
+                if (!this.container) return;
+                
+                // 更新修改指示器
+                if (this.modifiedDot) {
+                    this.modifiedDot.style.display = modified ? 'inline' : 'none';
+                }
+                
+                // 更新保存提示
+                if (this.saveHint) {
+                    this.saveHint.style.display = modified ? 'inline' : 'none';
+                }
+                
+                // 更新容器样式
+                if (modified) {
+                    this.container.classList.add('is-modified');
+                } else {
+                    this.container.classList.remove('is-modified');
+                }
+                
+                // 更新 tooltip
+                this.updateTooltip();
+                
+                // 更新窗口标题
+                this.updateWindowTitle();
+            }
+            
+            /**
+             * 更新 tooltip
+             */
+            updateTooltip() {
+                if (!this.container || !this.currentScene) return;
+                
+                const fullPath = this.currentProject 
+                    ? `${this.currentProject.name}/${this.currentScene.name}` 
+                    : this.currentScene.name;
+                    
+                const statusText = this.isModified 
+                    ? '(有未保存的更改，按 Ctrl+S 保存)' 
+                    : '(已保存)';
+                    
+                this.container.title = `当前场景: ${fullPath}\n${statusText}`;
+            }
+            
+            /**
+             * 更新窗口标题
+             */
+            updateWindowTitle() {
+                const modifiedIndicator = this.isModified ? '● ' : '';
+                
+                if (this.currentScene && this.currentProject) {
+                    document.title = `${modifiedIndicator}${this.currentScene.name} - ${this.currentProject.name} - 光学实验室`;
+                } else if (this.currentScene) {
+                    document.title = `${modifiedIndicator}${this.currentScene.name} - 光学实验室`;
+                } else {
+                    document.title = '交互式光学实验室';
+                }
+            }
+            
+            /**
+             * 高亮保存提示（动画效果）
+             */
+            highlightSaveHint() {
+                if (!this.saveHint || !this.modifiedDot) return;
+                
+                // 重置动画
+                this.saveHint.style.animation = 'none';
+                this.modifiedDot.style.animation = 'none';
+                
+                // 触发重排
+                this.saveHint.offsetHeight;
+                this.modifiedDot.offsetHeight;
+                
+                // 应用动画
+                this.saveHint.style.animation = 'pulse-hint 0.3s ease-in-out 3';
+                this.modifiedDot.style.animation = 'pulse-dot 0.5s ease-in-out 3';
+            }
+            
+            /**
+             * 获取当前场景信息
+             */
+            getCurrentSceneInfo() {
+                return {
+                    project: this.currentProject,
+                    scene: this.currentScene,
+                    isModified: this.isModified
+                };
+            }
+        }
+        
+        // 全局场景状态显示实例
+        let sceneStatusDisplay = null;
+        
+        // 初始化函数
+        function initProjectPanel() {
+            console.log('[Init] Starting UnifiedProjectPanel initialization...');
+            try {
+                window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
+                console.log('[Init] UnifiedProjectPanel initialized successfully');
+                
+                // 初始化场景状态显示
+                sceneStatusDisplay = new SceneStatusDisplay();
+                window.sceneStatusDisplay = sceneStatusDisplay;
+                
+                // 监听项目管理器事件
+                const projectManager = window.unifiedProjectPanel.getProjectManager();
+                
+                // 项目变更时更新显示
+                projectManager.on('projectChanged', (project) => {
+                    console.log('[Init] projectChanged event:', project?.name);
+                    sceneStatusDisplay.updateDisplay(project, projectManager.getCurrentScene());
+                });
+                
+                // 场景加载时更新显示
+                projectManager.on('sceneLoaded', (scene) => {
+                    console.log('[Init] sceneLoaded event:', scene?.name);
+                    sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
+                    sceneStatusDisplay.setModified(false);
+                });
+                
+                // 场景保存时更新状态
+                projectManager.on('sceneSaved', (scene) => {
+                    console.log('[Init] sceneSaved event:', scene?.name);
+                    sceneStatusDisplay.setModified(false);
+                    // 触发全局事件，通知 main.js
+                    document.dispatchEvent(new CustomEvent('sceneSaved'));
+                });
+                
+                // 场景修改时更新状态
+                projectManager.on('sceneModified', (scene) => {
+                    console.log('[Init] sceneModified event:', scene?.name);
+                    sceneStatusDisplay.setModified(true);
+                });
+                
+                // 场景重命名时更新显示
+                projectManager.on('sceneRenamed', (scene) => {
+                    console.log('[Init] sceneRenamed event:', scene?.name);
+                    sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
+                });
+                
+            } catch (error) {
+                console.error('[Init] Failed to initialize UnifiedProjectPanel:', error);
+            }
+            
+            // 监听场景数据加载事件（从项目面板加载场景到画布）
+            document.addEventListener('sceneDataLoaded', (e) => {
+                const { scene } = e.detail;
+                console.log('[sceneDataLoaded] Received scene data:', scene?.name);
+                
+                // 等待 loadSceneFromData 函数可用
+                const tryLoadScene = () => {
+                    if (typeof loadSceneFromData === 'function') {
+                        if (scene && scene.data) {
+                            // scene.data 包含完整的场景数据
+                            const sceneData = scene.data;
+                            const loadData = {
+                                components: sceneData.components || [],
+                                settings: sceneData.settings || {},
+                                currentMode: sceneData.settings?.mode || 'ray_trace',
+                                view: sceneData.view,
+                                metadata: sceneData.metadata
+                            };
+                            console.log('[sceneDataLoaded] Loading scene with', loadData.components?.length || 0, 'components');
+                            
+                            // 加载场景数据到画布，不切换到属性面板（保持在项目面板）
+                            const success = loadSceneFromData(loadData, { switchToPropertiesTab: false });
+                            
+                            if (success) {
+                                console.log('[sceneDataLoaded] Scene loaded successfully');
+                                // 更新场景状态显示
+                                if (window.sceneStatusDisplay && window.unifiedProjectPanel) {
+                                    const pm = window.unifiedProjectPanel.getProjectManager();
+                                    window.sceneStatusDisplay.updateDisplay(pm.getCurrentProject(), scene);
+                                    window.sceneStatusDisplay.setModified(false);
+                                }
+                            } else {
+                                console.error('[sceneDataLoaded] Failed to load scene data');
+                            }
+                        } else {
+                            console.error('[sceneDataLoaded] Invalid scene data:', e.detail);
+                        }
+                    } else {
+                        console.log('[sceneDataLoaded] loadSceneFromData not ready, retrying...');
+                        setTimeout(tryLoadScene, 100);
+                    }
+                };
+                tryLoadScene();
+            });
+        }
+        
+        // 检查 DOM 是否已经加载完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initProjectPanel);
+        } else {
+            // DOM 已经加载完成，直接初始化
+            initProjectPanel();
+        }
+    </script>
+    
+    <!-- 应用代码 -->
+    <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
+    <script>
+        (function loadMainWhenReady() {
+            const loadMain = () => {
+                if (window.__MAIN_LOADED__) return;
+                window.__MAIN_LOADED__ = true;
+                const script = document.createElement('script');
+                script.src = 'main.js';
+                script.onload = () => console.log('main.js loaded after legacy globals');
+                script.onerror = () => console.error('❌ 无法加载 main.js');
+                document.body.appendChild(script);
+            };
+
+            if (window.__LEGACY_GLOBALS_LOADED__) {
+                loadMain();
+                return;
+            }
+
+            window.addEventListener('legacy-globals-ready', loadMain, { once: true });
+
+            // Fallback: load main.js even if module init is delayed
+            setTimeout(() => {
+                if (!window.__LEGACY_GLOBALS_LOADED__) {
+                    console.warn('legacy-globals not ready, loading main.js anyway');
+                    loadMain();
+                }
+            }, 2000);
+        })();
+    </script>
+
+</body>
+</html>

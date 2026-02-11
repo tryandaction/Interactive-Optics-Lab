@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpticsLab - 论文级光路图绘制工具</title>
+    <meta name="description" content="集光学仿真、专业绘图、论文模板与高质量导出于一体。专为理工科科研记录与论文投稿设计。">
+    <meta name="keywords" content="光路图,光学仿真,论文绘图,OpticsLab,optics diagram,ray tracing,scientific illustration">
+    <meta property="og:title" content="OpticsLab - 论文级光路图绘制工具">
+    <meta property="og:description" content="让论文级光路图，从'能画'到'可发表'。无需安装，浏览器打开即用。">
+    <meta property="og:type" content="website">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --accent: #7c3aed;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --bg-light: #f8fafc;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dark: #1e293b;
+            --border: #334155;
+            --success: #10b981;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; color: var(--text); background: var(--bg); line-height: 1.6; }
+        a { color: var(--primary); text-decoration: none; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* Nav */
+        nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(15,23,42,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+        nav .container { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+        nav .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+        nav .logo span { color: var(--primary); }
+        nav .nav-links { display: flex; gap: 28px; align-items: center; }
+        nav .nav-links a { color: var(--text-muted); font-size: 14px; transition: color .2s; }
+        nav .nav-links a:hover { color: var(--text); }
+        .btn { display: inline-block; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 15px; transition: all .2s; cursor: pointer; border: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-outline { border: 1px solid var(--border); color: var(--text); background: transparent; }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-sm { padding: 8px 18px; font-size: 13px; }
+
+        /* Hero */
+        .hero { padding: 140px 0 80px; text-align: center; background: linear-gradient(180deg, var(--bg) 0%, #0c1a3a 100%); }
+        .hero h1 { font-size: 48px; font-weight: 800; letter-spacing: -1px; line-height: 1.2; margin-bottom: 20px; background: linear-gradient(135deg, #fff 0%, #93c5fd 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-sub { font-size: 18px; color: var(--text-muted); max-width: 560px; margin: 0 auto 32px; }
+        .hero-actions { display: flex; gap: 16px; justify-content: center; margin-bottom: 24px; }
+        .hero-note { font-size: 13px; color: var(--text-muted); }
+
+        /* Sections */
+        section { padding: 80px 0; }
+        section h2 { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 48px; letter-spacing: -0.5px; }
+
+        /* Pain */
+        .pain { background: var(--bg); }
+        .pain-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .pain-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; }
+        .pain-icon { font-size: 32px; margin-bottom: 12px; }
+        .pain-card h3 { font-size: 16px; margin-bottom: 8px; }
+        .pain-card p { font-size: 14px; color: var(--text-muted); }
+
+        /* Value */
+        .value { background: #0c1a3a; }
+        .value-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        .value-card { padding: 32px; border-radius: 12px; background: var(--bg-card); border: 1px solid var(--border); }
+        .value-num { font-size: 40px; font-weight: 800; color: var(--primary); opacity: 0.4; margin-bottom: 8px; }
+        .value-card h3 { font-size: 18px; margin-bottom: 8px; }
+        .value-card p { font-size: 14px; color: var(--text-muted); }
+
+        /* Features */
+        .features { background: var(--bg); }
+        .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .feat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+        .feat-card h3 { font-size: 15px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .feat-card p { font-size: 13px; color: var(--text-muted); }
+        .feat-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: var(--primary); color: #fff; }
+
+        /* Templates */
+        .templates { background: #0c1a3a; }
+        .tmpl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .tmpl-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+        .tmpl-card .tmpl-icon { font-size: 36px; margin-bottom: 10px; }
+        .tmpl-card h3 { font-size: 14px; margin-bottom: 4px; }
+        .tmpl-card p { font-size: 12px; color: var(--text-muted); }
+
+        /* Export */
+        .export { background: var(--bg); }
+        .export-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; }
+        .export-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px 16px; }
+        .export-card .export-val { font-size: 28px; font-weight: 800; color: var(--primary); }
+        .export-card p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+        /* Pricing */
+        .pricing { background: #0c1a3a; }
+        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
+        .price-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 36px 28px; text-align: center; position: relative; }
+        .price-card.popular { border-color: var(--primary); }
+        .price-card.popular::before { content: '推荐'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #fff; padding: 2px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .price-card h3 { font-size: 18px; margin-bottom: 8px; }
+        .price-amount { font-size: 36px; font-weight: 800; margin: 16px 0 4px; }
+        .price-amount span { font-size: 14px; font-weight: 400; color: var(--text-muted); }
+        .price-card ul { list-style: none; text-align: left; margin: 20px 0; }
+        .price-card li { font-size: 14px; color: var(--text-muted); padding: 6px 0; padding-left: 20px; position: relative; }
+        .price-card li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: 700; }
+
+        /* Use Cases */
+        .usecases { background: var(--bg); }
+        .uc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        .uc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+        .uc-card h3 { font-size: 16px; margin-bottom: 8px; }
+        .uc-card p { font-size: 14px; color: var(--text-muted); }
+
+        /* FAQ */
+        .faq { background: #0c1a3a; }
+        .faq-list { max-width: 700px; margin: 0 auto; }
+        .faq-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
+        .faq-item h3 { font-size: 16px; margin-bottom: 8px; cursor: pointer; }
+        .faq-item p { font-size: 14px; color: var(--text-muted); }
+
+        /* CTA */
+        .cta { padding: 80px 0; text-align: center; background: linear-gradient(180deg, var(--bg) 0%, #0c1a3a 100%); }
+        .cta h2 { margin-bottom: 16px; }
+        .cta p { color: var(--text-muted); margin-bottom: 32px; }
+        .cta-actions { display: flex; gap: 16px; justify-content: center; }
+
+        /* Footer */
+        footer { padding: 32px 0; border-top: 1px solid var(--border); text-align: center; font-size: 13px; color: var(--text-muted); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 32px; }
+            .pain-grid, .feat-grid, .tmpl-grid, .export-grid { grid-template-columns: repeat(2, 1fr); }
+            .value-grid, .price-grid, .uc-grid { grid-template-columns: 1fr; }
+            .hero-actions { flex-direction: column; align-items: center; }
+            nav .nav-links a:not(.btn) { display: none; }
+        }
+        @media (max-width: 480px) {
+            .pain-grid, .export-grid { grid-template-columns: 1fr; }
+            .tmpl-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+</style>
+</head>
+<body>
+<!-- NAV -->
+<nav><div class="container">
+    <div class="logo">Optics<span>Lab</span></div>
+    <div class="nav-links">
+        <a href="#features">功能</a>
+        <a href="#templates">模板</a>
+        <a href="#export">导出</a>
+        <a href="#pricing">价格</a>
+        <a href="index.html" class="btn btn-primary btn-sm">立即体验</a>
+    </div>
+</div></nav>
+
+<!-- HERO -->
+<section class="hero"><div class="container">
+    <h1>让论文级光路图，从"能画"到"可发表"</h1>
+    <p class="hero-sub">集光学仿真、专业绘图、论文模板与高质量导出于一体。<br>专为理工科科研记录与论文投稿设计。</p>
+    <div class="hero-actions">
+        <a href="index.html" class="btn btn-primary">立即体验（免费）</a>
+        <a href="#templates" class="btn btn-outline">查看论文级示例</a>
+    </div>
+    <p class="hero-note">无需安装 · 浏览器打开即用 · 支持 SVG / PDF / PNG</p>
+</div></section>
+
+<!-- PAIN POINTS -->
+<section class="pain" id="pain"><div class="container">
+    <h2>科研绘图的痛点</h2>
+    <div class="pain-grid">
+        <div class="pain-card"><div class="pain-icon">🎨</div><h3>通用软件不专业</h3><p>画图软件缺少光学符号，手动拼凑费时费力</p></div>
+        <div class="pain-card"><div class="pain-icon">📐</div><h3>导出质量不达标</h3><p>线宽、字体不统一，投稿频繁返修</p></div>
+        <div class="pain-card"><div class="pain-icon">🔄</div><h3>图与实验难复用</h3><p>论文图和实验记录分离，改动需要重画</p></div>
+        <div class="pain-card"><div class="pain-icon">⏱️</div><h3>改图耗时</h3><p>光路变化频繁，每次修改都要从头调整</p></div>
+    </div>
+</div></section>
+
+<!-- VALUE -->
+<section class="value"><div class="container">
+    <h2>一站式解决方案</h2>
+    <div class="value-grid">
+        <div class="value-card"><div class="value-num">01</div><h3>一体化工作流</h3><p>先仿真，再精修，再导出。模式切换不丢样式与标注。</p></div>
+        <div class="value-card"><div class="value-num">02</div><h3>论文级标准</h3><p>内置模板、规范线宽、统一字体与高分辨率导出，直接投稿。</p></div>
+        <div class="value-card"><div class="value-num">03</div><h3>低学习成本</h3><p>零安装、模板一键套用，学生 10 分钟即可上手。</p></div>
+    </div>
+</div></section>
+
+<!-- FEATURES -->
+<section class="features" id="features"><div class="container">
+    <h2>功能亮点</h2>
+    <div class="feat-grid">
+        <div class="feat-card"><h3><span class="feat-tag">核心</span> 双模式工作流</h3><p>模拟与绘图自由切换，样式与标注自动保持</p></div>
+        <div class="feat-card"><h3><span class="feat-tag">核心</span> 94+ 光学元件</h3><p>激光器、透镜、反射镜、偏振器、探测器等专业元件库</p></div>
+        <div class="feat-card"><h3><span class="feat-tag">标注</span> 专业标注系统</h3><p>上下标、拖拽定位、自动排布，论文级标注</p></div>
+        <div class="feat-card"><h3><span class="feat-tag">连接</span> 光线连接</h3><p>可视化连接点、吸附、手动/自动光线连接</p></div>
+        <div class="feat-card"><h3><span class="feat-tag">模板</span> 一键套用</h3><p>论文/报告/海报/学位论文模板，30+ 内置实验模板</p></div>
+        <div class="feat-card"><h3><span class="feat-tag">导出</span> 高质量导出</h3><p>SVG/PNG/PDF/EPS，支持裁剪、DPI、透明背景</p></div>
+    </div>
+</div></section>
+
+<!-- TEMPLATES -->
+<section class="templates" id="templates"><div class="container">
+    <h2>内置论文级模板</h2>
+    <div class="tmpl-grid">
+        <div class="tmpl-card"><div class="tmpl-icon">🔬</div><h3>干涉仪</h3><p>Michelson / Mach-Zehnder / Fabry-Perot / Sagnac</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">📡</div><h3>光谱学</h3><p>拉曼 / 荧光 / 吸收 / 饱和吸收</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">🔭</div><h3>成像系统</h3><p>显微镜 / 望远镜 / 相机镜头 / 投影仪</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">💡</div><h3>激光系统</h3><p>激光腔 / 放大器 / 倍频</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">🌊</div><h3>光纤系统</h3><p>耦合 / 分束 / 传感</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">🧲</div><h3>偏振光学</h3><p>偏振分析 / 偏振控制</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">⚛️</div><h3>量子光学</h3><p>单光子 / 纠缠 / 平衡探测</p></div>
+        <div class="tmpl-card"><div class="tmpl-icon">🧪</div><h3>原子物理</h3><p>MOT / Ramsey / 光镊 / 光晶格 / 频率梳</p></div>
+    </div>
+</div></section>
+
+<!-- EXPORT -->
+<section class="export" id="export"><div class="container">
+    <h2>导出标准</h2>
+    <div class="export-grid">
+        <div class="export-card"><div class="export-val">300+</div><p>DPI 高分辨率导出</p></div>
+        <div class="export-card"><div class="export-val">SVG</div><p>矢量格式，无限缩放</p></div>
+        <div class="export-card"><div class="export-val">PDF</div><p>直接投稿，保持排版</p></div>
+        <div class="export-card"><div class="export-val">EPS</div><p>专业印刷级格式</p></div>
+    </div>
+</div></section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing"><div class="container">
+    <h2>价格与授权</h2>
+    <div class="price-grid">
+        <div class="price-card">
+            <h3>学生个人版</h3>
+            <div class="price-amount">&#165;99<span>/年</span></div>
+            <p style="font-size:13px;color:var(--text-muted)">教育认证</p>
+            <ul>
+                <li>全部 94+ 光学元件</li>
+                <li>30+ 内置实验模板</li>
+                <li>SVG/PNG/PDF 导出</li>
+                <li>专业标注系统</li>
+            </ul>
+            <a href="index.html" class="btn btn-outline" style="width:100%">开始使用</a>
+        </div>
+        <div class="price-card popular">
+            <h3>个人专业版</h3>
+            <div class="price-amount">&#165;199<span>/年</span></div>
+            <p style="font-size:13px;color:var(--text-muted)">科研人员</p>
+            <ul>
+                <li>学生版全部功能</li>
+                <li>EPS 高级导出</li>
+                <li>自定义模板创建</li>
+                <li>优先技术支持</li>
+            </ul>
+            <a href="index.html" class="btn btn-primary" style="width:100%">立即订阅</a>
+        </div>
+        <div class="price-card">
+            <h3>课题组授权</h3>
+            <div class="price-amount">&#165;699<span>/年起</span></div>
+            <p style="font-size:13px;color:var(--text-muted)">5-20人团队</p>
+            <ul>
+                <li>专业版全部功能</li>
+                <li>团队模板共享</li>
+                <li>批量授权管理</li>
+                <li>专属技术支持</li>
+            </ul>
+            <a href="mailto:contact@opticslab.app" class="btn btn-outline" style="width:100%">联系我们</a>
+        </div>
+    </div>
+</div></section>
+
+<!-- USE CASES -->
+<section class="usecases"><div class="container">
+    <h2>应用场景</h2>
+    <div class="uc-grid">
+        <div class="uc-card"><h3>本科生实验报告</h3><p>规范光路图直接交作业，告别手绘和 PPT 拼图</p></div>
+        <div class="uc-card"><h3>研究生论文投稿</h3><p>统一风格、规范线宽，避免审稿返修</p></div>
+        <div class="uc-card"><h3>课题组共享模板</h3><p>快速复用实验光路，团队协作更高效</p></div>
+    </div>
+</div></section>
+
+<!-- FAQ -->
+<section class="faq" id="faq"><div class="container">
+    <h2>常见问题</h2>
+    <div class="faq-list">
+        <div class="faq-item"><h3>是否需要安装？</h3><p>无需安装，浏览器打开即可使用。同时提供 Windows 桌面版。</p></div>
+        <div class="faq-item"><h3>可以用于论文投稿吗？</h3><p>支持 PDF/SVG/EPS 高质量导出与论文模板尺寸，满足主流期刊投稿需求。</p></div>
+        <div class="faq-item"><h3>是否免费？</h3><p>提供基础版免费使用。论文级模板与高级导出为专业版功能。</p></div>
+        <div class="faq-item"><h3>支持哪些浏览器？</h3><p>Chrome 90+、Firefox 88+、Safari 14+、Edge 90+。</p></div>
+    </div>
+</div></section>
+
+<!-- CTA -->
+<section class="cta"><div class="container">
+    <h2>现在开始生成你的论文级光路图</h2>
+    <p>无需安装，打开浏览器即可使用</p>
+    <div class="cta-actions">
+        <a href="index.html" class="btn btn-primary">立即体验</a>
+        <a href="mailto:contact@opticslab.app" class="btn btn-outline">申请课题组试用</a>
+    </div>
+</div></section>
+
+<!-- FOOTER -->
+<footer><div class="container">
+    <p>OpticsLab v1.2.0 &copy; 2026 &mdash; MIT License &mdash; 专为科研人员打造</p>
+</div></footer>
+</body>
+</html>

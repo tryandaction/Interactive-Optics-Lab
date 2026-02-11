@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extended Icon Library Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .category { margin: 30px 0; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .category h2 { color: #0066cc; margin-top: 0; }
+        .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .icon-item { padding: 15px; border: 1px solid #ddd; border-radius: 4px; text-align: center; background: #fafafa; }
+        .icon-item:hover { background: #e8f4ff; border-color: #0066cc; }
+        .icon-name { font-size: 12px; color: #666; margin-top: 8px; }
+        .stats { background: #e8f4ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .stats strong { color: #0066cc; }
+    </style>
+</head>
+<body>
+    <h1>🔬 Extended Icon Library Test</h1>
+    <div class="stats" id="stats">Loading icon statistics...</div>
+    
+    <div class="category">
+        <h2>💡 Light Sources (10 icons)</h2>
+        <div class="icon-grid" id="sources-grid"></div>
+    </div>
+    
+    <div class="category">
+        <h2>🪞 Mirrors (10 icons)</h2>
+        <div class="icon-grid" id="mirrors-grid"></div>
+    </div>
+
+    <script type="module">
+        import { EXTENDED_SOURCES, EXTENDED_MIRRORS, getExtendedIconStats } from './ExtendedIconLibrary.js';
+        
+        // Display statistics
+        const stats = getExtendedIconStats();
+        document.getElementById('stats').innerHTML = `
+            <strong>Total Icons:</strong> ${stats.total} | 
+            <strong>Sources:</strong> ${stats.categories.sources} | 
+            <strong>Mirrors:</strong> ${stats.categories.mirrors}
+        `;
+        
+        // Render sources
+        const sourcesGrid = document.getElementById('sources-grid');
+        Object.entries(EXTENDED_SOURCES).forEach(([type, def]) => {
+            const item = document.createElement('div');
+            item.className = 'icon-item';
+            item.innerHTML = `
+                ${def.svgContent}
+                <div class="icon-name">${def.name}</div>
+            `;
+            sourcesGrid.appendChild(item);
+        });
+        
+        // Render mirrors
+        const mirrorsGrid = document.getElementById('mirrors-grid');
+        Object.entries(EXTENDED_MIRRORS).forEach(([type, def]) => {
+            const item = document.createElement('div');
+            item.className = 'icon-item';
+            item.innerHTML = `
+                ${def.svgContent}
+                <div class="icon-name">${def.name}</div>
+            `;
+            mirrorsGrid.appendChild(item);
+        });
+    </script>
+</body>
+</html>

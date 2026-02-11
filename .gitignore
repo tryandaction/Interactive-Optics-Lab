@@ -59,6 +59,7 @@ settings.local.json
 user-data/
 diagrams/
 exports/
+output/playwright/
 
 # 调试文件 / Debug Files
 debug.log

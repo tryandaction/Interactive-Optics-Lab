@@ -281,20 +281,32 @@ export class AdvancedTemplateManager {
  * Template Browser UI Component
  */
 export class TemplateBrowser {
-    constructor(manager, container) {
-        this.manager = manager;
-        this.container = container;
+    constructor(managerOrOptions, container) {
+        const options = managerOrOptions && managerOrOptions.manager
+            ? managerOrOptions
+            : { manager: managerOrOptions, container };
+
+        this.manager = options.manager;
+        this.container = options.container || null;
         this.selectedCategory = 'all';
         this.searchQuery = '';
-        this.onTemplateSelect = null;
+        this.onTemplateSelect = options.onSelect || null;
+        this.onTemplateApply = options.onApply || null;
+        this.visible = true;
+
+        if (!this.container) {
+            this.container = this._createFloatingContainer();
+        }
 
         this.render();
+        this.hide();
     }
 
     /**
      * Render browser UI
      */
     render() {
+        if (!this.container) return;
         this.container.innerHTML = '';
         this.container.className = 'template-browser';
 
@@ -416,6 +428,51 @@ export class TemplateBrowser {
         });
 
         return card;
+    }
+
+    /**
+     * Toggle visibility
+     */
+    toggle() {
+        if (this.visible) {
+            this.hide();
+        } else {
+            this.show();
+        }
+    }
+
+    show() {
+        if (!this.container) return;
+        this.container.style.display = 'block';
+        this.visible = true;
+    }
+
+    hide() {
+        if (!this.container) return;
+        this.container.style.display = 'none';
+        this.visible = false;
+    }
+
+    _createFloatingContainer() {
+        const container = document.createElement('div');
+        container.style.cssText = [
+            'position: fixed',
+            'right: 16px',
+            'top: 80px',
+            'width: 360px',
+            'max-height: 70vh',
+            'overflow: auto',
+            'background: var(--panel-bg, #2d2d2d)',
+            'color: var(--text-primary, #fff)',
+            'border: 1px solid var(--border-color, #444)',
+            'border-radius: 8px',
+            'box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3)',
+            'padding: 10px',
+            'z-index: 9600',
+            'display: none'
+        ].join('; ');
+        document.body.appendChild(container);
+        return container;
     }
 
     /**

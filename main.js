@@ -77,6 +77,11 @@ if (typeof window !== 'undefined') {
         set: (value) => { currentRayPaths = value; },
         configurable: true
     });
+    Object.defineProperty(window, 'needsRetrace', {
+        get: () => needsRetrace,
+        set: (value) => { needsRetrace = value; },
+        configurable: true
+    });
 }
 
 let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)
@@ -179,6 +184,21 @@ function markSceneAsSaved() {
  */
 function hasUnsavedChanges() {
     return sceneModified;
+}
+
+// --- 项目系统辅助 ---
+function getProjectManagerSafe() {
+    if (window.unifiedProjectPanel && typeof window.unifiedProjectPanel.getProjectManager === 'function') {
+        return window.unifiedProjectPanel.getProjectManager();
+    }
+    return null;
+}
+
+function getProjectContext() {
+    const projectManager = getProjectManagerSafe();
+    const project = projectManager?.getCurrentProject?.() || null;
+    const scene = projectManager?.getCurrentScene?.() || null;
+    return { projectManager, project, scene };
 }
 
 /**
@@ -2060,13 +2080,28 @@ function handleMouseDown(event) {
     if (isDiagramModeActive && diagramModeIntegration) {
         const rayLinkManager = diagramModeIntegration.getModule('rayLinkManager');
         const connectionPointManager = diagramModeIntegration.getModule('connectionPointManager');
-        
-        // 检查是否点击了连接点（用于开始创建光线链接）
-        const rayLinkModeActive = diagramModeIntegration?.isRayLinkModeActive?.() || false;
-        if (connectionPointManager && rayLinkManager && (rayLinkModeActive || rayLinkManager.isCreatingLink?.())) {
-            const clickedPoint = connectionPointManager.findPointAtPosition(mousePos, 15);
+
+        // 连接点点击：允许“直接点两下连接”创建光线链接（无需先手动开启“链接”按钮）
+        // 同时确保连接点世界坐标已更新，避免切换模式后首帧点不到。
+        if (connectionPointManager && rayLinkManager) {
+            try {
+                components.forEach(comp => {
+                    const compId = comp.id || comp.uuid;
+                    if (compId && connectionPointManager.componentPoints && !connectionPointManager.componentPoints.has(compId)) {
+                        connectionPointManager.initializeComponentPoints?.(comp);
+                    }
+                    connectionPointManager.updateComponentPoints?.(comp);
+                });
+            } catch (e) {
+                // 不阻断主流程；坐标更新失败时仍允许后续逻辑继续
+                console.warn('[Diagram] Failed to sync connection points before hit test:', e);
+            }
+
+            const clickedPoint = connectionPointManager.findPointAtPosition(mousePos, 12);
             if (clickedPoint) {
-                // 如果正在创建链接，尝试完成
+                connectionPointManager.setSelectedPoint?.(clickedPoint);
+
+                // 如果正在创建链接，尝试完成；否则开始创建
                 if (rayLinkManager.isCreatingLink?.()) {
                     const link = rayLinkManager.completeLinkCreation(
                         clickedPoint.componentId,
@@ -2083,19 +2118,23 @@ function handleMouseDown(event) {
                             updateUndoRedoUI();
                             markSceneAsModified();
                         }
-                        needsRetrace = true;
-                        return;
                     }
-                } else if (rayLinkModeActive) {
-                    // 开始创建新链接
-                    rayLinkManager.startLinkCreation(clickedPoint.componentId, clickedPoint.pointId);
-                    console.log('开始创建光线链接:', clickedPoint.componentId, clickedPoint.pointId);
+                    needsRetrace = true;
                     return;
                 }
-            } else if (rayLinkManager.isCreatingLink?.()) {
-                // 点击空白处取消链接创建
+
+                // 开始创建新链接（即使未开启 rayLinkModeActive，也允许快速链接）
+                rayLinkManager.startLinkCreation(clickedPoint.componentId, clickedPoint.pointId);
+                console.log('开始创建光线链接:', clickedPoint.componentId, clickedPoint.pointId);
+                needsRetrace = true;
+                return;
+            }
+
+            // 点击空白处：若正在创建链接，则取消
+            if (rayLinkManager.isCreatingLink?.()) {
                 rayLinkManager.cancelLinkCreation();
                 console.log('取消光线链接创建');
+                needsRetrace = true;
             }
         }
 
@@ -2721,11 +2760,38 @@ function handleMouseUp(event) {
                 });
 
                 if (changed) {
-                    // Create and add the multi-move command
-                    historyManager.addCommand(new MoveComponentsCommand(ongoingActionState.components, ongoingActionState.startValues, finalPositions));
-                    updateUndoRedoUI();
-                    sceneModified = true;
-                    console.log("Multi-move command added.");
+                    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+                    const interactionManager = isDiagramModeActive
+                        ? diagramModeIntegration.getModule?.('interactionManager')
+                        : null;
+                    if (interactionManager && window.ActionType) {
+                        const batchActions = [];
+                        ongoingActionState.components.forEach(compId => {
+                            const startPos = ongoingActionState.startValues.get(compId);
+                            const finalPos = finalPositions.get(compId);
+                            if (!startPos || !finalPos) return;
+                            batchActions.push({
+                                type: window.ActionType.MOVE_COMPONENT,
+                                data: {
+                                    componentId: compId,
+                                    position: { x: finalPos.x, y: finalPos.y }
+                                },
+                                undoData: {
+                                    position: { x: startPos.x, y: startPos.y }
+                                }
+                            });
+                        });
+                        if (batchActions.length > 0) {
+                            interactionManager.recordAction(window.ActionType.BATCH, { actions: batchActions });
+                        }
+                        sceneModified = true;
+                    } else {
+                        // Create and add the multi-move command
+                        historyManager.addCommand(new MoveComponentsCommand(ongoingActionState.components, ongoingActionState.startValues, finalPositions));
+                        updateUndoRedoUI();
+                        sceneModified = true;
+                        console.log("Multi-move command added.");
+                    }
                 } else {
                     console.log("Multi-move: No significant change detected.");
                 }
@@ -2733,13 +2799,47 @@ function handleMouseUp(event) {
             } else if (ongoingActionState && ongoingActionState.component) {
                 // --- Single Component Handle Drag ---
                 const comp = ongoingActionState.component;
+                const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+                const interactionManager = isDiagramModeActive
+                    ? diagramModeIntegration.getModule?.('interactionManager')
+                    : null;
                 let commandToAdd = null;
                 if (ongoingActionState.type === 'move') { // Should only happen if handle logic failed?
                     const finalPos = getComponentPropertyValue(comp, 'pos');
-                    if (finalPos && !areValuesEqual(ongoingActionState.startValue, finalPos)) { commandToAdd = new MoveComponentCommand(comp, ongoingActionState.startValue, finalPos); }
+                    if (finalPos && !areValuesEqual(ongoingActionState.startValue, finalPos)) {
+                        if (isDiagramModeActive && interactionManager && window.ActionType) {
+                            const compId = comp.id || comp.uuid;
+                            if (compId) {
+                                interactionManager.recordAction(
+                                    window.ActionType.MOVE_COMPONENT,
+                                    { componentId: compId, position: { x: finalPos.x, y: finalPos.y } },
+                                    { position: { x: ongoingActionState.startValue.x, y: ongoingActionState.startValue.y } }
+                                );
+                                sceneModified = true;
+                            }
+                        } else {
+                            commandToAdd = new MoveComponentCommand(comp, ongoingActionState.startValue, finalPos);
+                        }
+                    }
                 } else if (ongoingActionState.type === 'rotate') {
                     const finalAngle = getComponentPropertyValue(comp, 'angleDeg'); // Get radians
-                    if (typeof finalAngle === 'number' && !areValuesEqual(ongoingActionState.startValue, finalAngle)) { commandToAdd = new RotateComponentCommand(comp, ongoingActionState.startValue, finalAngle); }
+                    if (typeof finalAngle === 'number' && !areValuesEqual(ongoingActionState.startValue, finalAngle)) {
+                        if (isDiagramModeActive && interactionManager && window.ActionType) {
+                            const compId = comp.id || comp.uuid;
+                            if (compId) {
+                                if (comp.angleRad !== undefined) comp.angleRad = finalAngle;
+                                if (comp.angle !== undefined) comp.angle = finalAngle;
+                                interactionManager.recordAction(
+                                    window.ActionType.ROTATE_COMPONENT,
+                                    { componentId: compId, angle: finalAngle },
+                                    { angle: ongoingActionState.startValue }
+                                );
+                                sceneModified = true;
+                            }
+                        } else {
+                            commandToAdd = new RotateComponentCommand(comp, ongoingActionState.startValue, finalAngle);
+                        }
+                    }
                 } else if (ongoingActionState.type === 'move_fiber_output' && comp instanceof OpticalFiber) {
                     const finalOutputPos = getComponentPropertyValue(comp, 'outputPos');
                     if (finalOutputPos && !areValuesEqual(ongoingActionState.startValue, finalOutputPos)) { commandToAdd = new SetPropertyCommand(comp, 'outputPos', ongoingActionState.startValue, finalOutputPos); }
@@ -2861,9 +2961,26 @@ function handleWheelZoom(event) {
                 // Add a command for each distinct rotation step
                 if (Math.abs(newAngleRad - currentAngleRad) > 1e-4) {
                     ongoingActionState = null; // Clear other ongoing states
-                    historyManager.addCommand(new RotateComponentCommand(selectedComponent, currentAngleRad, newAngleRad));
-                    updateUndoRedoUI();
-                    console.log("添加 Wheel Rotate 命令 (简化)");
+                    const diagramIntegration = window.getDiagramModeIntegration?.();
+                    const interactionManager = diagramIntegration?.isDiagramMode?.()
+                        ? diagramIntegration.getModule?.('interactionManager')
+                        : null;
+                    if (interactionManager && window.ActionType) {
+                        const compId = selectedComponent.id || selectedComponent.uuid;
+                        if (compId) {
+                            if (selectedComponent.angleRad !== undefined) selectedComponent.angleRad = newAngleRad;
+                            if (selectedComponent.angle !== undefined) selectedComponent.angle = newAngleRad;
+                            interactionManager.recordAction(
+                                window.ActionType.ROTATE_COMPONENT,
+                                { componentId: compId, angle: newAngleRad },
+                                { angle: currentAngleRad }
+                            );
+                        }
+                    } else {
+                        historyManager.addCommand(new RotateComponentCommand(selectedComponent, currentAngleRad, newAngleRad));
+                        updateUndoRedoUI();
+                        console.log("添加 Wheel Rotate 命令 (简化)");
+                    }
                 }
                 // --- End Add Command ---
 
@@ -3002,6 +3119,54 @@ function handleKeyDown(event) {
 
     // --- Deselect component / Cancel tool (Escape key) ---
     else if (event.key === 'Escape') {
+        // 绘图模式下：优先用于“退出/取消”临时交互（例如：正在创建链接、链接模式、标注模式、下拉菜单等）
+        const isDiagramModeActive = diagramIntegration?.isDiagramMode?.() || false;
+        if (isDiagramModeActive && diagramIntegration) {
+            // 1) 关闭悬浮面板/菜单（不会影响真正的 modal-overlay）
+            const styleOverlay = document.querySelector('.style-panel-overlay');
+            if (styleOverlay) { styleOverlay.remove(); return; }
+            const dropdownMenus = document.querySelectorAll('.dropdown-menu, .align-menu, .auto-link-menu, .auto-route-menu');
+            if (dropdownMenus.length > 0) { dropdownMenus.forEach(m => m.remove()); return; }
+            const annotationInput = document.querySelector('.annotation-input-container');
+            if (annotationInput) { annotationInput.remove(); /* fallthrough */ }
+
+            // 2) 取消正在创建的光线链接
+            const rayLinkManager = diagramIntegration.getModule?.('rayLinkManager');
+            const connectionPointManager = diagramIntegration.getModule?.('connectionPointManager');
+            if (rayLinkManager?.isCreatingLink?.()) {
+                rayLinkManager.cancelLinkCreation();
+                if (connectionPointManager?.setSelectedPoint) connectionPointManager.setSelectedPoint(null);
+                else if (connectionPointManager) connectionPointManager.selectedPoint = null;
+                document.body.style.cursor = '';
+                needsRetrace = true;
+                return;
+            }
+
+            // 3) 退出“链接模式”（按钮高亮 + 光标）
+            if (typeof diagramIntegration.isRayLinkModeActive === 'function' && diagramIntegration.isRayLinkModeActive()) {
+                diagramIntegration._rayLinkModeActive = false; // internal flag; keep KISS
+                rayLinkManager?.cancelLinkCreation?.();
+                document.querySelector('#btn-raylink')?.classList.remove('active');
+                document.body.style.cursor = '';
+                needsRetrace = true;
+                return;
+            }
+
+            // 4) 退出“标注模式”（按钮高亮 + 画布点击监听 + 光标）
+            if (diagramIntegration._annotationModeActive) {
+                diagramIntegration._annotationModeActive = false;
+                const canvasEl = document.getElementById('opticsCanvas');
+                if (canvasEl && diagramIntegration._annotationClickHandler) {
+                    canvasEl.removeEventListener('click', diagramIntegration._annotationClickHandler);
+                }
+                diagramIntegration._annotationClickHandler = null;
+                document.querySelector('#btn-annotation')?.classList.remove('active');
+                document.body.style.cursor = '';
+                needsRetrace = true;
+                return;
+            }
+        }
+
         if (componentToAdd) {
             componentToAdd = null; clearToolbarSelection(); canvas.style.cursor = 'default'; console.log("Tool cancelled (Escape).");
         } else if (selectedComponent) {
@@ -4487,7 +4652,9 @@ function triggerFileInputForImport() {
     if (isImporting) {
         console.warn("Import already in progress."); return;
     }
-    if (sceneModified) {
+    const { projectManager, project } = getProjectContext();
+    const useProjectFlow = !!(projectManager && project);
+    if (!useProjectFlow && sceneModified) {
         if (!confirm("当前场景已被修改。导入新场景将【覆盖】当前更改。是否继续？")) {
             console.log("Import cancelled by user."); return;
         }
@@ -4623,7 +4790,32 @@ async function exportSceneAsFile() {
 }
 
 
-// --- REPLACEMENT for importScene (Uses loadSceneFromData) ---
+// --- REPLACEMENT for importScene (Project-aware) ---
+function deriveImportSceneName(sceneData, fileName) {
+    const nameFromData = sceneData?.name || sceneData?.metadata?.name;
+    if (nameFromData && String(nameFromData).trim()) {
+        return String(nameFromData).trim();
+    }
+    if (fileName) {
+        const base = fileName.replace(/\.scene\.json$/i, '').replace(/\.json$/i, '').trim();
+        if (base) return base;
+    }
+    return '导入场景';
+}
+
+async function confirmProjectImportIfNeeded(projectManager) {
+    const currentScene = projectManager?.getCurrentScene?.();
+    const isModified = !!currentScene?.isModified || sceneModified;
+    if (!isModified) return true;
+
+    if (typeof projectManager.handleUnsavedChanges === 'function') {
+        const result = await projectManager.handleUnsavedChanges();
+        return result !== 'cancel';
+    }
+
+    return confirm("当前场景已被修改。导入新场景将切换当前场景，未保存更改将被丢弃。是否继续？");
+}
+
 function importScene(file) {
     if (!file) {
         console.error("No file selected for import.");
@@ -4632,15 +4824,72 @@ function importScene(file) {
     console.log("Importing scene from file:", file.name);
 
     const reader = new FileReader();
-    reader.onload = function (event) {
-        let sceneData;
+    reader.onload = async function (event) {
+        let rawData;
         try {
-            sceneData = JSON.parse(event.target.result);
-            console.log("Parsed scene data from file:", sceneData);
-            if (!sceneData || !Array.isArray(sceneData.components)) throw new Error("Invalid file format.");
-            if (sceneData.version !== "1.0" && sceneData.version !== "1.1") console.warn(`Importing scene version ${sceneData.version}`);
+            rawData = JSON.parse(event.target?.result ?? '');
+        } catch (e) {
+            console.error("Error parsing scene file JSON:", e);
+            alert("导入失败：文件格式无效（非 JSON）。");
+            return;
+        }
 
-            // Load the scene using the helper function
+        let sceneData = rawData;
+        if (window.Serializer && typeof window.Serializer.deserialize === 'function') {
+            try {
+                sceneData = window.Serializer.deserialize(rawData);
+            } catch (e) {
+                console.error("Scene data validation failed:", e);
+                alert(`导入失败：场景数据不合法。${e.message ? `\n${e.message}` : ''}`);
+                return;
+            }
+        }
+
+        // 保留旧格式中的视图与额外设置字段
+        if (rawData && typeof rawData === 'object') {
+            if (rawData.view && !sceneData.view) sceneData.view = rawData.view;
+            if (rawData.currentMode && !sceneData.currentMode) sceneData.currentMode = rawData.currentMode;
+            if (rawData.settings) {
+                sceneData.settings = { ...rawData.settings, ...sceneData.settings };
+            }
+            if (rawData.metadata && !sceneData.metadata) {
+                sceneData.metadata = rawData.metadata;
+            }
+        }
+
+        if (!sceneData || !Array.isArray(sceneData.components)) {
+            console.error("Invalid scene data format:", sceneData);
+            alert("导入失败：文件格式无效或已损坏。");
+            return;
+        }
+
+        if (sceneData.version && sceneData.version !== "1.0" && sceneData.version !== "1.1" && sceneData.version !== "2.0.0") {
+            console.warn(`Importing scene version ${sceneData.version}`);
+        }
+
+        const { projectManager, project, scene } = getProjectContext();
+        const useProjectFlow = !!(projectManager && project);
+
+        try {
+            if (useProjectFlow) {
+                const canProceed = await confirmProjectImportIfNeeded(projectManager);
+                if (!canProceed) {
+                    console.log("Import cancelled by user.");
+                    return;
+                }
+
+                const baseName = deriveImportSceneName(sceneData, file.name);
+                const targetDir = scene?.dirPath || '';
+                const createdScene = await projectManager.createSceneFromData(baseName, sceneData, {
+                    open: false,
+                    directoryPath: targetDir
+                });
+                await projectManager.loadScene(createdScene.id, { skipUnsavedCheck: true });
+                showTemporaryMessage?.(`场景 "${createdScene.name}" 已导入`, 'success');
+                console.log("Scene imported into project:", createdScene.name);
+                return;
+            }
+
             if (loadSceneFromData(sceneData)) {
                 console.log("Scene successfully imported from file.");
                 // sceneModified is set to false inside loadSceneFromData
@@ -4648,12 +4897,9 @@ function importScene(file) {
                 console.error("Failed to load components from imported file data.");
                 alert("从文件加载场景组件时出错。");
             }
-
         } catch (e) {
-            console.error("Error parsing or loading scene file:", e);
-            alert("导入失败：文件格式无效或已损坏。");
-            // Ensure state is clean even on error
-            components = []; selectedComponent = null; updateInspector(); needsRetrace = true; sceneModified = false;
+            console.error("Error importing scene:", e);
+            alert(`导入失败：${e.message || '未知错误'}`);
         }
     };
     reader.onerror = function () {
@@ -4764,8 +5010,6 @@ function setupEventListeners() {
         }
     });
     // --- End listener for #menu-clear-all ---
-    document.getElementById('menu-undo')?.addEventListener('click', (e) => { e.preventDefault(); alert('撤销功能开发中...'); });
-    document.getElementById('menu-redo')?.addEventListener('click', (e) => { e.preventDefault(); alert('重做功能开发中...'); });
 
     // View Menu
     document.getElementById('menu-reset-view')?.addEventListener('click', (e) => { e.preventDefault(); cameraScale = 1.0; cameraOffset = new Vector(0, 0); needsRetrace = true; });
@@ -5763,6 +6007,7 @@ function loadInitialTheme() {
 // --- 模式切换器初始化 ---
 let modeSwitcherInstance = null;
 let diagramModeIntegration = null;
+let diagramModeBootstrapDone = false;
 
 /**
  * 初始化专业绘图模式集成
@@ -5872,6 +6117,13 @@ function initializeModeSwitcher() {
     });
 }
 
+function bootstrapDiagramMode() {
+    if (diagramModeBootstrapDone) return;
+    diagramModeBootstrapDone = true;
+    initializeModeSwitcher();
+    initializeDiagramModeIntegration();
+}
+
 /**
  * 处理模式切换
  * @param {string} mode - 新模式 ('simulation' | 'diagram')
@@ -5879,12 +6131,15 @@ function initializeModeSwitcher() {
  */
 function handleModeChange(mode, config) {
     console.log(`模式已切换到: ${mode}`);
-    
+
     // 更新UI显示
     updateModeSpecificUI(mode);
-    
-    // 触发重绘
+    updateUndoRedoUI();
+
+    // 触发重绘（多次延迟重绘确保异步图标加载完成后也能刷新）
     needsRetrace = true;
+    setTimeout(() => { needsRetrace = true; }, 300);
+    setTimeout(() => { needsRetrace = true; }, 800);
 }
 
 /**
@@ -5985,11 +6240,8 @@ function initialize() {
     activateTab('properties-tab'); // Activate properties tab by default
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
 
-    // --- 初始化模式切换器 ---
-    initializeModeSwitcher();
-    
-    // --- 初始化专业绘图模式集成 ---
-    initializeDiagramModeIntegration();
+    // --- 初始化模式切换器 + 专业绘图模式集成 ---
+    bootstrapDiagramMode();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace
@@ -6060,23 +6312,35 @@ function waitForModules(maxWait = 10000, interval = 100) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log("DOMContentLoaded 事件触发。");
-    
+async function bootstrapApp() {
+    console.log("开始启动应用初始化流程。");
+
     // 等待 ES6 模块加载完成
     const modulesLoaded = await waitForModules();
-    
+
     if (modulesLoaded) {
         console.log("核心类已定义，准备调用 initialize...");
-        
+
         // 初始化 Vector 相关变量
         initVectorVariables();
-        
+
         initialize();
-    } else {
-        console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent, HistoryManager) 未定义！脚本加载顺序可能错误。");
-        alert("无法加载核心脚本，请检查控制台获取详细信息！");
+        return;
     }
-});
+
+    console.error("错误：一个或多个核心类 (Vector, GameObject, Ray, OpticalComponent, HistoryManager) 未定义！脚本加载顺序可能错误。");
+    alert("无法加载核心脚本，请检查控制台获取详细信息！");
+}
+
+// main.js 可能被动态插入（Electron/模块加载完成后），此时 DOMContentLoaded 可能已经触发。
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("DOMContentLoaded 事件触发。");
+        bootstrapApp();
+    });
+} else {
+    console.log(`DOMContentLoaded 已触发（readyState=${document.readyState}），直接初始化。`);
+    bootstrapApp();
+}
 
 console.log("main.js 加载完毕。");

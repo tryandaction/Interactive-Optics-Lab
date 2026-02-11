@@ -25,8 +25,8 @@ import { getConnectionPointManager } from './ConnectionPointManager.js';
 import { getRayLinkManager } from './RayLinkManager.js';
 import { getIconBrowserPanel } from './IconBrowserPanel.js';
 import { getProfessionalLabelManager, LABEL_COLOR_PRESETS } from './ProfessionalLabelSystem.js';
-import { getTechnicalNotesArea } from './TechnicalNotesArea.js';
-import { getInteractionManager } from './InteractionManager.js';
+import { getTechnicalNotesArea, TechnicalNotesArea } from './TechnicalNotesArea.js';
+import { getInteractionManager, ActionType } from './InteractionManager.js';
 import { getAdvancedTemplateManager, TemplateBrowser } from './templates/index.js';
 import { getCustomConnectionPointEditor } from './CustomConnectionPointEditor.js';
 import { getMinimap } from './Minimap.js';
@@ -131,6 +131,14 @@ export class DiagramModeIntegration {
         this.initialized = true;
         console.log('DiagramModeIntegration: Initialization complete');
         this.diagnosticSystem.log('info', 'DiagramModeIntegration initialization complete');
+
+        // 如果当前已经是绘图模式（例如从localStorage恢复），立即进入绘图模式
+        if (this.modules.modeManager && this.modules.modeManager.isDiagramMode()) {
+            console.log('DiagramModeIntegration: Already in diagram mode, entering...');
+            this._updateUIVisibility(APP_MODES.DIAGRAM);
+            this._updateToolbarIcons(APP_MODES.DIAGRAM);
+            this._handleModeChange(APP_MODES.SIMULATION, APP_MODES.DIAGRAM);
+        }
         
         // 运行初始诊断
         setTimeout(() => {
@@ -354,21 +362,32 @@ export class DiagramModeIntegration {
                 
                 // 添加粘贴的组件到场景
                 if (window.components) {
+                    const connectionPointManager = this.modules.connectionPointManager;
                     clonedItems.forEach(item => {
                         window.components.push(item);
+                        if (connectionPointManager) {
+                            const compId = item.id || item.uuid;
+                            if (compId && !connectionPointManager.componentPoints.has(compId)) {
+                                connectionPointManager.initializeComponentPoints(item);
+                            }
+                        }
                     });
                 }
                 // 添加粘贴的链接
                 if (clonedLinks.length > 0 && this.modules.rayLinkManager) {
                     clonedLinks.forEach(link => {
-                        this.modules.rayLinkManager.links.set(link.id, link);
+                        if (!link) return;
+                        this.modules.rayLinkManager.createLink({
+                            ...link,
+                            style: link.style ? { ...link.style } : undefined,
+                            labelOffset: link.labelOffset ? { ...link.labelOffset } : undefined
+                        });
                     });
                 }
                 
                 // 记录历史（绘图模式）
                 const interactionManager = this.modules.interactionManager;
                 if (interactionManager) {
-                    const { ActionType } = require('./InteractionManager.js');
                     interactionManager.recordAction(
                         ActionType.ADD_COMPONENT,
                         { components: clonedItems, links: clonedLinks }
@@ -410,7 +429,6 @@ export class DiagramModeIntegration {
                 // 记录历史（绘图模式）
                 const interactionManager = this.modules.interactionManager;
                 if (interactionManager) {
-                    const { ActionType } = require('./InteractionManager.js');
                     interactionManager.recordAction(
                         ActionType.DELETE_COMPONENT,
                         { componentIds: itemIds },
@@ -422,9 +440,12 @@ export class DiagramModeIntegration {
                     }
                 }
                 
-                window.components = window.components.filter(c => 
+                window.components = window.components.filter(c =>
                     !itemIds.includes(c.id || c.uuid)
                 );
+                if (this.modules.connectionPointManager) {
+                    itemIds.forEach(id => this.modules.connectionPointManager.removeComponentPoints(id));
+                }
                 // 删除相关链接
                 if (rayLinkManager) {
                     itemIds.forEach(id => {
@@ -471,12 +492,19 @@ export class DiagramModeIntegration {
      * 应用撤销操作
      * @private
      */
-    _applyUndoAction(action) {
+    _applyUndoAction(action, skipFinalize = false) {
         if (!action) return;
-        
-        const { ActionType } = require('./InteractionManager.js');
-        
+
         switch (action.type) {
+            case ActionType.BATCH: {
+                const actions = action.data?.actions || [];
+                if (Array.isArray(actions) && actions.length > 0) {
+                    for (let i = actions.length - 1; i >= 0; i--) {
+                        this._applyUndoAction(actions[i], true);
+                    }
+                }
+                break;
+            }
             case ActionType.ADD_COMPONENT:
                 // 撤销添加 = 删除
                 if (window.components) {
@@ -486,6 +514,9 @@ export class DiagramModeIntegration {
                             : action.data?.componentId ? [action.data.componentId] : []);
                     if (ids.length > 0) {
                         window.components = window.components.filter(c => !ids.includes(c.id || c.uuid));
+                        this.modules.connectionPointManager?.removeComponentPoints && ids.forEach(id => {
+                            this.modules.connectionPointManager.removeComponentPoints(id);
+                        });
                     }
                 }
                 // 删除链接
@@ -495,6 +526,9 @@ export class DiagramModeIntegration {
                         if (linkId) this.modules.rayLinkManager.deleteLink(linkId);
                     });
                 }
+                if (this.modules.interactionManager?.selection) {
+                    this.modules.interactionManager.selection.clearSelection();
+                }
                 break;
             case ActionType.DELETE_COMPONENT:
                 // 撤销删除 = 恢复
@@ -502,10 +536,14 @@ export class DiagramModeIntegration {
                     action.undoData.components.forEach(comp => {
                         const id = comp.id || comp.uuid;
                         const exists = window.components.some(c => (c.id || c.uuid) === id);
-                        if (!exists) window.components.push(comp);
+                        if (!exists) {
+                            window.components.push(comp);
+                            this.modules.connectionPointManager?.initializeComponentPoints?.(comp);
+                        }
                     });
                 } else if (window.components && action.undoData.component) {
                     window.components.push(action.undoData.component);
+                    this.modules.connectionPointManager?.initializeComponentPoints?.(action.undoData.component);
                 }
                 if (Array.isArray(action.undoData.links) && this.modules.rayLinkManager) {
                     const connectionPointManager = this.modules.connectionPointManager;
@@ -525,6 +563,9 @@ export class DiagramModeIntegration {
                         });
                     });
                 }
+                if (this.modules.interactionManager?.selection) {
+                    this.modules.interactionManager.selection.clearSelection();
+                }
                 break;
             case ActionType.MOVE_COMPONENT:
                 // 撤销移动 = 恢复原位置
@@ -536,7 +577,11 @@ export class DiagramModeIntegration {
                         if (comp.pos) {
                             comp.pos.x = action.undoData.position.x;
                             comp.pos.y = action.undoData.position.y;
+                        } else {
+                            comp.x = action.undoData.position.x;
+                            comp.y = action.undoData.position.y;
                         }
+                        this.modules.connectionPointManager?.updateComponentPoints?.(comp);
                     }
                 }
                 break;
@@ -546,8 +591,12 @@ export class DiagramModeIntegration {
                         (c.id || c.uuid) === action.data.componentId
                     );
                     if (comp) {
-                        comp.angle = action.undoData.angle;
+                        const nextAngle = action.undoData.angle;
+                        if (comp.angleRad !== undefined) comp.angleRad = nextAngle;
+                        if (comp.angle !== undefined) comp.angle = nextAngle;
                         if (typeof comp.onAngleChanged === 'function') comp.onAngleChanged();
+                        else if (typeof comp._updateGeometry === 'function') comp._updateGeometry();
+                        this.modules.connectionPointManager?.updateComponentPoints?.(comp);
                     }
                 }
                 break;
@@ -635,40 +684,54 @@ export class DiagramModeIntegration {
                 if (this.modules.interactionManager?.groups) {
                     this.modules.interactionManager.groups.dissolveGroup(action.data.groupId);
                 }
+                this.modules.interactionManager?.selection?.clearSelection?.();
                 break;
             case ActionType.UNGROUP:
                 if (this.modules.interactionManager?.groups && action.undoData?.group) {
                     this.modules.interactionManager.groups.restoreGroup(action.undoData.group);
                 }
+                this.modules.interactionManager?.selection?.clearSelection?.();
                 break;
         }
-        
-        if (typeof window !== 'undefined') {
-            window.updateUndoRedoUI?.();
+
+        if (!skipFinalize) {
+            if (typeof window !== 'undefined') {
+                window.updateUndoRedoUI?.();
+                window.markSceneAsModified?.();
+            }
+            this._triggerRedraw();
         }
-        this._triggerRedraw();
     }
 
     /**
      * 应用重做操作
      * @private
      */
-    _applyRedoAction(action) {
+    _applyRedoAction(action, skipFinalize = false) {
         if (!action) return;
-        
-        const { ActionType } = require('./InteractionManager.js');
-        
+
         switch (action.type) {
+            case ActionType.BATCH: {
+                const actions = action.data?.actions || [];
+                if (Array.isArray(actions) && actions.length > 0) {
+                    actions.forEach(childAction => this._applyRedoAction(childAction, true));
+                }
+                break;
+            }
             case ActionType.ADD_COMPONENT:
                 // 重做添加
                 if (window.components && Array.isArray(action.data?.components)) {
                     action.data.components.forEach(comp => {
                         const id = comp.id || comp.uuid;
                         const exists = window.components.some(c => (c.id || c.uuid) === id);
-                        if (!exists) window.components.push(comp);
+                        if (!exists) {
+                            window.components.push(comp);
+                            this.modules.connectionPointManager?.initializeComponentPoints?.(comp);
+                        }
                     });
                 } else if (window.components && action.data.component) {
                     window.components.push(action.data.component);
+                    this.modules.connectionPointManager?.initializeComponentPoints?.(action.data.component);
                 }
                 if (Array.isArray(action.data?.links) && this.modules.rayLinkManager) {
                     const connectionPointManager = this.modules.connectionPointManager;
@@ -701,7 +764,13 @@ export class DiagramModeIntegration {
                         if (this.modules.rayLinkManager) {
                             ids.forEach(id => this.modules.rayLinkManager.deleteLinksForComponent(id));
                         }
+                        if (this.modules.connectionPointManager) {
+                            ids.forEach(id => this.modules.connectionPointManager.removeComponentPoints(id));
+                        }
                     }
+                }
+                if (this.modules.interactionManager?.selection) {
+                    this.modules.interactionManager.selection.clearSelection();
                 }
                 break;
             case ActionType.MOVE_COMPONENT:
@@ -714,7 +783,11 @@ export class DiagramModeIntegration {
                         if (comp.pos) {
                             comp.pos.x = action.data.position.x;
                             comp.pos.y = action.data.position.y;
+                        } else {
+                            comp.x = action.data.position.x;
+                            comp.y = action.data.position.y;
                         }
+                        this.modules.connectionPointManager?.updateComponentPoints?.(comp);
                     }
                 }
                 break;
@@ -724,8 +797,12 @@ export class DiagramModeIntegration {
                         (c.id || c.uuid) === action.data.componentId
                     );
                     if (comp) {
-                        comp.angle = action.data.angle;
+                        const nextAngle = action.data.angle;
+                        if (comp.angleRad !== undefined) comp.angleRad = nextAngle;
+                        if (comp.angle !== undefined) comp.angle = nextAngle;
                         if (typeof comp.onAngleChanged === 'function') comp.onAngleChanged();
+                        else if (typeof comp._updateGeometry === 'function') comp._updateGeometry();
+                        this.modules.connectionPointManager?.updateComponentPoints?.(comp);
                     }
                 }
                 break;
@@ -813,18 +890,23 @@ export class DiagramModeIntegration {
                 if (this.modules.interactionManager?.groups && action.undoData?.group) {
                     this.modules.interactionManager.groups.restoreGroup(action.undoData.group);
                 }
+                this.modules.interactionManager?.selection?.clearSelection?.();
                 break;
             case ActionType.UNGROUP:
                 if (this.modules.interactionManager?.groups) {
                     this.modules.interactionManager.groups.dissolveGroup(action.data.groupId);
                 }
+                this.modules.interactionManager?.selection?.clearSelection?.();
                 break;
         }
-        
-        if (typeof window !== 'undefined') {
-            window.updateUndoRedoUI?.();
+
+        if (!skipFinalize) {
+            if (typeof window !== 'undefined') {
+                window.updateUndoRedoUI?.();
+                window.markSceneAsModified?.();
+            }
+            this._triggerRedraw();
         }
-        this._triggerRedraw();
     }
 
     /**
@@ -868,7 +950,7 @@ export class DiagramModeIntegration {
                     uuid: comp.id,
                     type: comp.type,
                     pos: { ...comp.pos },
-                    angle: comp.angle || 0,
+                    angle: comp.angle ?? comp.angleRad ?? 0,
                     params: { ...comp.params }
                 };
                 window.components.push(component);
@@ -936,7 +1018,7 @@ export class DiagramModeIntegration {
                 id: c.id || c.uuid,
                 type: c.type || c.constructor?.name,
                 pos: c.pos ? { ...c.pos } : { x: c.x || 0, y: c.y || 0 },
-                angle: c.angle || 0,
+                angle: c.angle ?? c.angleRad ?? 0,
                 params: c.params ? { ...c.params } : {}
             })),
             rayLinks: this.modules.rayLinkManager?.getAllLinks().map(l => l.serialize()) || [],
@@ -1474,7 +1556,6 @@ export class DiagramModeIntegration {
                     });
                     const interactionManager = this.modules.interactionManager;
                     if (interactionManager) {
-                        const { ActionType } = require('./InteractionManager.js');
                         interactionManager.recordAction(
                             ActionType.ADD_LABEL,
                             { label: createdLabel.serialize ? createdLabel.serialize() : { ...createdLabel } }
@@ -2057,7 +2138,6 @@ export class DiagramModeIntegration {
             if (dataItems.length > 0) {
                 const interactionManager = this.modules.interactionManager;
                 if (interactionManager) {
-                    const { ActionType } = require('./InteractionManager.js');
                     interactionManager.recordAction(
                         ActionType.MODIFY_STYLE,
                         { target: 'component', items: dataItems },
@@ -2151,7 +2231,6 @@ export class DiagramModeIntegration {
             const nextState = captureLinkState(link);
             const interactionManager = this.modules.interactionManager;
             if (interactionManager && prevState && nextState) {
-                const { ActionType } = require('./InteractionManager.js');
                 interactionManager.recordAction(
                     ActionType.MODIFY_STYLE,
                     { target: 'link', items: [nextState] },
@@ -2172,7 +2251,6 @@ export class DiagramModeIntegration {
             const nextStates = rayLinkManager.getAllLinks().map(link => captureLinkState(link)).filter(Boolean);
             const interactionManager = this.modules.interactionManager;
             if (interactionManager && nextStates.length > 0) {
-                const { ActionType } = require('./InteractionManager.js');
                 interactionManager.recordAction(
                     ActionType.MODIFY_STYLE,
                     { target: 'link', items: nextStates },
@@ -2248,7 +2326,6 @@ export class DiagramModeIntegration {
             const nextState = captureLabelState(label);
             const interactionManager = this.modules.interactionManager;
             if (interactionManager && prevState && nextState) {
-                const { ActionType } = require('./InteractionManager.js');
                 interactionManager.recordAction(
                     ActionType.MODIFY_STYLE,
                     { target: 'label', items: [nextState] },
@@ -2282,7 +2359,6 @@ export class DiagramModeIntegration {
             const nextStates = labels.map(label => captureLabelState(label)).filter(Boolean);
             const interactionManager = this.modules.interactionManager;
             if (interactionManager && nextStates.length > 0) {
-                const { ActionType } = require('./InteractionManager.js');
                 interactionManager.recordAction(
                     ActionType.MODIFY_STYLE,
                     { target: 'label', items: nextStates },
@@ -2465,28 +2541,36 @@ export class DiagramModeIntegration {
      * @private
      */
     _enterDiagramMode() {
+        try {
         // 启用布局引擎功能
-        if (!this._diagramStateRestored) {
-            this.modules.layoutEngine.setShowAlignmentGuides(true);
+        if (!this._diagramStateRestored && this.modules.layoutEngine) {
+            if (typeof this.modules.layoutEngine.setShowAlignmentGuides === 'function') {
+                this.modules.layoutEngine.setShowAlignmentGuides(true);
+            } else {
+                this.modules.layoutEngine.showAlignmentGuides = true;
+                if (typeof this.modules.layoutEngine._notifyChange === 'function') {
+                    this.modules.layoutEngine._notifyChange('showAlignmentGuides', true);
+                }
+            }
         }
-        
+
         // 启用连接点显示
         if (this.modules.connectionPointManager) {
             if (!this._diagramStateRestored) {
                 this.modules.connectionPointManager.visible = true;
             }
         }
-        
+
         // 显示小地图
         if (this.modules.minimap) {
             if (!this._diagramStateRestored) {
                 this.modules.minimap.show();
             }
         }
-        
+
         // 更新左侧栏图标为专业图标
         this._updateToolbarIcons(APP_MODES.DIAGRAM);
-        
+
         // 初始化组件的连接点
         if (typeof window !== 'undefined' && window.components) {
             window.components.forEach(comp => {
@@ -2509,8 +2593,24 @@ export class DiagramModeIntegration {
                 }
             }
         }
-        
+
+        // 预加载所有SVG专业图标，加载完成后触发重绘
+        if (this.modules.professionalIconManager) {
+            const allTypes = Array.from(this.modules.professionalIconManager.iconDefinitions.keys());
+            this.modules.professionalIconManager.preloadIcons(allTypes).then(() => {
+                if (typeof window !== 'undefined' && window.needsRetrace !== undefined) {
+                    window.needsRetrace = true;
+                }
+                console.log('DiagramModeIntegration: All professional icons preloaded');
+            }).catch(err => {
+                console.warn('DiagramModeIntegration: Icon preload error:', err);
+            });
+        }
+
         console.log('DiagramModeIntegration: Entered diagram mode');
+        } catch (err) {
+            console.error('DiagramModeIntegration: Error entering diagram mode:', err);
+        }
     }
 
     /**
@@ -2518,30 +2618,64 @@ export class DiagramModeIntegration {
      * @private
      */
     _exitDiagramMode() {
+        try {
         // 禁用布局引擎功能
-        this.modules.layoutEngine.setShowGrid(false);
-        this.modules.layoutEngine.clearAlignmentGuides();
-        
+        if (this.modules.layoutEngine?.setShowGrid) {
+            this.modules.layoutEngine.setShowGrid(false);
+        }
+        if (this.modules.layoutEngine?.clearAlignmentGuides) {
+            this.modules.layoutEngine.clearAlignmentGuides();
+        }
+
         // 禁用连接点显示
         if (this.modules.connectionPointManager) {
             this.modules.connectionPointManager.visible = false;
+            if (this.modules.connectionPointManager.setSelectedPoint) {
+                this.modules.connectionPointManager.setSelectedPoint(null);
+            } else {
+                this.modules.connectionPointManager.selectedPoint = null;
+            }
         }
-        
+
         // 取消光线链接模式
         this._rayLinkModeActive = false;
         if (this.modules.rayLinkManager) {
             this.modules.rayLinkManager.cancelLinkCreation();
         }
-        
+
+        // 退出标注模式（如果开启过）
+        if (this._annotationModeActive) {
+            this._annotationModeActive = false;
+            const canvas = typeof document !== 'undefined' ? document.getElementById('opticsCanvas') : null;
+            if (canvas && this._annotationClickHandler) {
+                canvas.removeEventListener('click', this._annotationClickHandler);
+            }
+            this._annotationClickHandler = null;
+            if (typeof document !== 'undefined') {
+                const input = document.querySelector('.annotation-input-container');
+                if (input) input.remove();
+            }
+        }
+
+        // 恢复鼠标样式与工具栏按钮状态
+        if (typeof document !== 'undefined') {
+            document.body.style.cursor = '';
+            document.querySelector('#btn-raylink')?.classList.remove('active');
+            document.querySelector('#btn-annotation')?.classList.remove('active');
+        }
+
         // 隐藏小地图
         if (this.modules.minimap) {
             this.modules.minimap.hide();
         }
-        
+
         // 恢复左侧栏为原始图标
         this._updateToolbarIcons(APP_MODES.SIMULATION);
-        
+
         console.log('DiagramModeIntegration: Exited diagram mode');
+        } catch (err) {
+            console.error('DiagramModeIntegration: Error exiting diagram mode:', err);
+        }
     }
 
     /**
@@ -2991,7 +3125,7 @@ export class DiagramModeIntegration {
         }
         
         const pos = component.pos || { x: component.x || 0, y: component.y || 0 };
-        const angle = component.angle || 0;
+        const angle = component.angle ?? component.angleRad ?? 0;
         const scale = component.scale || 1;
         const componentId = component.id || component.uuid;
         const styleManager = this.modules.styleManager;
@@ -3396,7 +3530,6 @@ export class DiagramModeIntegration {
         selector.addEventListener('click', (e) => {
             const btn = e.target.closest('.template-option');
             if (btn) {
-                const { TechnicalNotesArea } = require('./TechnicalNotesArea.js');
                 const template = TechnicalNotesArea.createTemplate(btn.dataset.key);
                 
                 // 复制模板内容到当前实例
@@ -3471,7 +3604,7 @@ export class DiagramModeIntegration {
             const style = id && styleManager ? styleManager.getComponentStyle(id) : null;
             return style ? { ...comp, style: { ...style } } : comp;
         });
-        const rays = window.rays || [];
+        const rays = window.currentRayPaths || window.rays || [];
         const annotations = this.modules.annotationManager.getAllAnnotations();
         const notes = this.modules.technicalNotesManager.getAllNotes().map(n => n.text);
         const diagramLinks = this._buildDiagramLinksForExport(components);
