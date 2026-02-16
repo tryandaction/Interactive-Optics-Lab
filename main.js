@@ -141,8 +141,8 @@ function getHistoryManager() {
 // --- Alignment Guides State ---
 let activeGuides = []; // Array to store currently active guide lines to draw
 const SNAP_THRESHOLD = 5.0; // Pixel distance threshold for snapping/showing guides (in logical coords)
-const GUIDE_COLOR = 'rgba(0, 255, 255, 0.75)'; // 亮青色 (Cyan)
-const GUIDE_DASH = [3, 3]; // 可以尝试不同的虚线模式，或设置为空数组 
+const GUIDE_COLOR = 'rgba(255, 0, 153, 0.85)'; // Figma 风格品红色
+const GUIDE_DASH = []; // 实线（Figma 风格）
 // --- Grid Settings ---
 const GRID_SIZE = 50; // Grid spacing in logical coordinates (should match drawGrid)
 const GRID_SNAP_THRESHOLD = 10.0; // Max distance (logical coords) to snap to grid
@@ -669,27 +669,49 @@ function draw() {
 
 
 
-    // --- Draw Alignment Guides ---
+    // --- Draw Alignment Guides (Figma 风格) ---
     if (isDragging && activeGuides.length > 0) {
-        // const dpr = window.devicePixelRatio || 1; // No longer needed directly here if scaling context
         ctx.save();
-        ctx.strokeStyle = GUIDE_COLOR; // Defined constant: 'rgba(0, 255, 255, 0.75)'
-        ctx.lineWidth = 1 / cameraScale; // Make line thinner when zoomed in
-        ctx.setLineDash(GUIDE_DASH.map(d => d / cameraScale)); // Scale dash pattern with zoom
+        ctx.strokeStyle = GUIDE_COLOR;
+        ctx.lineWidth = 1 / cameraScale;
+        ctx.setLineDash(GUIDE_DASH.map(d => d / cameraScale));
 
         activeGuides.forEach(guide => {
             ctx.beginPath();
             if (guide.type === 'vertical') {
                 ctx.moveTo(guide.x, guide.y1);
                 ctx.lineTo(guide.x, guide.y2);
+                ctx.stroke();
+                // 距离标签
+                const dist = Math.abs(guide.y2 - guide.y1);
+                if (dist > 30 / cameraScale) {
+                    const midY = (guide.y1 + guide.y2) / 2;
+                    const fontSize = Math.max(10, 11 / cameraScale);
+                    ctx.font = `${fontSize}px sans-serif`;
+                    ctx.fillStyle = GUIDE_COLOR;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${Math.round(dist)}`, guide.x + 4 / cameraScale, midY);
+                }
             } else if (guide.type === 'horizontal') {
                 ctx.moveTo(guide.x1, guide.y);
                 ctx.lineTo(guide.x2, guide.y);
+                ctx.stroke();
+                // 距离标签
+                const dist = Math.abs(guide.x2 - guide.x1);
+                if (dist > 30 / cameraScale) {
+                    const midX = (guide.x1 + guide.x2) / 2;
+                    const fontSize = Math.max(10, 11 / cameraScale);
+                    ctx.font = `${fontSize}px sans-serif`;
+                    ctx.fillStyle = GUIDE_COLOR;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(`${Math.round(dist)}`, midX, guide.y - 3 / cameraScale);
+                }
             }
-            ctx.stroke();
         });
 
-        ctx.restore(); // Restore line dash and style
+        ctx.restore();
     }
     // --- End Draw Alignment Guides ---
 
@@ -2597,6 +2619,11 @@ function handleMouseMove(event) {
                 cpManager.setSelectedComponents(
                     selectedComponents.map(c => c.id || c.uuid)
                 );
+            }
+            // Figma 风格悬停高亮
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr) {
+                interactionMgr.setHoveredItem(hoveredComponent || null);
             }
         }
     }
@@ -5109,6 +5136,24 @@ function setupEventListeners() {
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
         canvas.addEventListener('wheel', handleWheelZoom, { passive: false });
+        // --- 绘图模式右键上下文菜单 ---
+        canvas.addEventListener('contextmenu', (e) => {
+            const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (!isDiagramModeActive) return; // 模拟模式使用浏览器默认菜单
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (!interactionMgr) return;
+            const mousePos = getMousePos(canvas, e);
+            let targetComp = null;
+            for (let i = components.length - 1; i >= 0; i--) {
+                try {
+                    if (components[i]._containsPointBody?.(mousePos)) {
+                        targetComp = components[i];
+                        break;
+                    }
+                } catch (_) {}
+            }
+            interactionMgr.showContextMenu(e, targetComp);
+        });
         // --- Touch Event Listeners for Canvas ---
         console.log("Adding touch event listeners for canvas...");
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false }); // Use passive: false to allow preventDefault

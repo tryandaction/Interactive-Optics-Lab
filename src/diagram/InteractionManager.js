@@ -573,7 +573,10 @@ export class InteractionManager {
         this.selection = new SelectionManager();
         this.clipboard = new ClipboardManager();
         this.groups = new GroupManager();
-        
+
+        /** @type {Object|null} Figma 风格悬停高亮的组件 */
+        this.hoveredItem = null;
+
         // 键盘快捷键绑定
         this._keyboardHandler = null;
         this._setupKeyboardShortcuts();
@@ -649,6 +652,140 @@ export class InteractionManager {
         };
         
         document.addEventListener('keydown', this._keyboardHandler);
+    }
+
+    /**
+     * 显示右键上下文菜单 — Figma 风格
+     * @param {MouseEvent} event
+     * @param {Object|null} targetComponent - 右键点击的组件
+     */
+    showContextMenu(event, targetComponent) {
+        if (typeof document === 'undefined') return;
+        event.preventDefault();
+
+        // 移除已有菜单
+        this._removeContextMenu();
+
+        // 如果右键点击了未选中的组件，先选中它
+        if (targetComponent && !this.selection.isSelected(targetComponent)) {
+            this.selection.select(targetComponent);
+        }
+
+        const hasSelection = this.selection.getSelectionCount() > 0;
+        const multiSelected = this.selection.getSelectionCount() >= 2;
+        const canUndo = this.history.canUndo();
+        const canRedo = this.history.canRedo();
+        const canPaste = this.clipboard.hasContent();
+
+        const menu = document.createElement('div');
+        menu.className = 'diagram-context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${event.clientX}px;
+            top: ${event.clientY}px;
+            z-index: 9999;
+            background: var(--menu-bg, #2d2d2d);
+            border: 1px solid var(--border-color, #444);
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            min-width: 180px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: var(--text-primary, #fff);
+        `;
+
+        const items = [
+            { label: '撤销', shortcut: 'Ctrl+Z', action: 'undo', disabled: !canUndo },
+            { label: '重做', shortcut: 'Ctrl+Y', action: 'redo', disabled: !canRedo },
+            { type: 'separator' },
+            { label: '复制', shortcut: 'Ctrl+C', action: 'copy', disabled: !hasSelection },
+            { label: '粘贴', shortcut: 'Ctrl+V', action: 'paste', disabled: !canPaste },
+            { label: '删除', shortcut: 'Delete', action: 'delete', disabled: !hasSelection },
+            { type: 'separator' },
+            { label: '全选', shortcut: 'Ctrl+A', action: 'selectAll' },
+            { type: 'separator' },
+            { label: '编组', shortcut: 'Ctrl+G', action: 'group', disabled: !multiSelected },
+            { label: '解组', shortcut: 'Ctrl+Shift+G', action: 'ungroup', disabled: !hasSelection },
+        ];
+
+        // __CONTINUE_HERE__
+        items.forEach(item => {
+            if (item.type === 'separator') {
+                const sep = document.createElement('div');
+                sep.style.cssText = 'height: 1px; background: var(--border-color, #444); margin: 4px 0;';
+                menu.appendChild(sep);
+                return;
+            }
+            const btn = document.createElement('div');
+            btn.className = 'diagram-context-menu-item';
+            btn.dataset.action = item.action;
+            const opacity = item.disabled ? '0.4' : '1';
+            btn.style.cssText = `
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 16px; cursor: ${item.disabled ? 'default' : 'pointer'};
+                opacity: ${opacity}; user-select: none;
+            `;
+            btn.innerHTML = `
+                <span>${item.label}</span>
+                <span style="font-size: 11px; color: var(--text-secondary, #888); margin-left: 24px;">${item.shortcut || ''}</span>
+            `;
+            if (!item.disabled) {
+                btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--hover-bg, rgba(255,255,255,0.1))'; });
+                btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; });
+                btn.addEventListener('click', () => {
+                    this._executeContextAction(item.action);
+                    this._removeContextMenu();
+                });
+            }
+            menu.appendChild(btn);
+        });
+
+        document.body.appendChild(menu);
+
+        // 确保菜单不超出视口
+        requestAnimationFrame(() => {
+            const rect = menu.getBoundingClientRect();
+            if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+            if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+        });
+
+        // 点击外部关闭
+        this._contextMenuCloseHandler = (e) => {
+            if (!menu.contains(e.target)) {
+                this._removeContextMenu();
+            }
+        };
+        setTimeout(() => document.addEventListener('mousedown', this._contextMenuCloseHandler), 0);
+    }
+
+    /**
+     * 执行上下文菜单操作
+     * @private
+     */
+    _executeContextAction(action) {
+        switch (action) {
+            case 'undo': this.undo(); break;
+            case 'redo': this.redo(); break;
+            case 'copy': this.copySelection(); break;
+            case 'paste': this.paste(); break;
+            case 'delete': this.deleteSelection(); break;
+            case 'selectAll': this.selectAll(); break;
+            case 'group': this.groupSelection(); break;
+            case 'ungroup': this.ungroupSelection(); break;
+        }
+    }
+
+    /**
+     * 移除上下文菜单
+     * @private
+     */
+    _removeContextMenu() {
+        const existing = document.querySelector('.diagram-context-menu');
+        if (existing) existing.remove();
+        if (this._contextMenuCloseHandler) {
+            document.removeEventListener('mousedown', this._contextMenuCloseHandler);
+            this._contextMenuCloseHandler = null;
+        }
     }
 
     /**
@@ -769,12 +906,24 @@ export class InteractionManager {
     }
 
     /**
+     * 设置悬停项目（用于 Figma 风格悬停高亮）
+     */
+    setHoveredItem(item) {
+        this.hoveredItem = item;
+    }
+
+    /**
      * 渲染交互元素
      */
     render(ctx) {
+        // 渲染悬停高亮（仅未选中的项目）
+        if (this.hoveredItem && !this.selection.isSelected(this.hoveredItem)) {
+            this._renderHoverHighlight(ctx, this.hoveredItem);
+        }
+
         // 渲染选择框
         this.selection.renderSelectionBox(ctx);
-        
+
         // 渲染选中项目高亮
         this.selection.getSelectedItems().forEach(item => {
             this._renderSelectionHighlight(ctx, item);
@@ -782,34 +931,51 @@ export class InteractionManager {
     }
 
     /**
+     * 渲染悬停高亮 — Figma 风格（薄蓝色边框，无手柄）
+     * @private
+     */
+    _renderHoverHighlight(ctx, item) {
+        const bb = this._getItemBounds(item);
+
+        const pad = 4;
+        const rx = bb.x - pad;
+        const ry = bb.y - pad;
+        const rw = bb.width + pad * 2;
+        const rh = bb.height + pad * 2;
+
+        ctx.save();
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.restore();
+    }
+
+    /**
+     * 获取项目边界框
+     * @private
+     */
+    _getItemBounds(item) {
+        if (typeof item.getBoundingBox === 'function') {
+            return item.getBoundingBox();
+        }
+        const pos = item.pos || { x: item.x || 0, y: item.y || 0 };
+        const fallback = 40;
+        return { x: pos.x - fallback / 2, y: pos.y - fallback / 2, width: fallback, height: fallback };
+    }
+
+    /**
      * 渲染选中高亮 — Figma 风格
      * @private
      */
     _renderSelectionHighlight(ctx, item) {
-        const pos = item.pos || { x: item.x || 0, y: item.y || 0 };
+        const bb = this._getItemBounds(item);
 
-        // 使用组件实际边界框（如果可用），否则回退到默认尺寸
-        let bx, by, bw, bh;
-        if (typeof item.getBoundingBox === 'function') {
-            const bb = item.getBoundingBox();
-            bx = bb.x;
-            by = bb.y;
-            bw = bb.width;
-            bh = bb.height;
-        } else {
-            const fallback = 40;
-            bx = pos.x - fallback / 2;
-            by = pos.y - fallback / 2;
-            bw = fallback;
-            bh = fallback;
-        }
-
-        // 外扩 4px 留出呼吸空间
         const pad = 4;
-        const rx = bx - pad;
-        const ry = by - pad;
-        const rw = bw + pad * 2;
-        const rh = bh + pad * 2;
+        const rx = bb.x - pad;
+        const ry = bb.y - pad;
+        const rw = bb.width + pad * 2;
+        const rh = bb.height + pad * 2;
 
         ctx.save();
 
@@ -858,6 +1024,7 @@ export class InteractionManager {
         if (this._keyboardHandler && typeof document !== 'undefined') {
             document.removeEventListener('keydown', this._keyboardHandler);
         }
+        this._removeContextMenu();
     }
 
     /**
