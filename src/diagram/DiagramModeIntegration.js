@@ -1697,7 +1697,7 @@ export class DiagramModeIntegration {
         const componentOpacity = primaryComponentStyle.opacity ?? globalComponentStyle.opacity ?? 1;
         const componentForceIconColor = primaryComponentStyle.forceIconColor === true;
 
-        const connectionPointVisible = connectionPointManager?.visible !== false;
+        const connectionPointVisibilityMode = connectionPointManager?.visibilityMode || 'smart';
         const connectionPointShowLabels = connectionPointManager?.showLabels !== false;
         const connectionPointSnapEnabled = connectionPointManager?.snapEnabled !== false;
         const connectionPointSnapDistance = connectionPointManager?.snapDistance || 20;
@@ -1829,9 +1829,22 @@ export class DiagramModeIntegration {
                 <div style="margin-bottom: 16px;">
                     <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">连接点设置</h4>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
-                            <input type="checkbox" class="cp-visible" ${connectionPointVisible ? 'checked' : ''}/> 显示连接点
-                        </label>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">显示模式</label>
+                            <select class="cp-visibility-mode" style="
+                                width: 100%;
+                                padding: 6px 8px;
+                                border: 1px solid var(--border-color, #444);
+                                border-radius: 4px;
+                                background: var(--input-bg, #343a40);
+                                color: var(--text-color, #fff);
+                                font-size: 12px;
+                            ">
+                                <option value="smart" ${connectionPointVisibilityMode === 'smart' ? 'selected' : ''}>智能显示（悬停/选中时）</option>
+                                <option value="always" ${connectionPointVisibilityMode === 'always' ? 'selected' : ''}>始终显示</option>
+                                <option value="hidden" ${connectionPointVisibilityMode === 'hidden' ? 'selected' : ''}>隐藏</option>
+                            </select>
+                        </div>
                         <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
                             <input type="checkbox" class="cp-labels" ${connectionPointShowLabels ? 'checked' : ''}/> 显示连接点标签
                         </label>
@@ -2008,14 +2021,12 @@ export class DiagramModeIntegration {
             });
         }
 
-        // 连接点设置
-        const cpVisibleInput = panel.querySelector('.cp-visible');
-        if (cpVisibleInput) {
-            cpVisibleInput.addEventListener('change', (e) => {
-                if (connectionPointManager?.setVisible) {
-                    connectionPointManager.setVisible(e.target.checked);
-                } else if (connectionPointManager) {
-                    connectionPointManager.visible = e.target.checked;
+        // 连接点显示模式
+        const cpVisibilitySelect = panel.querySelector('.cp-visibility-mode');
+        if (cpVisibilitySelect) {
+            cpVisibilitySelect.addEventListener('change', (e) => {
+                if (connectionPointManager?.setVisibilityMode) {
+                    connectionPointManager.setVisibilityMode(e.target.value);
                 }
                 this._triggerRedraw();
             });
@@ -2561,10 +2572,11 @@ export class DiagramModeIntegration {
             }
         }
 
-        // 启用连接点显示
+        // 启用连接点智能可见性
         if (this.modules.connectionPointManager) {
+            this.modules.connectionPointManager.visible = true;
             if (!this._diagramStateRestored) {
-                this.modules.connectionPointManager.visible = true;
+                this.modules.connectionPointManager.setVisibilityMode?.('smart');
             }
         }
 

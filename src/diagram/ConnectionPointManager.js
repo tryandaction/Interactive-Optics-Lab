@@ -152,43 +152,170 @@ export class ConnectionPointInstance {
  * 连接点管理器类
  */
 export class ConnectionPointManager {
+    /** @type {number} 淡入淡出动画时长 (ms) */
+    static FADE_DURATION = 150;
+
     constructor(config = {}) {
         /** @type {Map<string, ConnectionPointInstance[]>} 组件ID -> 连接点实例数组 */
         this.componentPoints = new Map();
-        
+
         /** @type {Map<string, ConnectionPointInstance>} 连接点ID -> 连接点实例 */
         this.pointsById = new Map();
-        
+
         /** @type {ConnectionPointInstance|null} 当前悬停的连接点 */
         this.hoveredPoint = null;
-        
+
         /** @type {ConnectionPointInstance|null} 当前选中的连接点 */
         this.selectedPoint = null;
-        
-        /** @type {boolean} 是否显示连接点 */
+
+        /** @type {boolean} 是否显示连接点（兼容旧代码） */
         this.visible = config.visible !== false;
-        
+
+        /** @type {'smart'|'always'|'hidden'} 可见性模式 */
+        this.visibilityMode = config.visibilityMode || 'smart';
+
+        /** @type {string|null} 当前悬停的组件ID */
+        this.hoveredComponentId = null;
+
+        /** @type {Set<string>} 当前选中的组件ID集合 */
+        this.selectedComponentIds = new Set();
+
+        /** @type {boolean} 是否处于链接创建模式 */
+        this.isLinkModeActive = false;
+
+        /** @type {Map<string, number>} 组件ID -> 当前连接点透明度 (0~1) */
+        this.componentOpacity = new Map();
+
+        /** @type {boolean} 是否有正在进行的淡入淡出动画 */
+        this._isAnimating = false;
+
+        /** @type {number} 上一帧时间戳 */
+        this._lastFrameTime = 0;
+
         /** @type {boolean} 是否显示标签 */
         this.showLabels = config.showLabels !== false;
-        
+
         /** @type {number} 吸附距离 */
         this.snapDistance = config.snapDistance || 20;
 
         /** @type {boolean} 是否启用吸附 */
         this.snapEnabled = config.snapEnabled !== false;
-        
+
         /** @type {number} 命中测试容差 */
         this.hitTestTolerance = config.hitTestTolerance || 10;
-        
+
         this.iconManager = getProfessionalIconManager();
         this.eventBus = config.eventBus || getEventBus();
-        
+
         // 统计
         this.stats = {
             totalPoints: 0,
             customPoints: 0,
             connectedPoints: 0
         };
+    }
+
+    // ========== 智能可见性 API ==========
+
+    /**
+     * 设置可见性模式
+     * @param {'smart'|'always'|'hidden'} mode
+     */
+    setVisibilityMode(mode) {
+        if (!['smart', 'always', 'hidden'].includes(mode)) return;
+        this.visibilityMode = mode;
+        // 兼容旧 visible 属性
+        this.visible = mode !== 'hidden';
+        this.eventBus.emit('connectionpoint:visibility-changed', { mode });
+    }
+
+    /**
+     * 设置当前悬停的组件
+     * @param {string|null} componentId
+     */
+    setHoveredComponent(componentId) {
+        if (this.hoveredComponentId === componentId) return;
+        this.hoveredComponentId = componentId;
+    }
+
+    /**
+     * 设置当前选中的组件ID集合
+     * @param {Iterable<string>} ids
+     */
+    setSelectedComponents(ids) {
+        this.selectedComponentIds = new Set(ids);
+    }
+
+    /**
+     * 设置链接模式激活状态
+     * @param {boolean} active
+     */
+    setLinkModeActive(active) {
+        this.isLinkModeActive = !!active;
+    }
+
+    /**
+     * 判断指定组件的连接点是否应该显示（smart 模式下）
+     * @param {string} componentId
+     * @returns {boolean}
+     * @private
+     */
+    _shouldShowForComponent(componentId) {
+        if (this.isLinkModeActive) return true;
+        if (this.hoveredComponentId === componentId) return true;
+        if (this.selectedComponentIds.has(componentId)) return true;
+        return false;
+    }
+
+    /**
+     * 获取指定组件连接点的目标透明度
+     * @param {string} componentId
+     * @returns {number} 0 或 1
+     * @private
+     */
+    _getTargetOpacity(componentId) {
+        if (this.visibilityMode === 'hidden') return 0;
+        if (this.visibilityMode === 'always') return 1;
+        // smart 模式
+        return this._shouldShowForComponent(componentId) ? 1 : 0;
+    }
+
+    /**
+     * 更新所有组件连接点的淡入淡出动画
+     * @param {number} dt - 帧间隔 (ms)
+     * @returns {boolean} 是否仍有动画在进行
+     * @private
+     */
+    _updateFadeAnimations(dt) {
+        let animating = false;
+        const speed = dt / ConnectionPointManager.FADE_DURATION;
+
+        this.componentPoints.forEach((_, componentId) => {
+            const target = this._getTargetOpacity(componentId);
+            const current = this.componentOpacity.get(componentId) ?? 0;
+
+            if (Math.abs(current - target) < 0.01) {
+                this.componentOpacity.set(componentId, target);
+                return;
+            }
+
+            const next = current < target
+                ? Math.min(current + speed, 1)
+                : Math.max(current - speed, 0);
+            this.componentOpacity.set(componentId, next);
+            animating = true;
+        });
+
+        this._isAnimating = animating;
+        return animating;
+    }
+
+    /**
+     * 是否有正在进行的动画
+     * @returns {boolean}
+     */
+    isAnimating() {
+        return this._isAnimating;
     }
 
     /**
@@ -346,11 +473,16 @@ export class ConnectionPointManager {
     }
     
     /**
-     * 设置可见性
+     * 设置可见性（兼容旧代码）
      * @param {boolean} visible
      */
     setVisible(visible) {
         this.visible = visible;
+        if (!visible) {
+            this.visibilityMode = 'hidden';
+        } else if (this.visibilityMode === 'hidden') {
+            this.visibilityMode = 'smart';
+        }
         this.eventBus.emit('connectionpoint:visibility-changed', { visible });
     }
 
@@ -461,10 +593,16 @@ export class ConnectionPointManager {
 
     /**
      * 渲染所有连接点
+     * @returns {boolean} 是否需要继续重绘（动画中）
      */
     render(ctx, components) {
-        if (!this.visible) return;
-        
+        // hidden 模式或旧 visible=false 直接跳过
+        if (this.visibilityMode === 'hidden' || !this.visible) return false;
+
+        const now = performance.now();
+        const dt = this._lastFrameTime ? (now - this._lastFrameTime) : 16;
+        this._lastFrameTime = now;
+
         // 先更新所有连接点位置
         components.forEach(comp => {
             const componentId = comp.id || comp.uuid;
@@ -473,22 +611,37 @@ export class ConnectionPointManager {
             }
             this.updateComponentPoints(comp);
         });
-        
-        // 渲染连接点
-        this.componentPoints.forEach((points, componentId) => {
-            points.forEach(point => {
-                this._renderPoint(ctx, point);
+
+        // always 模式：全部渲染，无动画
+        if (this.visibilityMode === 'always') {
+            this.componentPoints.forEach((points) => {
+                points.forEach(point => this._renderPoint(ctx, point, 1));
             });
+            return false;
+        }
+
+        // smart 模式：按组件透明度渲染
+        const stillAnimating = this._updateFadeAnimations(dt);
+
+        this.componentPoints.forEach((points, componentId) => {
+            const opacity = this.componentOpacity.get(componentId) ?? 0;
+            if (opacity <= 0.01) return; // 完全透明，跳过
+            points.forEach(point => this._renderPoint(ctx, point, opacity));
         });
+
+        return stillAnimating;
     }
 
     /**
      * 渲染单个连接点
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {ConnectionPointInstance} point
+     * @param {number} opacity - 透明度 (0~1)
      * @private
      */
-    _renderPoint(ctx, point) {
+    _renderPoint(ctx, point, opacity = 1) {
         const { worldPosition } = point;
-        
+
         // 确定样式
         let style = CONNECTION_POINT_STYLES.DEFAULT;
         if (point === this.selectedPoint) {
@@ -502,8 +655,10 @@ export class ConnectionPointManager {
         } else if (point.type === CONNECTION_POINT_TYPES.OUTPUT) {
             style = { ...CONNECTION_POINT_STYLES.DEFAULT, ...CONNECTION_POINT_STYLES.OUTPUT };
         }
-        
+
         ctx.save();
+        const prevAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = prevAlpha * opacity;
         
         // 绘制连接点圆圈
         ctx.beginPath();
@@ -565,6 +720,7 @@ export class ConnectionPointManager {
     serialize() {
         const data = {
             visible: this.visible,
+            visibilityMode: this.visibilityMode,
             showLabels: this.showLabels,
             snapEnabled: this.snapEnabled,
             snapDistance: this.snapDistance,
@@ -586,6 +742,7 @@ export class ConnectionPointManager {
      */
     deserialize(data) {
         if (data.visible !== undefined) this.visible = data.visible;
+        if (data.visibilityMode) this.visibilityMode = data.visibilityMode;
         if (data.showLabels !== undefined) this.showLabels = data.showLabels;
         if (data.snapEnabled !== undefined) this.snapEnabled = data.snapEnabled;
         if (data.snapDistance !== undefined) this.snapDistance = data.snapDistance;
@@ -624,6 +781,10 @@ export class ConnectionPointManager {
         this.pointsById.clear();
         this.hoveredPoint = null;
         this.selectedPoint = null;
+        this.componentOpacity.clear();
+        this.hoveredComponentId = null;
+        this.selectedComponentIds.clear();
+        this._isAnimating = false;
     }
 }
 

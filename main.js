@@ -638,9 +638,9 @@ function draw() {
             }
 
             // Draw selection highlight (which includes angle handle)
-            // The base GameObject.drawSelection handles the angle handle part.
-            // Subclasses might override drawSelection to add more highlights.
-            if (comp === selectedComponent || selectedComponents.includes(comp)) {
+            // In diagram mode, InteractionManager handles selection rendering (Figma-style)
+            // so we skip the default yellow angle handle.
+            if ((comp === selectedComponent || selectedComponents.includes(comp)) && !isDiagramModeActive) {
                 comp.drawSelection(ctx);
             }
 
@@ -2372,9 +2372,13 @@ function handleMouseMove(event) {
             needsRetrace = true;
         }
         
-        // 更新连接点悬停状态
+        // 更新连接点悬停状态 + 智能可见性同步
         if (connectionPointManager) {
             connectionPointManager.handleMouseMove(currentMousePos);
+            // 同步链接模式状态
+            connectionPointManager.setLinkModeActive(
+                diagramModeIntegration.isRayLinkModeActive?.() || false
+            );
         }
         
         // 更新光线链接悬停状态
@@ -2582,6 +2586,19 @@ function handleMouseMove(event) {
                 else newCursor = 'grab';
             } else { newCursor = 'pointer'; }
         } else { newCursor = 'default'; }
+
+        // 智能连接点可见性：同步悬停组件 & 选中组件
+        if (isDiagramModeActive) {
+            const cpManager = diagramModeIntegration?.getModule?.('connectionPointManager');
+            if (cpManager) {
+                cpManager.setHoveredComponent(
+                    hoveredComponent ? (hoveredComponent.id || hoveredComponent.uuid) : null
+                );
+                cpManager.setSelectedComponents(
+                    selectedComponents.map(c => c.id || c.uuid)
+                );
+            }
+        }
     }
     if (canvas.style.cursor !== newCursor) { canvas.style.cursor = newCursor; }
     // --- End Hover Logic ---

@@ -782,32 +782,72 @@ export class InteractionManager {
     }
 
     /**
-     * 渲染选中高亮
+     * 渲染选中高亮 — Figma 风格
      * @private
      */
     _renderSelectionHighlight(ctx, item) {
         const pos = item.pos || { x: item.x || 0, y: item.y || 0 };
-        const size = 40;
-        
+
+        // 使用组件实际边界框（如果可用），否则回退到默认尺寸
+        let bx, by, bw, bh;
+        if (typeof item.getBoundingBox === 'function') {
+            const bb = item.getBoundingBox();
+            bx = bb.x;
+            by = bb.y;
+            bw = bb.width;
+            bh = bb.height;
+        } else {
+            const fallback = 40;
+            bx = pos.x - fallback / 2;
+            by = pos.y - fallback / 2;
+            bw = fallback;
+            bh = fallback;
+        }
+
+        // 外扩 4px 留出呼吸空间
+        const pad = 4;
+        const rx = bx - pad;
+        const ry = by - pad;
+        const rw = bw + pad * 2;
+        const rh = bh + pad * 2;
+
         ctx.save();
+
+        // 1px 蓝色选中边框
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
         ctx.setLineDash([]);
-        ctx.strokeRect(pos.x - size/2 - 5, pos.y - size/2 - 5, size + 10, size + 10);
-        
-        // 绘制调整手柄
-        const handleSize = 6;
-        ctx.fillStyle = '#0078d4';
-        const corners = [
-            { x: pos.x - size/2 - 5, y: pos.y - size/2 - 5 },
-            { x: pos.x + size/2 + 5, y: pos.y - size/2 - 5 },
-            { x: pos.x - size/2 - 5, y: pos.y + size/2 + 5 },
-            { x: pos.x + size/2 + 5, y: pos.y + size/2 + 5 }
+        ctx.strokeRect(rx, ry, rw, rh);
+
+        // 角手柄：8×8 白色填充 + 1px 蓝色描边
+        const cs = 8;
+        const cornerPositions = [
+            { x: rx,      y: ry },       // 左上
+            { x: rx + rw, y: ry },       // 右上
+            { x: rx,      y: ry + rh },  // 左下
+            { x: rx + rw, y: ry + rh }   // 右下
         ];
-        corners.forEach(corner => {
-            ctx.fillRect(corner.x - handleSize/2, corner.y - handleSize/2, handleSize, handleSize);
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1;
+        cornerPositions.forEach(c => {
+            ctx.fillRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
+            ctx.strokeRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
         });
-        
+
+        // 边中点手柄：6×6 白色填充 + 1px 蓝色描边
+        const ms = 6;
+        const midPositions = [
+            { x: rx + rw / 2, y: ry },          // 上中
+            { x: rx + rw / 2, y: ry + rh },     // 下中
+            { x: rx,          y: ry + rh / 2 },  // 左中
+            { x: rx + rw,     y: ry + rh / 2 }   // 右中
+        ];
+        midPositions.forEach(m => {
+            ctx.fillRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
+            ctx.strokeRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
+        });
+
         ctx.restore();
     }
 
