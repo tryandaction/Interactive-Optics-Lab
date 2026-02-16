@@ -371,14 +371,26 @@ export class IconBrowserPanel {
         if (nameEl) nameEl.textContent = icon?.name || iconType;
         if (detailsEl) {
             const points = this.iconManager.getConnectionPoints(iconType);
-            detailsEl.innerHTML = `
-                <div>类型: ${iconType}</div>
-                <div>分类: ${CATEGORY_LABELS[icon?.category] || icon?.category}</div>
-                <div>连接点: ${points.length}个</div>
-                <div class="connection-points-list">
-                    ${points.map(p => `<span class="cp-tag cp-${p.type}">${p.label}</span>`).join('')}
-                </div>
-            `;
+            // XSS防护: 使用DOM API构建
+            detailsEl.innerHTML = '';
+            const typeDiv = document.createElement('div');
+            typeDiv.textContent = `类型: ${iconType}`;
+            const categoryDiv = document.createElement('div');
+            categoryDiv.textContent = `分类: ${CATEGORY_LABELS[icon?.category] || icon?.category}`;
+            const countDiv = document.createElement('div');
+            countDiv.textContent = `连接点: ${points.length}个`;
+            const listDiv = document.createElement('div');
+            listDiv.className = 'connection-points-list';
+            points.forEach(p => {
+                const tag = document.createElement('span');
+                tag.className = `cp-tag cp-${p.type}`;
+                tag.textContent = p.label;
+                listDiv.appendChild(tag);
+            });
+            detailsEl.appendChild(typeDiv);
+            detailsEl.appendChild(categoryDiv);
+            detailsEl.appendChild(countDiv);
+            detailsEl.appendChild(listDiv);
         }
     }
 

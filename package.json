@@ -1,0 +1,46 @@
+{
+  "name": "opticslab",
+  "version": "1.2.0",
+  "description": "Interactive optical simulation and professional diagram tool with 94+ optical components",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -o",
+    "dev": "npx http-server . -p 8080 -c-1 -o",
+    "test": "npx playwright test",
+    "test:e2e": "npx playwright test tests/e2e/",
+    "test:unit": "node --test tests/unit/**/*.test.js",
+    "lint": "npx eslint src/"
+  },
+  "keywords": [
+    "optics",
+    "simulation",
+    "ray-tracing",
+    "physics",
+    "education",
+    "lens",
+    "mirror",
+    "polarization",
+    "diffraction",
+    "canvas"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Firefox versions",
+    "last 2 Edge versions",
+    "last 2 Safari versions"
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "eslint": "^8.50.0"
+  }
+}

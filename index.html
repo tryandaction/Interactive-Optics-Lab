@@ -2,10 +2,22 @@
 <html lang="zh-CN"> <!-- Root element, language set to Chinese -->
 
 <head>
-    <meta charset="UTF-8"> <!-- Character encoding set to UTF-8 -->
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Viewport settings for responsive design -->
-    <title>交互式光学实验室</title> <!-- Title shown in the browser tab -->
+    <meta name="description" content="OpticsLab - 交互式光学实验模拟器，支持94+光学元件的实时光线追踪和专业绘图模式">
+    <meta name="keywords" content="光学模拟,光线追踪,透镜,光学实验,物理教学">
+    <meta name="author" content="OpticsLab">
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="OpticsLab - 交互式光学实验室">
+    <meta property="og:description" content="专业的光学实验模拟器，支持实时光线追踪、透镜成像分析和专业绘图导出">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="./assets/og-image.png">
+
+    <!-- GitHub OAuth Client ID (public, safe to embed) -->
+    <meta name="github-client-id" content="Ov23liUWmPqfX0ArriHl">
+
+    <title>交互式光学实验室</title>
 
     <!-- Inline favicon to avoid 404 -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23007acc'/%3E%3C/svg%3E">
@@ -632,9 +644,11 @@
         <!-- END Left Toolbar -->
         <!-- Center Simulation Area -->
         <div id="simulation-area">
-            <canvas id="opticsCanvas"></canvas>
+            <canvas id="opticsCanvas" role="application" aria-label="光学模拟画布 - 使用鼠标拖拽组件，滚轮缩放，右键打开菜单"></canvas>
             <!-- Mode Hint (Keep it here) -->
             <div id="mode-hint"></div>
+            <!-- Screen reader status region -->
+            <div id="sr-status" role="status" aria-live="polite" aria-atomic="true" style="position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;"></div>
         </div>
 
         <!-- Right Inspector Panel (with Tabs) -->
@@ -988,7 +1002,31 @@
     
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
     <script type="module" src="src/compat/legacy-globals.js" onerror="console.error('❌ 无法加载 legacy-globals.js')"></script>
-    
+
+    <!-- License System -->
+    <script type="module">
+        import { LicenseValidator } from './src/license/LicenseValidator.js';
+        import { LicenseUI } from './src/license/LicenseUI.js';
+
+        // Export to global scope for main.js
+        window.LicenseValidator = LicenseValidator;
+        window.LicenseUI = LicenseUI;
+
+        console.log('✓ License system loaded');
+    </script>
+
+    <!-- Cloud Storage System -->
+    <script type="module">
+        import { GitHubAuth } from './src/cloud/GitHubAuth.js';
+        import { GistSceneStorage } from './src/cloud/GistSceneStorage.js';
+
+        // Export to global scope for main.js
+        window.GitHubAuth = GitHubAuth;
+        window.GistSceneStorage = GistSceneStorage;
+
+        console.log('✓ Cloud storage system loaded');
+    </script>
+
     <!-- 统一项目管理模块 -->
     <script type="module">
         import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';

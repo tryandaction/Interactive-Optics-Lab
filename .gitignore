@@ -41,6 +41,9 @@ coverage/
 .env.local
 .env.*.local
 
+# 开发者操作清单 / Developer TODO (不上传)
+TODO.md
+
 # 备份文件 / Backup Files
 *.bak
 *.backup
@@ -66,3 +69,4 @@ debug.log
 error.log
 
 .kiro
+.vercel

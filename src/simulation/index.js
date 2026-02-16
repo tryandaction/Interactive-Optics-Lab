@@ -4,4 +4,4 @@
 
 export { RayTracer, TRACE_CONFIG } from './RayTracer.js';
 export { GameLoop } from './GameLoop.js';
-export { LensImaging } from './LensImaging.js';
+export { LensImaging, getLensImaging, resetLensImaging } from './LensImaging.js';

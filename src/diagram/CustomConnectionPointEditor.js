@@ -1,12 +1,19 @@
 /**
  * CustomConnectionPointEditor.js - 自定义连接点编辑器
  * 提供添加、编辑和删除自定义连接点的UI
- * 
+ *
  * Requirements: 2.5
  */
 
 import { getConnectionPointManager, CONNECTION_POINT_STYLES } from './ConnectionPointManager.js';
 import { CONNECTION_POINT_TYPES } from './ProfessionalIconManager.js';
+
+// XSS防护工具函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 /**
  * 连接点类型显示名称
@@ -326,8 +333,8 @@ export class CustomConnectionPointEditor {
         listContainer.innerHTML = points.map(point => `
             <div class="cp-list-item ${point.isCustom ? 'custom' : 'builtin'}">
                 <div class="cp-item-info">
-                    <span class="cp-item-label">${point.label || point.pointId}</span>
-                    <span class="cp-item-type cp-type-${point.type}">${POINT_TYPE_LABELS[point.type] || point.type}</span>
+                    <span class="cp-item-label">${escapeHtml(point.label || point.pointId)}</span>
+                    <span class="cp-item-type cp-type-${escapeHtml(point.type)}">${escapeHtml(POINT_TYPE_LABELS[point.type] || point.type)}</span>
                     ${point.isCustom ? '<span class="cp-item-badge">自定义</span>' : ''}
                 </div>
                 <div class="cp-item-position">
@@ -335,12 +342,12 @@ export class CustomConnectionPointEditor {
                 </div>
                 <div class="cp-item-actions">
                     ${point.isCustom ? `
-                        <button class="cp-edit-btn" data-point-id="${point.id}" title="编辑">
+                        <button class="cp-edit-btn" data-point-id="${escapeHtml(point.id)}" title="编辑">
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                                 <path d="M10.5 1.5l2 2-8 8H2.5v-2l8-8z" stroke="currentColor" stroke-width="1.5"/>
                             </svg>
                         </button>
-                        <button class="cp-delete-btn" data-point-id="${point.id}" title="删除">
+                        <button class="cp-delete-btn" data-point-id="${escapeHtml(point.id)}" title="删除">
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                                 <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5"/>
                             </svg>

@@ -67,7 +67,7 @@ import {
 } from '../rendering/index.js';
 
 // 模拟模块
-import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging } from '../simulation/index.js';
+import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging, getLensImaging, resetLensImaging } from '../simulation/index.js';
 
 // UI 模块
 import { 
@@ -197,6 +197,8 @@ if (typeof window !== 'undefined') {
     window.TRACE_CONFIG = TRACE_CONFIG;
     window.GameLoop = GameLoop;
     window.LensImaging = LensImaging;
+    window.getLensImaging = getLensImaging;
+    window.resetLensImaging = resetLensImaging;
 
     // UI 模块
     window.EventHandler = EventHandler;

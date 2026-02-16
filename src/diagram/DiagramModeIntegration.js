@@ -1,9 +1,16 @@
 /**
  * DiagramModeIntegration.js - 专业绘图模式集成
  * 将所有diagram模块与主应用连接
- * 
+ *
  * Requirements: 1.2, 1.4, 1.7, 1.8, 1.9, 2.7, 3.10
  */
+
+// XSS防护工具函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 import { getModeManager, APP_MODES } from './ModeManager.js';
 import { createModeSwitcher } from './ModeSwitcher.js';
@@ -3118,12 +3125,12 @@ export class DiagramModeIntegration {
      */
     renderComponentWithProfessionalIcon(ctx, component) {
         if (!this.modules.professionalIconManager) return false;
-        
+
         const componentType = component.type || component.constructor?.name;
         if (!this.modules.professionalIconManager.hasIcon(componentType)) {
             return false;
         }
-        
+
         const pos = component.pos || { x: component.x || 0, y: component.y || 0 };
         const angle = component.angle ?? component.angleRad ?? 0;
         const scale = component.scale || 1;
@@ -3138,11 +3145,16 @@ export class DiagramModeIntegration {
             strokeWidth: componentStyle?.lineWidth,
             opacity: componentStyle?.opacity
         } : { preserveSvgColors: true, opacity: componentStyle?.opacity };
-        
+
+        // 对 ThinLens 传递 focalLength，使图标动态选择凸/凹绘制
+        if (componentType === 'ThinLens') {
+            iconStyle.focalLength = component.focalLength ?? 100;
+        }
+
         this.modules.professionalIconManager.renderIcon(
             ctx, componentType, pos.x, pos.y, angle, scale, iconStyle
         );
-        
+
         return true;
     }
 
@@ -3332,7 +3344,7 @@ export class DiagramModeIntegration {
                 background: var(--item-bg, #252526);
             ">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <input type="text" value="${section.title}" class="section-title-input" style="
+                    <input type="text" value="${escapeHtml(section.title)}" class="section-title-input" style="
                         flex: 1;
                         padding: 4px 8px;
                         border: 1px solid transparent;
@@ -3360,7 +3372,7 @@ export class DiagramModeIntegration {
                 <div class="section-items">
                     ${section.items.map((item, idx) => `
                         <div class="section-item" style="display: flex; gap: 8px; margin-bottom: 4px;">
-                            <input type="text" value="${item}" class="item-input" data-index="${idx}" style="
+                            <input type="text" value="${escapeHtml(item)}" class="item-input" data-index="${idx}" style="
                                 flex: 1;
                                 padding: 4px 8px;
                                 border: 1px solid var(--border-color, #444);

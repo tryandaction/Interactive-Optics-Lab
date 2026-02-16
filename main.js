@@ -105,6 +105,31 @@ let lastRecordedRotateState = null; // <<<--- 添加: 用于合并旋转操作
 let lastRecordedPropertyState = null; // <<<--- 添加: 用于合并属性修改
 let ongoingActionState = null; // { type: 'multi-move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
 
+// --- 资源清理注册表 ---
+const _cleanupRegistry = []; // { remove: Function } 数组
+const _timerIds = [];         // setInterval/setTimeout ID 数组
+
+function trackEventListener(target, event, handler, options) {
+    target.addEventListener(event, handler, options);
+    _cleanupRegistry.push({ remove: () => target.removeEventListener(event, handler, options) });
+}
+
+function trackTimer(id, isInterval = true) {
+    _timerIds.push({ id, isInterval });
+}
+
+function _cleanupAllResources() {
+    _cleanupRegistry.forEach(entry => { try { entry.remove(); } catch (e) { /* ignore */ } });
+    _cleanupRegistry.length = 0;
+    _timerIds.forEach(entry => {
+        try { entry.isInterval ? clearInterval(entry.id) : clearTimeout(entry.id); } catch (e) { /* ignore */ }
+    });
+    _timerIds.length = 0;
+    if (_autoRecoveryManager) {
+        _autoRecoveryManager.stopAutoSave();
+    }
+}
+
 // 获取或初始化 HistoryManager
 function getHistoryManager() {
     if (!historyManager && typeof HistoryManager !== 'undefined') {
@@ -1026,189 +1051,34 @@ function drawPlacementPreview(ctx) {
     ctx.restore();
 }
 
-// --- START REPLACEMENT for the ENTIRE drawOpticalSystemDiagram function (V8 - Ray Path Logic Finalized) ---
-function drawOpticalSystemDiagram(ctx) {
-    const dpr = window.devicePixelRatio || 1;
-
-    // --- Style Constants ---
-    const AXIS_COLOR = 'rgba(180, 180, 180, 0.5)'; const LENS_COLOR = '#AAAAFF'; const OBJ_COLOR = '#FFA500';
-    const IMG_REAL_COLOR = '#32CD32'; const IMG_VIRTUAL_COLOR = '#90EE90'; const FOCI_COLOR = 'cyan';
-    const RAY_PARALLEL_COLOR = 'rgba(255, 100, 100, 0.85)'; const RAY_CENTER_COLOR = 'rgba(100, 255, 100, 0.85)';
-    const RAY_FOCAL_COLOR = 'rgba(100, 100, 255, 0.85)'; const INFO_COLOR = 'rgba(230, 230, 230, 0.9)';
-
-    const LINE_WIDTH = 1.0 / dpr; const THICK_LINE_WIDTH = 1.8 / dpr; const RAY_WIDTH = 1.2 / dpr;
-    const POINT_RADIUS = 3 / dpr; const ARROW_SIZE = 8 / dpr; const DASH_PATTERN = [4 / dpr, 3 / dpr];
-
-    // --- Helper Functions ---
-    const _isValidVector = (...vectors) => vectors.every(v => v && v instanceof Vector && !isNaN(v.x) && !isNaN(v.y));
-    const _isValidNumber = (...numbers) => numbers.every(n => typeof n === 'number' && isFinite(n));
-    const _drawLabeledPoint = (point, label, color, offset = new Vector(5, -5), align = 'left', base = 'bottom') => { if (!_isValidVector(point)) return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(point.x, point.y, POINT_RADIUS, 0, 2 * Math.PI); ctx.fill(); ctx.font = `italic ${12 / dpr}px sans-serif`; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillStyle = INFO_COLOR; ctx.fillText(label, point.x + offset.x / dpr, point.y + offset.y / dpr); };
-    const _drawLine = (p1, p2, color, width = LINE_WIDTH, dashes = []) => { if (!_isValidVector(p1, p2)) return; ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dashes); ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.restore(); };
-    const _drawArrow = (p1, p2, color, size = ARROW_SIZE, width = THICK_LINE_WIDTH) => { if (!_isValidVector(p1, p2)) return; const vec = p2.subtract(p1); if (vec.magnitudeSquared() < 1e-9) return; _drawLine(p1, p2, color, width); const normDir = vec.normalize(); if (!_isValidVector(normDir)) return; const angle = Math.PI / 6; const v1 = normDir.rotate(Math.PI + angle).multiply(size); const v2 = normDir.rotate(Math.PI - angle).multiply(size); if (!_isValidVector(v1, v2)) return; ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p2.x + v1.x, p2.y + v1.y); ctx.lineTo(p2.x + v2.x, p2.y + v2.y); ctx.closePath(); ctx.fill(); };
-    const _drawLensSchematic = (lensComp, color = LENS_COLOR) => { if (!lensComp || !_isValidVector(lensComp.p1, lensComp.p2, lensComp.axisDirection)) return; const p1 = lensComp.p1; const p2 = lensComp.p2; const F = lensComp.focalLength; const isFlat = Math.abs(F) === Infinity; _drawLine(p1, p2, color, THICK_LINE_WIDTH * 1.2); if (!isFlat) { const arrowSize = ARROW_SIZE * 0.8; const midTop = Vector.lerp(lensComp.pos, p1, 0.85); const midBot = Vector.lerp(lensComp.pos, p2, 0.85); const arrowDir = lensComp.axisDirection.clone(); ctx.fillStyle = color; if (F > 0) { _drawArrowheadHelper(ctx, midTop, arrowDir.multiply(-1), arrowSize); _drawArrowheadHelper(ctx, midBot, arrowDir, arrowSize); } else { _drawArrowheadHelper(ctx, midTop, arrowDir, arrowSize); _drawArrowheadHelper(ctx, midBot, arrowDir.multiply(-1), arrowSize); } } };
-    const _drawArrowheadHelper = (ctx, tip, direction, size) => { if (!_isValidVector(tip, direction) || direction.magnitudeSquared() < 1e-6 || size <= 0) return; const normDir = direction.normalize(); if (!_isValidVector(normDir)) return; const angle = Math.PI / 6; const v1 = normDir.rotate(Math.PI + angle).multiply(size); const v2 = normDir.rotate(Math.PI - angle).multiply(size); if (!_isValidVector(v1, v2)) return; ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x + v1.x, tip.y + v1.y); ctx.lineTo(tip.x + v2.x, tip.y + v2.y); ctx.closePath(); ctx.fill(); };
-    const intersectLensLine = (rayOrigin, rayDir, lensCenter, lensPlaneDir, lensP1, lensP2) => { if (!_isValidVector(rayOrigin, rayDir, lensCenter, lensPlaneDir, lensP1, lensP2)) return null; const OC = rayOrigin.subtract(lensCenter); const cross_Dir_Plane = rayDir.cross(lensPlaneDir); if (Math.abs(cross_Dir_Plane) < 1e-9) return null; const s = -(OC.cross(lensPlaneDir)) / cross_Dir_Plane; if (s < 1e-6) return null; const hitPoint = rayOrigin.add(rayDir.multiply(s)); const lensDiameterSq = lensP1.distanceSquaredTo(lensP2); const proj = hitPoint.subtract(lensP1).dot(lensP2.subtract(lensP1)) / (lensDiameterSq > 1e-9 ? lensDiameterSq : 1); if (proj < -0.05 || proj > 1.05) return null; return hitPoint; };
-    const extendRay = (startPoint, direction, factor = 2.0) => { // Increased factor slightly
-        if (!_isValidVector(startPoint, direction) || direction.magnitudeSquared() < 1e-9) return startPoint;
-        const length = Math.max(canvasWidth, canvasHeight) * factor; // Use canvas size for extension length
-        const normDir = direction.normalize();
-        return _isValidVector(normDir) ? startPoint.add(normDir.multiply(length)) : startPoint;
-    };
-
-    // --- Find Object and Lens ---
-    let objectSource = components.find(comp => comp instanceof LaserSource || comp instanceof FanSource || comp instanceof LineSource || comp instanceof WhiteLightSource);
-    let lens = components.find(comp => comp instanceof ThinLens);
-
-    // --- Validation ---
-    if (!objectSource || !lens || !(lens instanceof ThinLens) ||
-        !_isValidVector(objectSource.pos, lens.pos, lens.axisDirection, lens.p1, lens.p2) ||
-        !_isValidNumber(lens.focalLength, lens.diameter) || lens.diameter < 1e-6) {
-        showModeHint('透镜成像需要：1个有效光源和1个有效薄透镜。'); return false;
+// --- drawOpticalSystemDiagram: delegates to LensImaging singleton ---
+let _lensImagingInstance = null;
+function _getLensImagingInstance() {
+    if (!_lensImagingInstance) {
+        if (typeof window.getLensImaging === 'function') {
+            _lensImagingInstance = window.getLensImaging();
+        } else if (typeof window.LensImaging === 'function') {
+            _lensImagingInstance = new window.LensImaging();
+        }
     }
-    const canvasWidth = ctx.canvas.width / dpr; const canvasHeight = ctx.canvas.height / dpr;
-    const F = lens.focalLength; const isFlat = Math.abs(F) === Infinity; const LENS_CENTER = lens.pos;
-    const LENS_AXIS = lens.axisDirection.clone(); const LENS_PLANE_DIR = lens.p1.subtract(lens.p2).normalize();
-    const lensP1 = lens.p1; const lensP2 = lens.p2;
-
-    // --- Object Calculation ---
-    const OBJ_TIP = objectSource.pos.clone(); const vecCenterToObjTip = OBJ_TIP.subtract(LENS_CENTER);
-    const u_dist_signed = vecCenterToObjTip.dot(LENS_AXIS); const OBJ_BASE = LENS_CENTER.add(LENS_AXIS.multiply(u_dist_signed));
-    const objHeightVec = OBJ_TIP.subtract(OBJ_BASE); const ho_signed = objHeightVec.dot(LENS_PLANE_DIR);
-    const MIN_DIAGRAM_HEIGHT = 5 / dpr; let ho_effective = ho_signed;
-    if (Math.abs(ho_effective) < MIN_DIAGRAM_HEIGHT) { ho_effective = Math.sign(ho_effective) * MIN_DIAGRAM_HEIGHT || MIN_DIAGRAM_HEIGHT; }
-    const OBJ_TIP_EFFECTIVE = OBJ_BASE.add(LENS_PLANE_DIR.multiply(ho_effective));
-    if (!_isValidVector(OBJ_BASE, OBJ_TIP_EFFECTIVE)) { showModeHint('物体位置计算错误。'); return false; }
-
-    // --- Image Calculation ---
-    const u = -u_dist_signed; let v = Infinity; let M = 0; let hi_signed = 0;
-    let IMG_TIP = null; let IMG_BASE = null; let isRealImage = false; let imageAtInfinity = false;
-    // ... (Robust image calculation logic from V6/V7) ...
-    if (isFlat) { v = -u; M = 1.0; }
-    else if (Math.abs(u) < 1e-9) { v = 0; M = 1.0; } else if (Math.abs(F) < 1e-9) { v = -u; M = 1.0; }
-    else if (Math.abs(u - F) < 1e-6) { v = Infinity; M = Infinity; imageAtInfinity = true; }
-    else { const one_over_f = 1 / F; const one_over_u = 1 / u; if (!_isValidNumber(one_over_f, one_over_u)) { showModeHint('计算错误 (1/f or 1/u)。'); return false; } const one_over_v = one_over_f - one_over_u; if (!_isValidNumber(one_over_v)) { showModeHint('计算错误 (1/v)。'); return false; } if (Math.abs(one_over_v) < 1e-9) { v = Infinity; M = Infinity; imageAtInfinity = true; } else { v = 1 / one_over_v; if (!_isValidNumber(v)) { showModeHint('计算错误 (v)。'); return false; } M = -v / u; if (!_isValidNumber(M)) M = 0; } }
-    if (!imageAtInfinity) { IMG_BASE = LENS_CENTER.add(LENS_AXIS.multiply(v)); hi_signed = M * ho_effective; if (!_isValidNumber(hi_signed)) hi_signed = 0; IMG_TIP = IMG_BASE.add(LENS_PLANE_DIR.multiply(hi_signed)); isRealImage = (u_dist_signed * v < -1e-9); if (!_isValidVector(IMG_BASE, IMG_TIP)) { showModeHint('像位置计算错误。'); IMG_BASE = null; IMG_TIP = null; } }
-
-    // --- Calculate Focal Points ---
-    let F_obj_world = null; let F_img_world = null;
-    if (!isFlat) { F_obj_world = LENS_CENTER.add(LENS_AXIS.multiply(-F)); F_img_world = LENS_CENTER.add(LENS_AXIS.multiply(F)); if (!_isValidVector(F_obj_world, F_img_world)) { showModeHint('焦点计算错误。'); return false; } }
-
-    // --- Start Drawing ---
-    ctx.save();
-    try {
-        // --- Draw Static Elements ---
-        const axisP1 = LENS_CENTER.add(LENS_AXIS.multiply(-canvasWidth * 1.5)); const axisP2 = LENS_CENTER.add(LENS_AXIS.multiply(canvasWidth * 1.5));
-        _drawLine(axisP1, axisP2, AXIS_COLOR, LINE_WIDTH, DASH_PATTERN);
-        _drawLensSchematic(lens, LENS_COLOR);
-        _drawArrow(OBJ_BASE, OBJ_TIP_EFFECTIVE, OBJ_COLOR);
-        _drawLabeledPoint(OBJ_TIP_EFFECTIVE, "A", OBJ_COLOR, new Vector(5, -5)); _drawLabeledPoint(OBJ_BASE, "B", OBJ_COLOR, new Vector(5, 5));
-        if (F_obj_world && F_img_world) { _drawLabeledPoint(F_obj_world, "F", FOCI_COLOR, new Vector(-15 / dpr, 5 / dpr), 'right'); _drawLabeledPoint(F_img_world, "F'", FOCI_COLOR, new Vector(5 / dpr, 5 / dpr), 'left'); }
-        if (IMG_TIP && IMG_BASE) { const imageColor = isRealImage ? IMG_REAL_COLOR : IMG_VIRTUAL_COLOR; const imageLabel = isRealImage ? "A' (实)" : "A' (虚)"; const dashes = isRealImage ? [] : DASH_PATTERN; _drawArrow(IMG_BASE, IMG_TIP, imageColor); _drawLabeledPoint(IMG_TIP, imageLabel, imageColor, new Vector(5, -5)); _drawLabeledPoint(IMG_BASE, "B'", imageColor, new Vector(5, 5)); }
-
-        // --- Trace and Draw Principal Rays ---
-        const rayWidth = RAY_WIDTH;
-
-        // Function to draw a single principal ray with correct solid/dashed lines
-        const drawPrincipalRay = (startPoint, dirIn, hitPoint, dirOut, endPoint, isVirtualIn, isVirtualOut, color) => {
-            if (!hitPoint) return; // Cannot draw if ray misses lens
-
-            // Draw Incoming Segment
-            _drawLine(startPoint, hitPoint, color, rayWidth, isVirtualIn ? DASH_PATTERN : []);
-
-            // Draw Outgoing Segment (Actual Path - Always Solid)
-            const effectiveEndPoint = imageAtInfinity ? extendRay(hitPoint, dirOut) : endPoint;
-            if (effectiveEndPoint) {
-                _drawLine(hitPoint, effectiveEndPoint, color, rayWidth); // Actual path is solid
-            }
-
-            // Draw Backward Extension (Virtual Path - Always Dashed)
-            if (isVirtualOut && effectiveEndPoint) { // Only draw if forms virtual image or diverges from virtual point
-                // Extend backwards from hitPoint along the negative dirOut direction
-                const virtualOrigin = extendRay(hitPoint, dirOut.multiply(-1));
-                _drawLine(hitPoint, virtualOrigin, color, rayWidth, DASH_PATTERN);
-            }
-        };
-
-        // Ray 1: Parallel -> F'
-        const traceRay1 = () => {
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = LENS_AXIS.clone();
-            const hitPoint = intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
-            if (!hitPoint || isFlat || !F_img_world) return; // Need hit and F' for curved lens
-
-            let dirOut;
-            if (F > 0) { dirOut = F_img_world.subtract(hitPoint).normalize(); } // Convex aims through F'
-            else { dirOut = hitPoint.subtract(F_img_world).normalize(); }       // Concave seems to come from F'
-
-            if (!_isValidVector(dirOut)) return;
-            const endPoint = IMG_TIP; // Ray should pass through image tip
-            const isVirtualOut = !isRealImage;
-
-            drawPrincipalRay(startPoint, dirIn, hitPoint, dirOut, endPoint, false, isVirtualOut, RAY_PARALLEL_COLOR);
-        };
-
-        // Ray 2: Center -> Undeviated
-        const traceRay2 = () => {
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const hitPoint = LENS_CENTER; // Approx center
-            const dir = hitPoint.subtract(startPoint).normalize();
-            if (!_isValidVector(dir)) return;
-
-            const endPoint = IMG_TIP; // Ray should pass through image tip
-            const isVirtualOut = !isRealImage;
-
-            drawPrincipalRay(startPoint, dir, hitPoint, dir, endPoint, false, isVirtualOut, RAY_CENTER_COLOR);
-        };
-
-        // Ray 3: F -> Parallel
-        const traceRay3 = () => {
-            if (isFlat || !F_obj_world) return;
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = F_obj_world.subtract(startPoint).normalize(); // Direction from object tip towards F
-            if (!_isValidVector(dirIn) || dirIn.magnitudeSquared() < 1e-9) return; // Object is at F
-
-            let isVirtualIn = (F < 0); // Aiming line is virtual for concave
-            const hitPoint = intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
-
-            // Only proceed if the ray (or its virtual aiming line) hits the lens
-            if (hitPoint) {
-                const dirOut = LENS_AXIS.clone(); // Parallel exit
-                const endPoint = IMG_TIP; // Ray should pass through image tip
-                const isVirtualOut = !isRealImage;
-                drawPrincipalRay(startPoint, dirIn, hitPoint, dirOut, endPoint, isVirtualIn, isVirtualOut, RAY_FOCAL_COLOR);
-            } else if (isVirtualIn) {
-                // Draw only the virtual aiming line if it misses the lens segment
-                const aimPoint = extendRay(startPoint, dirIn);
-                _drawLine(startPoint, aimPoint, RAY_FOCAL_COLOR, rayWidth, DASH_PATTERN);
-            }
-        };
-
-        // Execute ray tracing
-        traceRay1();
-        traceRay2();
-        traceRay3();
-
-        // --- Display Numerical Info ---
-        // ... (Info display logic remains the same as V6/V7) ...
-        const infoFont = `${13 / dpr}px sans-serif`; const lineHeight = 16 / dpr; const textX = 15 / dpr; let textY = 20 / dpr;
-        ctx.fillStyle = INFO_COLOR; ctx.font = infoFont; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-        const formatNum = (n, figs = 1) => (Math.abs(n) === Infinity) ? "∞" : (_isValidNumber(n) ? n.toFixed(figs) : "N/A");
-        const textLines = [`f = ${formatNum(F)}`, `u = ${formatNum(u)}`, `v = ${formatNum(v)}`, `M = ${formatNum(M, 2)}`, `hₒ = ${formatNum(ho_signed)}`, `hᵢ = ${formatNum(hi_signed)}`];
-        textLines.forEach(line => { ctx.fillText(line, textX, textY); textY += lineHeight; });
-        let imagePropsText = "像: ";
-        if (imageAtInfinity) { imagePropsText += "无穷远"; }
-        else if (IMG_TIP && _isValidNumber(M)) { imagePropsText += isRealImage ? "实" : "虚"; imagePropsText += ", "; imagePropsText += (M * ho_signed >= -1e-9) ? "正" : "倒"; imagePropsText += ", "; const absM = Math.abs(M); imagePropsText += (absM > 1.0 + 1e-2) ? "放大" : ((absM < 1.0 - 1e-2) ? "缩小" : "等大"); }
-        else { imagePropsText += "---"; }
-        ctx.fillText(imagePropsText, textX, textY);
-
-    } catch (error) {
-        console.error("[Draw Diagram] Error during drawing:", error); showModeHint('绘制透镜成像图时出错!'); ctx.restore(); return false;
-    } finally {
-        ctx.restore();
-    }
-    return true; // Success
+    return _lensImagingInstance;
 }
-// --- END REPLACEMENT for the ENTIRE drawOpticalSystemDiagram function ---
+
+function drawOpticalSystemDiagram(ctx) {
+    const li = _getLensImagingInstance();
+    if (!li) {
+        showModeHint('透镜成像模块未加载。');
+        return false;
+    }
+    const dpr = window.devicePixelRatio || 1;
+    return li.drawOpticalSystemDiagram(ctx, {
+        components: components,
+        canvasWidth: ctx.canvas.width / dpr,
+        canvasHeight: ctx.canvas.height / dpr,
+        showHint: showModeHint
+    });
+}
+// --- END drawOpticalSystemDiagram ---
 
 // --- Ray Tracing Core ---
 // --- PASTE this entire function into main.js, replacing the old traceAllRays ---
@@ -2075,6 +1945,16 @@ function handleMouseDown(event) {
     dragStartMousePos = mousePos.clone();
     ongoingActionState = null;
 
+    // --- Lens Imaging mode: delegate mouse down to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li && li.handleMouseDown(mousePos)) {
+            canvas.style.cursor = 'grabbing';
+            needsRetrace = true;
+            return; // LensImaging consumed the event (started object drag)
+        }
+    }
+
     // --- 绘图模式下的光线链接创建处理 ---
     const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
     if (isDiagramModeActive && diagramModeIntegration) {
@@ -2467,6 +2347,19 @@ function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
 
+    // --- Lens Imaging mode: delegate mouse move to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li) {
+            const cursorHint = li.handleMouseMove(currentMousePos);
+            if (cursorHint) {
+                canvas.style.cursor = cursorHint;
+                needsRetrace = true;
+                return; // LensImaging is handling (dragging or hovering object)
+            }
+        }
+    }
+
     // --- 绘图模式下的光线链接更新 ---
     const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
     if (isDiagramModeActive && diagramModeIntegration) {
@@ -2704,6 +2597,16 @@ function handleMouseUp(event) {
 
     mouseIsDown = false;
     let dragJustEnded = false;
+
+    // --- Lens Imaging mode: delegate mouse up to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li && li.handleMouseUp()) {
+            canvas.style.cursor = 'default';
+            needsRetrace = true;
+            return; // LensImaging consumed the event (ended object drag)
+        }
+    }
 
     if (isLabelDragging && draggedLabel) {
         const endPos = { x: draggedLabel.position.x, y: draggedLabel.position.y };
@@ -3032,6 +2935,51 @@ function handleKeyDown(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault();
         saveCurrentSceneToProject();
+        return;
+    }
+
+    // --- Ctrl+A: Select all components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        selectedComponents = components.slice();
+        selectedComponent = selectedComponents.length > 0 ? selectedComponents[0] : null;
+        updateInspector();
+        console.log(`已选中所有 ${selectedComponents.length} 个组件`);
+        return;
+    }
+
+    // --- Ctrl+D: Duplicate selected components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === 'd') {
+        event.preventDefault();
+        if (selectedComponents.length > 0) {
+            const duplicated = [];
+            selectedComponents.forEach(comp => {
+                try {
+                    const data = comp.toJSON();
+                    const offset = new Vector(20, 20);
+                    data.pos = { x: data.pos.x + offset.x, y: data.pos.y + offset.y };
+                    const ComponentClass = window[data.type];
+                    if (ComponentClass) {
+                        const newComp = new ComponentClass(new Vector(data.pos.x, data.pos.y));
+                        Object.keys(data).forEach(key => {
+                            if (key !== 'type' && key !== 'id' && key !== 'pos') {
+                                newComp.setProperty?.(key, data[key]);
+                            }
+                        });
+                        components.push(newComp);
+                        duplicated.push(newComp);
+                    }
+                } catch (e) {
+                    console.error('复制组件失败:', e);
+                }
+            });
+            selectedComponents = duplicated;
+            selectedComponent = duplicated[0] || null;
+            needsRetrace = true;
+            markSceneAsModified();
+            updateInspector();
+            console.log(`已复制 ${duplicated.length} 个组件`);
+        }
         return;
     }
 
@@ -4177,16 +4125,14 @@ function loadSceneDataFromStorage(sceneName) {
 function saveSceneDataToStorage(sceneName, sceneData) {
     if (!sceneName || !sceneData) return false;
     const key = SCENE_KEY_PREFIX + sceneName;
-    try {
-        const jsonString = JSON.stringify(sceneData); // Use compact JSON for storage
-        localStorage.setItem(key, jsonString);
+    const success = safeLocalStorageSave(key, sceneData);
+    if (success) {
         console.log(`Scene '${sceneName}' saved to localStorage.`);
-        return true;
-    } catch (e) {
-        console.error(`Error saving scene '${sceneName}' to localStorage:`, e);
+    } else {
+        console.error(`Error saving scene '${sceneName}' to localStorage.`);
         alert(`保存场景 '${sceneName}' 时出错！可能是存储空间已满。`);
-        return false;
     }
+    return success;
 }
 
 function deleteSceneFromStorage(sceneName) {
@@ -5182,17 +5128,14 @@ function setupEventListeners() {
     // --- Global Keydown ---
     window.addEventListener('keydown', handleKeyDown);
 
-    // --- Warn on Leave ---
-    // --- Warn on Leave ---
+    // --- Warn on Leave + Cleanup ---
     window.addEventListener('beforeunload', (event) => {
-        if (sceneModified) { // Only prompt if changes were made
+        _cleanupAllResources();
+        if (sceneModified) {
             console.log("beforeunload triggered: Scene modified, prompting user.");
-            event.preventDefault(); // Standard way to ask browser to show prompt
-            event.returnValue = '您有未保存的更改。确定要离开吗？'; // Generic message (often ignored)
+            event.preventDefault();
+            event.returnValue = '您有未保存的更改。确定要离开吗？';
             return event.returnValue;
-        } else {
-            console.log("beforeunload triggered: No modifications detected.");
-            // No prompt needed if no changes
         }
     });
 
@@ -5633,19 +5576,24 @@ function handleSaveAsClick() {
 
 // --- Mode Switching Function ---
 function switchMode(newMode) {
-    console.log(`Switching mode from ${currentMode} to ${newMode}`);
+    const oldMode = currentMode;
+    console.log(`Switching mode from ${oldMode} to ${newMode}`);
     currentMode = newMode;
-    hideModeHint(); // Hide any previous hint
+    hideModeHint();
 
-    // Actions needed when switching modes:
-    needsRetrace = true; // Always retrace/redraw when mode changes
+    needsRetrace = true;
 
-    // Reset things specific to certain modes if necessary
-    // (e.g., clear special drawing layers)
     if (newMode === 'ray_trace') {
-        // Actions for switching TO ray trace mode (if any)
+        // Leaving lens_imaging → reset LensImaging interactive state
+        const li = _getLensImagingInstance();
+        if (li) li.reset();
     } else if (newMode === 'lens_imaging') {
-        // Actions for switching TO lens imaging mode (if any)
+        // Entering lens_imaging → stop arrow animations, clear selection drag state
+        arrowAnimationStates.clear();
+
+        // Reset LensImaging so it picks up fresh component state
+        const li = _getLensImagingInstance();
+        if (li) li.reset();
     }
 }
 
@@ -6166,6 +6114,394 @@ function updateModeSpecificUI(mode) {
     }
 }
 
+// --- 自动恢复管理器初始化 ---
+let _autoRecoveryManager = null;
+
+function _initAutoRecovery() {
+    if (typeof AutoRecoveryManager === 'undefined') {
+        console.warn('AutoRecoveryManager not available, skipping auto-save setup.');
+        return;
+    }
+    try {
+        _autoRecoveryManager = new AutoRecoveryManager();
+        _autoRecoveryManager.setSceneDataCallback(() => generateSceneDataObject());
+        _autoRecoveryManager.setCurrentScene('default', '默认场景');
+
+        // 启动时检查是否有恢复数据
+        if (_autoRecoveryManager.shouldPromptRecovery()) {
+            const summary = _autoRecoveryManager.getRecoverySummary();
+            if (summary && confirm(`发现自动保存的场景 "${summary.sceneName}"（${summary.age}）。是否恢复？`)) {
+                _autoRecoveryManager.recoverScene().then(result => {
+                    if (result?.sceneData) {
+                        loadSceneFromData(result.sceneData);
+                        console.log('场景已从自动保存恢复。');
+                    }
+                });
+            } else {
+                _autoRecoveryManager.clearRecoveryData();
+            }
+        }
+
+        _autoRecoveryManager.startAutoSave();
+        _autoRecoveryManager.on('autoSaved', (info) => {
+            console.log(`自动保存完成: ${info.timestamp}`);
+        });
+        _autoRecoveryManager.on('storageQuotaExceeded', () => {
+            console.warn('localStorage 配额已满，自动保存失败。');
+            alert('浏览器存储空间已满，自动保存失败。请导出场景文件作为备份。');
+        });
+
+        window._autoRecoveryManager = _autoRecoveryManager;
+        console.log('AutoRecoveryManager 已初始化，自动保存已启动。');
+    } catch (e) {
+        console.error('AutoRecoveryManager 初始化失败:', e);
+    }
+}
+
+// --- 全局错误处理 ---
+let _globalErrorCount = 0;
+const _MAX_GLOBAL_ERRORS = 20;
+
+function _initGlobalErrorHandler() {
+    window.onerror = function(message, source, lineno, colno, error) {
+        _globalErrorCount++;
+        console.error(`[GlobalError ${_globalErrorCount}] ${message} at ${source}:${lineno}:${colno}`);
+        if (_globalErrorCount === _MAX_GLOBAL_ERRORS) {
+            console.error(`已达到 ${_MAX_GLOBAL_ERRORS} 个全局错误，后续错误将仅记录到控制台。`);
+        }
+        return true; // 阻止默认错误弹窗
+    };
+
+    window.onunhandledrejection = function(event) {
+        _globalErrorCount++;
+        console.error(`[UnhandledRejection ${_globalErrorCount}]`, event.reason);
+        event.preventDefault();
+    };
+
+    // 监听 GameLoop 错误事件
+    window.addEventListener('gameloop-error', (e) => {
+        const { errorCount, lastError } = e.detail;
+        console.error(`GameLoop 因连续 ${errorCount} 次错误已暂停: ${lastError}`);
+        alert(`光线追踪引擎因连续错误已暂停。请检查场景中的组件配置。\n错误信息: ${lastError}`);
+    });
+}
+
+// --- License Feature Gates ---
+function checkFeatureAccess(featureName, showUpgradeModal = true) {
+    if (!licenseValidator) {
+        console.warn('LicenseValidator not initialized, allowing feature access');
+        return true;
+    }
+
+    const hasAccess = licenseValidator.hasFeature(featureName);
+    if (!hasAccess && showUpgradeModal) {
+        showUpgradePrompt(featureName);
+    }
+    return hasAccess;
+}
+
+// --- Cloud Storage Functions ---
+async function saveSceneToCloud() {
+    // Check license
+    if (!checkFeatureAccess('cloud_sync')) {
+        return;
+    }
+
+    // Check authentication
+    if (!githubAuth || !githubAuth.isLoggedIn()) {
+        if (confirm('需要登录 GitHub 才能使用云端同步功能。是否现在登录？')) {
+            githubAuth.login();
+        }
+        return;
+    }
+
+    try {
+        const sceneName = prompt('请输入场景名称:', currentSceneName || 'untitled');
+        if (!sceneName) return;
+
+        const sceneData = generateSceneDataObject();
+
+        await cloudStorage.saveScene(sceneName, sceneData);
+
+        alert(`场景 "${sceneName}" 已保存到云端`);
+        console.log(`Scene saved to cloud: ${sceneName}`);
+
+    } catch (error) {
+        console.error('Failed to save to cloud:', error);
+        alert(`保存失败: ${error.message}`);
+    }
+}
+
+async function loadSceneFromCloud() {
+    // Check license
+    if (!checkFeatureAccess('cloud_sync')) {
+        return;
+    }
+
+    // Check authentication
+    if (!githubAuth || !githubAuth.isLoggedIn()) {
+        if (confirm('需要登录 GitHub 才能使用云端同步功能。是否现在登录？')) {
+            githubAuth.login();
+        }
+        return;
+    }
+
+    try {
+        const scenes = await cloudStorage.listScenes();
+
+        if (scenes.length === 0) {
+            alert('云端没有保存的场景');
+            return;
+        }
+
+        // Show scene selection modal
+        showCloudSceneListModal(scenes, 'load');
+
+    } catch (error) {
+        console.error('Failed to load from cloud:', error);
+        alert(`加载失败: ${error.message}`);
+    }
+}
+
+function showCloudSceneListModal(scenes, action = 'load') {
+    const modal = document.createElement('div');
+    modal.className = 'cloud-scene-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-color, #fff);
+        border: 2px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        min-width: 400px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+    `;
+
+    const actionText = action === 'load' ? '加载场景' : '管理场景';
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: var(--text-color, #333);">${actionText}</h3>
+        <div id="cloud-scene-list" style="margin-bottom: 16px;">
+            ${scenes.map(scene => `
+                <div class="cloud-scene-item" data-scene-name="${scene.name}" style="
+                    padding: 12px;
+                    border: 1px solid var(--border-color, #ddd);
+                    border-radius: 4px;
+                    margin-bottom: 8px;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                ">
+                    <div style="font-weight: bold; margin-bottom: 4px;">${scene.name}</div>
+                    <div style="font-size: 12px; color: var(--text-color, #666);">
+                        大小: ${(scene.size / 1024).toFixed(2)} KB |
+                        更新: ${new Date(scene.updated).toLocaleString()}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="cloud-modal-cancel" style="
+                padding: 8px 16px;
+                border: 1px solid var(--border-color, #ccc);
+                background: transparent;
+                border-radius: 4px;
+                cursor: pointer;
+            ">取消</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'cloud-modal-backdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(backdrop);
+
+    // Event handlers
+    const closeModal = () => {
+        modal.remove();
+        backdrop.remove();
+    };
+
+    document.getElementById('cloud-modal-cancel').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+
+    // Scene item click handlers
+    document.querySelectorAll('.cloud-scene-item').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.background = 'rgba(0,0,0,0.05)';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.background = 'transparent';
+        });
+        item.addEventListener('click', async () => {
+            const sceneName = item.dataset.sceneName;
+            if (action === 'load') {
+                try {
+                    const sceneData = await cloudStorage.loadScene(sceneName);
+                    loadSceneDataObject(sceneData);
+                    currentSceneName = sceneName;
+                    alert(`场景 "${sceneName}" 已加载`);
+                    closeModal();
+                } catch (error) {
+                    alert(`加载失败: ${error.message}`);
+                }
+            }
+        });
+    });
+}
+
+function showUpgradePrompt(featureName) {
+    const featureNames = {
+        'cloud_sync': '云端同步',
+        'hd_export': '高分辨率导出',
+        'advanced_presets': '高级预设场景',
+        'batch_export': '批量导出',
+        'paper_templates': '论文模板',
+        'no_watermark': '去除水印',
+        'team_sharing': '团队共享',
+        'collaboration': '协作编辑'
+    };
+
+    const displayName = featureNames[featureName] || featureName;
+    const currentPlan = licenseValidator ? licenseValidator.getPlanDisplayName() : 'Free';
+
+    const modal = document.createElement('div');
+    modal.className = 'upgrade-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-color, #fff);
+        border: 2px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        min-width: 320px;
+        max-width: 480px;
+    `;
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: var(--text-color, #333);">升级到专业版</h3>
+        <p style="margin: 0 0 16px 0; color: var(--text-color, #666);">
+            <strong>${displayName}</strong> 功能需要专业版或更高版本。
+        </p>
+        <p style="margin: 0 0 20px 0; font-size: 14px; color: var(--text-color, #888);">
+            当前计划: <strong>${currentPlan}</strong>
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="upgrade-cancel-btn" style="
+                padding: 8px 16px;
+                border: 1px solid var(--border-color, #ccc);
+                background: transparent;
+                border-radius: 4px;
+                cursor: pointer;
+            ">取消</button>
+            <button id="upgrade-view-pricing-btn" style="
+                padding: 8px 16px;
+                border: none;
+                background: #007bff;
+                color: white;
+                border-radius: 4px;
+                cursor: pointer;
+            ">查看定价</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'upgrade-modal-backdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(backdrop);
+
+    // Event handlers
+    const closeModal = () => {
+        modal.remove();
+        backdrop.remove();
+    };
+
+    document.getElementById('upgrade-cancel-btn').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+
+    document.getElementById('upgrade-view-pricing-btn').addEventListener('click', () => {
+        const upgradeUrl = licenseValidator ? licenseValidator.getUpgradeUrl() : 'https://opticslab.app/pricing';
+        window.open(upgradeUrl, '_blank');
+        closeModal();
+    });
+}
+
+// --- localStorage 安全保存工具 ---
+function safeLocalStorageSave(key, data) {
+    const jsonString = typeof data === 'string' ? data : JSON.stringify(data);
+    // 保存前备份旧数据
+    try {
+        const existing = localStorage.getItem(key);
+        if (existing) {
+            localStorage.setItem(key + '_backup', existing);
+        }
+    } catch (e) {
+        // 备份失败不阻塞保存
+    }
+    try {
+        localStorage.setItem(key, jsonString);
+        return true;
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            console.warn('localStorage 配额已满，尝试清理备份后重试...');
+            // 清理所有备份 key 后重试
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && k.endsWith('_backup')) {
+                    localStorage.removeItem(k);
+                }
+            }
+            try {
+                localStorage.setItem(key, jsonString);
+                return true;
+            } catch (e2) {
+                alert('浏览器存储空间已满，无法保存。请导出场景文件作为备份。');
+                return false;
+            }
+        }
+        console.error('localStorage 保存失败:', e);
+        return false;
+    }
+}
+
+// --- License Validator Instance ---
+let licenseValidator = null;
+
+// --- Cloud Storage Instances ---
+let githubAuth = null;
+let cloudStorage = null;
+
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
     // --- Prevent multiple initializations ---
@@ -6181,6 +6517,54 @@ function initialize() {
     if (!historyManager && typeof HistoryManager !== 'undefined') {
         historyManager = new HistoryManager();
         window.historyManager = historyManager;
+    }
+
+    // --- 初始化 LicenseValidator ---
+    if (!licenseValidator && typeof LicenseValidator !== 'undefined') {
+        licenseValidator = new LicenseValidator();
+        window.licenseValidator = licenseValidator;
+        console.log(`License plan: ${licenseValidator.getPlanDisplayName()}`);
+
+        // Check for expiring license
+        if (licenseValidator.isExpiringSoon()) {
+            const days = licenseValidator.getDaysUntilExpiry();
+            console.warn(`License expiring in ${days} days`);
+        }
+    }
+
+    // --- 初始化 Cloud Storage ---
+    if (!githubAuth && typeof GitHubAuth !== 'undefined') {
+        githubAuth = new GitHubAuth();
+        window.githubAuth = githubAuth;
+
+        if (githubAuth.isLoggedIn()) {
+            console.log(`GitHub user: ${githubAuth.getUser()?.login || 'Loading...'}`);
+        }
+    }
+
+    if (!cloudStorage && typeof GistSceneStorage !== 'undefined' && githubAuth) {
+        cloudStorage = new GistSceneStorage(githubAuth);
+        window.cloudStorage = cloudStorage;
+        console.log('Cloud storage initialized');
+    }
+
+    // --- Handle OAuth callback ---
+    if (GitHubAuth.isCallbackPage()) {
+        const params = GitHubAuth.getCallbackParams();
+        if (params && githubAuth) {
+            githubAuth.handleCallback(params.code, params.state)
+                .then(() => {
+                    console.log('GitHub authentication successful');
+                    // Redirect back to main page
+                    window.location.href = window.location.origin + window.location.pathname;
+                })
+                .catch(error => {
+                    console.error('GitHub authentication failed:', error);
+                    alert(`GitHub 登录失败: ${error.message}`);
+                    window.location.href = window.location.origin + window.location.pathname;
+                });
+            return; // Don't continue initialization during callback
+        }
     }
 
      // --- 加载主题和设置 ---
@@ -6242,6 +6626,12 @@ function initialize() {
 
     // --- 初始化模式切换器 + 专业绘图模式集成 ---
     bootstrapDiagramMode();
+
+    // --- 初始化自动恢复管理器 ---
+    _initAutoRecovery();
+
+    // --- 初始化全局错误处理 ---
+    _initGlobalErrorHandler();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace

@@ -264,11 +264,27 @@ export class ContextMenuManager extends EventEmitter {
             color: ${textColor};
         `;
         
-        element.innerHTML = `
-            <span class="menu-icon" style="width: 20px; margin-right: 8px; text-align: center;">${item.icon || ''}</span>
-            <span class="menu-label" style="flex: 1;">${item.label}</span>
-            ${item.shortcut ? `<span class="menu-shortcut" style="color: var(--text-color-secondary, ${isDarkTheme ? '#adb5bd' : '#888'}); font-size: 11px; margin-left: 16px;">${item.shortcut}</span>` : ''}
-        `;
+        // XSS防护: 使用DOM API而非innerHTML
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'menu-icon';
+        iconSpan.style.cssText = 'width: 20px; margin-right: 8px; text-align: center;';
+        iconSpan.textContent = item.icon || '';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'menu-label';
+        labelSpan.style.flex = '1';
+        labelSpan.textContent = item.label;
+
+        element.appendChild(iconSpan);
+        element.appendChild(labelSpan);
+
+        if (item.shortcut) {
+            const shortcutSpan = document.createElement('span');
+            shortcutSpan.className = 'menu-shortcut';
+            shortcutSpan.style.cssText = `color: var(--text-color-secondary, ${isDarkTheme ? '#adb5bd' : '#888'}); font-size: 11px; margin-left: 16px;`;
+            shortcutSpan.textContent = item.shortcut;
+            element.appendChild(shortcutSpan);
+        }
         
         if (!item.disabled) {
             element.addEventListener('mouseenter', () => {

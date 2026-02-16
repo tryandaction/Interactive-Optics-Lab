@@ -33,6 +33,11 @@ export class GameLoop {
         /** @type {Array} 当前光线路径 */
         this.currentRayPaths = [];
 
+        /** @type {number} 连续错误计数 */
+        this._consecutiveErrors = 0;
+        /** @type {number} 连续错误阈值，超过后暂停 */
+        this._maxConsecutiveErrors = 5;
+
         // 绑定方法
         this._loop = this._loop.bind(this);
     }
@@ -120,10 +125,22 @@ export class GameLoop {
                 } else {
                     this.currentRayPaths = [];
                 }
+                this._consecutiveErrors = 0;
             } catch (e) {
                 console.error("Error during ray tracing:", e);
                 this.currentRayPaths = [];
                 this.nextFrameActiveRays = [];
+                this._consecutiveErrors++;
+                if (this._consecutiveErrors >= this._maxConsecutiveErrors) {
+                    console.error(`GameLoop: ${this._maxConsecutiveErrors} consecutive errors, pausing.`);
+                    this.stop();
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('gameloop-error', {
+                            detail: { errorCount: this._consecutiveErrors, lastError: e.message }
+                        }));
+                    }
+                    return;
+                }
             }
         }
 

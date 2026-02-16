@@ -5,6 +5,7 @@
  * 2. 使用两套独立的 data 属性控制 UI 和画布，JS 负责组合。
  * 3. 对所有UI元素，特别是输入框，进行细致的样式定义，确保在任何模式下都清晰可读。
  * 4. 统一间距、圆角、阴影等设计令牌，确保视觉一致性。
+ * 5. 支持系统暗色模式偏好检测 (prefers-color-scheme)
 */
 
 /* --- 0. 设计令牌 (Design Tokens) --- */
@@ -15,19 +16,28 @@
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 24px;
-    
+
     /* 圆角系统 */
     --radius-sm: 4px;
     --radius-md: 6px;
     --radius-lg: 8px;
     --radius-xl: 12px;
-    
+
     /* 阴影系统 */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
     --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.12);
-    
+
+    /* 系统暗色模式偏好检测 */
+    --system-prefers-dark: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --system-prefers-dark: 1;
+    }
+}
     /* 过渡动画 */
     --transition-fast: 0.15s ease;
     --transition-normal: 0.2s ease;

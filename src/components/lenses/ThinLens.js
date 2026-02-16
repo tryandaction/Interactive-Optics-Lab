@@ -406,6 +406,12 @@ export class ThinLens extends OpticalComponent {
 
     _interactThickLens(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
+        if (!hitPoint || isNaN(hitPoint.x) || isNaN(hitPoint.y) ||
+            !ray.direction || isNaN(ray.direction.x) || isNaN(ray.direction.y)) {
+            ray.terminate('invalid_input_thick_lens');
+            return [];
+        }
+
         const lensCenter = this.pos;
         const axisDir = this.axisDirection;
         const lensPlaneDir = this.lensDir;
@@ -413,6 +419,10 @@ export class ThinLens extends OpticalComponent {
         const h = vecCenterToHit.dot(lensPlaneDir);
 
         const f_eff = this.effectiveFocalLength;
+        if (isNaN(f_eff)) {
+            ray.terminate('nan_focal_thick_lens');
+            return [];
+        }
         const deviation = (Math.abs(f_eff) < 1e-9) ? 0 : -h / f_eff;
 
         const incidentDirection = ray.direction;
@@ -423,6 +433,11 @@ export class ThinLens extends OpticalComponent {
         const outputAngleRelAxis = incidentAngleRelAxis + deviation;
         const outputWorldAngle = axisDir.angle() + outputAngleRelAxis;
         const newDirection = Vector.fromAngle(outputWorldAngle);
+
+        if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
+            ray.terminate('nan_direction_thick_lens');
+            return [];
+        }
 
         const transmittedIntensity = ray.intensity * this.quality;
         if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
@@ -686,8 +701,8 @@ export class ThinLens extends OpticalComponent {
                 label: '焦距 (f)',
                 type: 'number',
                 step: 10,
-                title: '透镜焦距 (f > 0: 凸透镜, f < 0: 凹透镜, Infinity: 平板)',
-                placeholder: 'f>0凸, f<0凹, Infinity'
+                title: '正值=凸透镜(汇聚), 负值=凹透镜(发散), Infinity=平板',
+                placeholder: 'f>0凸, f<0凹'
             };
         }
 
@@ -758,12 +773,19 @@ export class ThinLens extends OpticalComponent {
                 break;
             case 'lensType':
                 if (Object.values(LENS_TYPES).includes(value) && this.lensType !== value) {
+                    const wasThick = this.isThickLens;
                     this.lensType = value;
                     if (value !== LENS_TYPES.THIN_LENS && THICK_LENS_PRESETS[value]) {
                         const preset = THICK_LENS_PRESETS[value];
                         this.frontRadius = preset.frontRadius;
                         this.backRadius = preset.backRadius;
                         this.thickness = preset.thickness;
+                    }
+                    // 从厚透镜切回薄透镜时清理缓存
+                    if (wasThick && !this.isThickLens) {
+                        this.frontCenter = null;
+                        this.backCenter = null;
+                        this.effectiveFocalLength = this.focalLength;
                     }
                     needsGeomUpdate = true;
                     needsInspectorRefresh = true;
@@ -777,6 +799,9 @@ export class ThinLens extends OpticalComponent {
                     const newF = (f_val === 0) ? Infinity : f_val;
                     if (newF !== this.focalLength) {
                         this.focalLength = newF;
+                        if (!this.isThickLens) {
+                            this.effectiveFocalLength = newF;
+                        }
                         needsGeomUpdate = true;
                         needsRetraceUpdate = true;
                     }

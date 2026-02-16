@@ -70,7 +70,8 @@ export class ProfessionalIconManager {
             width: definition.width || 60,
             height: definition.height || 60,
             connectionPoints: definition.connectionPoints || [],
-            defaultStyle: { ...this.defaultStyle, ...definition.defaultStyle }
+            defaultStyle: { ...this.defaultStyle, ...definition.defaultStyle },
+            tooltip: definition.tooltip || definition.name || componentType
         };
         this.iconDefinitions.set(componentType, icon);
         if (!this.categories.has(icon.category)) {
@@ -139,6 +140,11 @@ export class ProfessionalIconManager {
     getConnectionPoints(componentType) {
         const icon = this.getIconDefinition(componentType);
         return icon ? [...icon.connectionPoints] : [];
+    }
+
+    getTooltip(componentType) {
+        const icon = this.getIconDefinition(componentType);
+        return icon ? icon.tooltip : componentType;
     }
 
     async loadSVG(svgSource, cacheKey) {
@@ -406,6 +412,7 @@ export class ProfessionalIconManager {
                 width: icon.width,
                 height: icon.height,
                 connectionPoints: icon.connectionPoints,
+                tooltip: icon.tooltip,
                 hasSvg: !!icon.svgContent
             };
         });
@@ -420,6 +427,7 @@ export class ProfessionalIconManager {
         // ========== 光源 ==========
         this.registerIcon('LaserSource', {
             name: '激光光源',
+            tooltip: '激光光源 - 单色相干光束',
             category: ICON_CATEGORIES.SOURCES,
             width: 80, height: 40,
             connectionPoints: [
@@ -454,6 +462,7 @@ export class ProfessionalIconManager {
         // ========== 反射镜 ==========
         this.registerIcon('Mirror', {
             name: '反射镜',
+            tooltip: '平面反射镜 - 改变光束方向',
             category: ICON_CATEGORIES.MIRRORS,
             width: 12, height: 50,
             connectionPoints: [
@@ -489,6 +498,7 @@ export class ProfessionalIconManager {
         // 二向色镜
         this.registerIcon('DichroicMirror', {
             name: '二向色镜',
+            tooltip: '二向色镜 - 按波长分离光束',
             category: ICON_CATEGORIES.MIRRORS,
             width: 50, height: 50,
             connectionPoints: [
@@ -516,6 +526,7 @@ export class ProfessionalIconManager {
         // ========== 透镜 ==========
         this.registerIcon('ConvexLens', {
             name: '凸透镜',
+            tooltip: '凸透镜 - 汇聚光束 (f > 0)',
             category: ICON_CATEGORIES.LENSES,
             width: 20, height: 60,
             connectionPoints: [
@@ -543,6 +554,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('ConcaveLens', {
             name: '凹透镜',
+            tooltip: '凹透镜 - 发散光束 (f < 0)',
             category: ICON_CATEGORIES.LENSES,
             width: 20, height: 60,
             connectionPoints: [
@@ -552,11 +564,16 @@ export class ProfessionalIconManager {
         });
         this._builtinDrawFunctions['ConcaveLens'] = (ctx, icon, style) => {
             const w = icon.width, h = icon.height;
+            // 对称双凹透镜：左右两侧都向内凹
             ctx.beginPath();
+            // 左曲面（向内凹）
             ctx.moveTo(-w/2, -h/2);
             ctx.quadraticCurveTo(w/4, 0, -w/2, h/2);
+            // 底边
             ctx.lineTo(w/2, h/2);
+            // 右曲面（向内凹，对称）
             ctx.quadraticCurveTo(-w/4, 0, w/2, -h/2);
+            // 顶边
             ctx.closePath();
             const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
             grad.addColorStop(0, 'rgba(100, 180, 255, 0.3)');
@@ -568,10 +585,72 @@ export class ProfessionalIconManager {
             ctx.lineWidth = 1.5;
             ctx.stroke();
         };
-        // 别名
-        this._builtinDrawFunctions['ThinLens'] = this._builtinDrawFunctions['ConvexLens'];
-        this.iconDefinitions.set('ThinLens', this.iconDefinitions.get('ConvexLens'));
-        this.registerAlias('ThinLens', 'ConvexLens');
+
+        // ThinLens: 独立注册，根据 focalLength 动态选择凸/凹绘制
+        this.registerIcon('ThinLens', {
+            name: '薄透镜',
+            tooltip: '薄透镜 - 根据焦距自动显示凸/凹',
+            category: ICON_CATEGORIES.LENSES,
+            width: 20, height: 60,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['ThinLens'] = (ctx, icon, style) => {
+            const focalLength = style.focalLength ?? 100;
+            if (focalLength < 0) {
+                // 凹透镜
+                this._builtinDrawFunctions['ConcaveLens'](ctx, icon, style);
+            } else {
+                // 凸透镜
+                this._builtinDrawFunctions['ConvexLens'](ctx, icon, style);
+            }
+        };
+        // ========== 曲面镜 ==========
+        this.registerIcon('CurvedMirror', {
+            name: '曲面镜',
+            tooltip: '曲面镜 - 球面/抛物面反射镜',
+            category: ICON_CATEGORIES.MIRRORS,
+            width: 20, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['CurvedMirror'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            // 弧形镜面
+            const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+            grad.addColorStop(0, '#aaccff');
+            grad.addColorStop(0.5, '#ffffff');
+            grad.addColorStop(1, '#88aadd');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(w/2, -h/2);
+            ctx.quadraticCurveTo(-w/2, 0, w/2, h/2);
+            ctx.lineTo(w/2 + 4, h/2);
+            ctx.quadraticCurveTo(-w/2 + 4, 0, w/2 + 4, -h/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(w/2, -h/2);
+            ctx.quadraticCurveTo(-w/2, 0, w/2, h/2);
+            ctx.stroke();
+            // 背面阴影线
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 0.8;
+            const spacing = h / 8;
+            for (let i = -h/2 + spacing; i < h/2; i += spacing) {
+                const xOff = w/2 + 4 - (w + 4) * (1 - Math.pow(i / (h/2), 2)) * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(xOff, i);
+                ctx.lineTo(xOff + 4, i + spacing * 0.6);
+                ctx.stroke();
+            }
+        };
         this.registerAlias('SphericalMirror', 'CurvedMirror');
         this.registerAlias('ConcaveMirror', 'CurvedMirror');
         this.registerAlias('ConvexMirror', 'CurvedMirror');
@@ -584,6 +663,7 @@ export class ProfessionalIconManager {
         // ========== 分束器 ==========
         this.registerIcon('BeamSplitter', {
             name: '分束器',
+            tooltip: '分束器 - 按比例分割光束',
             category: ICON_CATEGORIES.SPLITTERS,
             width: 50, height: 50,
             connectionPoints: [
@@ -651,6 +731,7 @@ export class ProfessionalIconManager {
         // ========== 调制器 ==========
         this.registerIcon('AOM', {
             name: '声光调制器',
+            tooltip: '声光调制器 (AOM) - 频移和强度调制',
             category: ICON_CATEGORIES.MODULATORS,
             width: 60, height: 40,
             connectionPoints: [
@@ -730,6 +811,7 @@ export class ProfessionalIconManager {
         // ========== 波片 ==========
         this.registerIcon('HalfWavePlate', {
             name: '半波片',
+            tooltip: '半波片 (λ/2) - 旋转偏振方向',
             category: ICON_CATEGORIES.WAVEPLATES,
             width: 8, height: 50,
             connectionPoints: [
@@ -757,6 +839,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('QuarterWavePlate', {
             name: '四分之一波片',
+            tooltip: '四分之一波片 (λ/4) - 线偏振↔圆偏振',
             category: ICON_CATEGORIES.WAVEPLATES,
             width: 8, height: 50,
             connectionPoints: [
@@ -1561,6 +1644,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('FabryPerotCavity', {
             name: 'F-P腔',
+            tooltip: 'Fabry-Pérot腔 - 光学谐振腔',
             category: ICON_CATEGORIES.MISC,
             width: 80, height: 30,
             connectionPoints: [

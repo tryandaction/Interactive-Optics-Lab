@@ -1,0 +1,62 @@
+{
+  "version": "1.1",
+  "currentMode": "ray_trace",
+  "view": {
+    "cameraScale": 1.0,
+    "cameraOffsetX": 0,
+    "cameraOffsetY": 0
+  },
+  "settings": {
+    "showGrid": true,
+    "maxRaysPerSource": 15,
+    "globalMaxBounces": 8,
+    "globalMinIntensity": 0.01,
+    "fastWhiteLightMode": false,
+    "globalShowArrows": true,
+    "onlyShowSelectedSourceArrow": false,
+    "arrowAnimationSpeed": 1.0
+  },
+  "components": [
+    {
+      "type": "LaserSource",
+      "id": "laser1",
+      "pos": { "x": 150, "y": 300 },
+      "angleRad": 0,
+      "wavelengthNm": 633,
+      "intensity": 1.0,
+      "beamDiameter": 3,
+      "polarizationAngle": 0
+    },
+    {
+      "type": "Polarizer",
+      "id": "pol1",
+      "pos": { "x": 300, "y": 300 },
+      "angleRad": 1.5708,
+      "width": 80,
+      "transmissionAxis": 0
+    },
+    {
+      "type": "QuarterWavePlate",
+      "id": "qwp1",
+      "pos": { "x": 450, "y": 300 },
+      "angleRad": 1.5708,
+      "width": 80,
+      "fastAxisAngle": 0.7854
+    },
+    {
+      "type": "Polarizer",
+      "id": "pol2",
+      "pos": { "x": 600, "y": 300 },
+      "angleRad": 1.5708,
+      "width": 80,
+      "transmissionAxis": 1.5708
+    },
+    {
+      "type": "Screen",
+      "id": "screen1",
+      "pos": { "x": 750, "y": 300 },
+      "angleRad": 1.5708,
+      "width": 100
+    }
+  ]
+}
