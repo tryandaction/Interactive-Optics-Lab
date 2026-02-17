@@ -1034,6 +1034,57 @@ export class InteractionManager {
     }
 
     /**
+     * 检测鼠标在选中组件的哪个手柄上
+     * @param {Object} mousePos - { x, y }
+     * @returns {{ type: string, item: Object, cursor: string }|null}
+     */
+    getHandleAtPoint(mousePos) {
+        const selectedItems = this.selection.getSelectedItems();
+        if (selectedItems.length !== 1) return null;
+
+        const item = selectedItems[0];
+        const bb = this._getItemBounds(item);
+        const pad = 4;
+        const rx = bb.x - pad, ry = bb.y - pad;
+        const rw = bb.width + pad * 2, rh = bb.height + pad * 2;
+        const threshold = 6;
+
+        // 旋转手柄
+        const rotX = rx + rw / 2, rotY = ry - 20;
+        if (Math.hypot(mousePos.x - rotX, mousePos.y - rotY) <= threshold) {
+            return { type: 'rotate', item, cursor: 'grab' };
+        }
+
+        // 角手柄（缩放）
+        const corners = [
+            { x: rx, y: ry, cursor: 'nwse-resize', name: 'tl' },
+            { x: rx + rw, y: ry, cursor: 'nesw-resize', name: 'tr' },
+            { x: rx, y: ry + rh, cursor: 'nesw-resize', name: 'bl' },
+            { x: rx + rw, y: ry + rh, cursor: 'nwse-resize', name: 'br' }
+        ];
+        for (const c of corners) {
+            if (Math.abs(mousePos.x - c.x) <= threshold && Math.abs(mousePos.y - c.y) <= threshold) {
+                return { type: 'resize', handle: c.name, item, cursor: c.cursor };
+            }
+        }
+
+        // 边中点手柄
+        const mids = [
+            { x: rx + rw / 2, y: ry, cursor: 'ns-resize', name: 'tm' },
+            { x: rx + rw / 2, y: ry + rh, cursor: 'ns-resize', name: 'bm' },
+            { x: rx, y: ry + rh / 2, cursor: 'ew-resize', name: 'ml' },
+            { x: rx + rw, y: ry + rh / 2, cursor: 'ew-resize', name: 'mr' }
+        ];
+        for (const m of mids) {
+            if (Math.abs(mousePos.x - m.x) <= threshold && Math.abs(mousePos.y - m.y) <= threshold) {
+                return { type: 'resize', handle: m.name, item, cursor: m.cursor };
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * 渲染选中高亮 — Figma 风格
      * @private
      */
@@ -1082,6 +1133,25 @@ export class InteractionManager {
             ctx.fillRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
             ctx.strokeRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
         });
+
+        // 旋转手柄：顶部中心上方的圆形手柄 + 连接线
+        const rotHandleY = ry - 20;
+        const rotHandleX = rx + rw / 2;
+        // 连接线
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rotHandleX, ry);
+        ctx.lineTo(rotHandleX, rotHandleY);
+        ctx.stroke();
+        // 圆形手柄
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(rotHandleX, rotHandleY, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
         ctx.restore();
     }

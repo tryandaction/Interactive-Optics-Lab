@@ -114,6 +114,16 @@ let isMarqueeSelecting = false;
 let marqueeStart = null;
 let marqueeEnd = null;
 
+// --- 绘图模式手柄拖拽状态 ---
+let isHandleDragging = false;
+let handleDragType = null;    // 'rotate' | 'resize'
+let handleDragHandle = null;  // 'tl','tr','bl','br','tm','bm','ml','mr'
+let handleDragItem = null;
+let handleDragStartAngle = 0;
+let handleDragStartMouseAngle = 0;
+let handleDragStartBB = null;
+let handleDragStartPos = null;
+
 // 初始化 Vector 相关变量（在 Vector 类可用后调用）
 function initVectorVariables() {
     if (typeof Vector !== 'undefined') {
@@ -2387,6 +2397,33 @@ function handleMouseDown(event) {
 
 
     // --- Initiate Dragging ---
+    // 绘图模式：检测手柄点击（旋转/缩放）
+    const isDiagramForHandle = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagramForHandle && selectedComponents.length === 1 && !specificHandleClicked) {
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr) {
+            const handle = interactionMgr.getHandleAtPoint(mousePos);
+            if (handle) {
+                isHandleDragging = true;
+                handleDragType = handle.type;
+                handleDragHandle = handle.handle || null;
+                handleDragItem = handle.item;
+                handleDragStartPos = handle.item.pos.clone();
+                handleDragStartBB = interactionMgr._getItemBounds(handle.item);
+                if (handle.type === 'rotate') {
+                    handleDragStartAngle = handle.item.angleRad;
+                    const dx = mousePos.x - handle.item.pos.x;
+                    const dy = mousePos.y - handle.item.pos.y;
+                    handleDragStartMouseAngle = Math.atan2(dy, dx);
+                    canvas.style.cursor = 'grabbing';
+                } else {
+                    canvas.style.cursor = handle.cursor;
+                }
+                return; // 不进入普通拖拽
+            }
+        }
+    }
+
     // Start dragging if clicked on a component (handle or body) that is currently selected
     if (clickedComponent && selectedComponents.includes(clickedComponent)) {
         isDragging = true;
@@ -2539,6 +2576,54 @@ function handleMouseMove(event) {
         needsRetrace = true;
         sceneModified = true;
         canvas.style.cursor = 'grabbing';
+        return;
+    }
+
+    // --- 绘图模式手柄拖拽更新 ---
+    if (isHandleDragging && handleDragItem) {
+        if (handleDragType === 'rotate') {
+            const dx = currentMousePos.x - handleDragItem.pos.x;
+            const dy = currentMousePos.y - handleDragItem.pos.y;
+            const currentMouseAngle = Math.atan2(dy, dx);
+            const deltaAngle = currentMouseAngle - handleDragStartMouseAngle;
+            handleDragItem.angleRad = handleDragStartAngle + deltaAngle;
+            if (typeof handleDragItem.onAngleChanged === 'function') { try { handleDragItem.onAngleChanged(); } catch (_) {} }
+            if (typeof handleDragItem._updateGeometry === 'function') { try { handleDragItem._updateGeometry(); } catch (_) {} }
+            canvas.style.cursor = 'grabbing';
+        } else if (handleDragType === 'resize' && handleDragStartBB) {
+            // 缩放：根据手柄方向调整 length/width/height
+            const bb = handleDragStartBB;
+            const centerX = bb.x + bb.width / 2;
+            const centerY = bb.y + bb.height / 2;
+            const h = handleDragHandle;
+            let scaleX = 1, scaleY = 1;
+            if (h === 'mr' || h === 'tr' || h === 'br') {
+                scaleX = Math.max(0.2, (currentMousePos.x - centerX) / (bb.width / 2));
+            } else if (h === 'ml' || h === 'tl' || h === 'bl') {
+                scaleX = Math.max(0.2, (centerX - currentMousePos.x) / (bb.width / 2));
+            }
+            if (h === 'bm' || h === 'br' || h === 'bl') {
+                scaleY = Math.max(0.2, (currentMousePos.y - centerY) / (bb.height / 2));
+            } else if (h === 'tm' || h === 'tr' || h === 'tl') {
+                scaleY = Math.max(0.2, (centerY - currentMousePos.y) / (bb.height / 2));
+            }
+            // 应用缩放到组件属性
+            const comp = handleDragItem;
+            if (comp.length !== undefined && (h === 'tm' || h === 'bm' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                const origLen = handleDragStartBB.width > handleDragStartBB.height ? handleDragStartBB.width : handleDragStartBB.height;
+                const scale = h === 'ml' || h === 'mr' ? scaleX : (h === 'tm' || h === 'bm' ? scaleY : Math.max(scaleX, scaleY));
+                comp.length = Math.max(10, origLen * scale);
+            }
+            if (comp.width !== undefined && (h === 'ml' || h === 'mr' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                comp.width = Math.max(10, handleDragStartBB.width * scaleX);
+            }
+            if (comp.height !== undefined && (h === 'tm' || h === 'bm' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                comp.height = Math.max(10, handleDragStartBB.height * scaleY);
+            }
+            if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (_) {} }
+        }
+        needsRetrace = true;
+        sceneModified = true;
         return;
     }
 
@@ -2727,6 +2812,17 @@ function handleMouseMove(event) {
             } else { newCursor = 'pointer'; }
         } else { newCursor = 'default'; }
 
+        // 绘图模式：检测选中手柄悬停（覆盖默认光标）
+        if (isDiagramModeActive && selectedComponents.length === 1) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr) {
+                const handle = interactionMgr.getHandleAtPoint(currentMousePos);
+                if (handle) {
+                    newCursor = handle.cursor;
+                }
+            }
+        }
+
         // 智能连接点可见性：同步悬停组件 & 选中组件
         if (isDiagramModeActive) {
             const cpManager = diagramModeIntegration?.getModule?.('connectionPointManager');
@@ -2759,6 +2855,43 @@ function handleMouseUp(event) {
 
     mouseIsDown = false;
     let dragJustEnded = false;
+
+    // --- 绘图模式手柄拖拽结束 ---
+    if (isHandleDragging && handleDragItem) {
+        const comp = handleDragItem;
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+
+        if (handleDragType === 'rotate') {
+            const newAngle = comp.angleRad;
+            if (Math.abs(newAngle - handleDragStartAngle) > 1e-4) {
+                if (interactionMgr && window.ActionType) {
+                    interactionMgr.recordAction(
+                        window.ActionType.ROTATE_COMPONENT || 'rotate_component',
+                        { componentId: comp.id, angle: newAngle },
+                        { angle: handleDragStartAngle }
+                    );
+                } else {
+                    historyManager.addCommand(new RotateComponentCommand(comp, handleDragStartAngle, newAngle));
+                    updateUndoRedoUI();
+                }
+                markSceneAsModified();
+            }
+        } else if (handleDragType === 'resize') {
+            markSceneAsModified();
+        }
+
+        isHandleDragging = false;
+        handleDragType = null;
+        handleDragHandle = null;
+        handleDragItem = null;
+        handleDragStartBB = null;
+        handleDragStartPos = null;
+        canvas.style.cursor = 'default';
+        needsRetrace = true;
+        updateInspector();
+        return;
+    }
 
     // --- 绘图模式框选结束 ---
     if (isMarqueeSelecting) {
