@@ -5567,6 +5567,68 @@ function setupEventListeners() {
         // --- End Touch Listeners ---
     } else { console.error("Canvas element not found!"); }
 
+    // --- 绘图模式自定义事件监听 ---
+    document.addEventListener('diagram-select-all', () => {
+        selectedComponents = components.slice();
+        components.forEach(c => c.selected = true);
+        selectedComponent = selectedComponents.length > 0 ? selectedComponents[0] : null;
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr?.selection) {
+            interactionMgr.selection.clearSelection();
+            selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+        }
+        updateInspector();
+        needsRetrace = true;
+    });
+
+    document.addEventListener('diagram-delete-selection', () => {
+        if (selectedComponents.length > 0) {
+            deleteSelectedComponents();
+        }
+    });
+
+    document.addEventListener('diagram-paste', (e) => {
+        const result = e.detail;
+        if (result && result.items) {
+            const duplicated = [];
+            result.items.forEach(item => {
+                try {
+                    // item 是 ClipboardManager 返回的克隆对象
+                    const typeName = item.type || item.constructor?.name;
+                    const ComponentClass = window[typeName];
+                    if (ComponentClass) {
+                        const posX = item.pos?.x ?? item.x ?? 0;
+                        const posY = item.pos?.y ?? item.y ?? 0;
+                        const newComp = new ComponentClass(new Vector(posX, posY));
+                        // 恢复属性
+                        Object.keys(item).forEach(key => {
+                            if (key !== 'type' && key !== 'id' && key !== 'uuid' && key !== 'pos') {
+                                try { newComp.setProperty?.(key, item[key]); } catch (_) {}
+                            }
+                        });
+                        components.push(newComp);
+                        duplicated.push(newComp);
+                    }
+                } catch (_) {}
+            });
+            if (duplicated.length > 0) {
+                selectedComponents.forEach(c => c.selected = false);
+                selectedComponents = duplicated;
+                duplicated.forEach(c => c.selected = true);
+                selectedComponent = duplicated[0] || null;
+                // 同步 InteractionManager
+                const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                if (interactionMgr?.selection) {
+                    interactionMgr.selection.clearSelection();
+                    duplicated.forEach(c => interactionMgr.selection.select(c, true));
+                }
+                needsRetrace = true;
+                markSceneAsModified();
+                updateInspector();
+            }
+        }
+    });
+    // --- End 绘图模式自定义事件监听 ---
     // --- File Input Listener (Permanent Hidden) ---
     const fileInput = document.getElementById('import-file-input');
     if (fileInput) {
