@@ -82,6 +82,26 @@ if (typeof window !== 'undefined') {
         set: (value) => { needsRetrace = value; },
         configurable: true
     });
+    Object.defineProperty(window, 'selectedComponents', {
+        get: () => selectedComponents,
+        set: (value) => { selectedComponents = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'selectedComponent', {
+        get: () => selectedComponent,
+        set: (value) => { selectedComponent = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'cameraScale', {
+        get: () => cameraScale,
+        set: (value) => { cameraScale = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'cameraOffset', {
+        get: () => cameraOffset,
+        set: (value) => { cameraOffset = value; },
+        configurable: true
+    });
 }
 
 let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)

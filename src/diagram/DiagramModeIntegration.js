@@ -1374,25 +1374,39 @@ export class DiagramModeIntegration {
      * @private
      */
     _alignSelectedComponents(direction) {
-        // 获取选中的元件
         const selectedComponents = this._getSelectedComponents();
         if (selectedComponents.length < 2) {
             console.warn('DiagramModeIntegration: Need at least 2 components to align');
             return;
         }
 
+        // 记录起始位置（用于撤销）
+        const startPositions = selectedComponents.map(c => ({ id: c.id, x: c.pos.x, y: c.pos.y }));
+
         const aligned = this.modules.layoutEngine.alignComponents(selectedComponents, direction);
-        
+
         // 应用对齐结果
         aligned.forEach((alignedComp, index) => {
             const original = selectedComponents[index];
             if (original.pos) {
                 original.pos.x = alignedComp.pos.x;
                 original.pos.y = alignedComp.pos.y;
+                if (typeof original.onPositionChanged === 'function') { try { original.onPositionChanged(); } catch (_) {} }
+                if (typeof original._updateGeometry === 'function') { try { original._updateGeometry(); } catch (_) {} }
             }
         });
 
-        // 触发重绘
+        // 记录撤销历史
+        const interactionMgr = this.modules.interactionManager;
+        if (interactionMgr && window.ActionType) {
+            const batchActions = selectedComponents.map((c, i) => ({
+                type: window.ActionType.MOVE_COMPONENT,
+                data: { componentId: c.id, position: { x: c.pos.x, y: c.pos.y } },
+                undoData: { position: { x: startPositions[i].x, y: startPositions[i].y } }
+            }));
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        }
+
         this._triggerRedraw();
     }
 
@@ -1407,7 +1421,28 @@ export class DiagramModeIntegration {
             return;
         }
 
+        // 记录起始位置
+        const startPositions = selectedComponents.map(c => ({ id: c.id, x: c.pos.x, y: c.pos.y }));
+
         this.modules.layoutEngine.distributeComponents(selectedComponents, direction);
+
+        // 更新几何
+        selectedComponents.forEach(c => {
+            if (typeof c.onPositionChanged === 'function') { try { c.onPositionChanged(); } catch (_) {} }
+            if (typeof c._updateGeometry === 'function') { try { c._updateGeometry(); } catch (_) {} }
+        });
+
+        // 记录撤销历史
+        const interactionMgr = this.modules.interactionManager;
+        if (interactionMgr && window.ActionType) {
+            const batchActions = selectedComponents.map((c, i) => ({
+                type: window.ActionType.MOVE_COMPONENT,
+                data: { componentId: c.id, position: { x: c.pos.x, y: c.pos.y } },
+                undoData: { position: { x: startPositions[i].x, y: startPositions[i].y } }
+            }));
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        }
+
         this._triggerRedraw();
     }
 
@@ -1432,12 +1467,8 @@ export class DiagramModeIntegration {
      */
     _triggerRedraw() {
         if (typeof window !== 'undefined') {
-            if (window.requestRedraw) {
-                window.requestRedraw();
-            } else if (window.render) {
-                window.render();
-            }
-            
+            // 设置 needsRetrace 触发主渲染循环重绘
+            window.needsRetrace = true;
             document.dispatchEvent(new CustomEvent('diagram-redraw-requested'));
         }
     }
@@ -1449,10 +1480,13 @@ export class DiagramModeIntegration {
     _toggleAnnotationMode() {
         const btn = document.querySelector('#btn-annotation');
         if (!btn) return;
-        
+
         const isActive = btn.classList.toggle('active');
-        
+
         if (isActive) {
+            // 互斥：关闭链接模式
+            this._deactivateRayLinkMode();
+
             // 进入标注模式
             this._annotationModeActive = true;
             document.body.style.cursor = 'crosshair';
@@ -1498,6 +1532,12 @@ export class DiagramModeIntegration {
         // 移除已有的输入框
         const existingInput = document.querySelector('.annotation-input-container');
         if (existingInput) existingInput.remove();
+
+        // 将屏幕坐标转换为世界坐标
+        const cameraScale = window.cameraScale || 1;
+        const cameraOffset = window.cameraOffset || { x: 0, y: 0 };
+        const worldX = (x - cameraOffset.x) / cameraScale;
+        const worldY = (y - cameraOffset.y) / cameraScale;
         
         const container = document.createElement('div');
         container.className = 'annotation-input-container';
@@ -1558,7 +1598,7 @@ export class DiagramModeIntegration {
                 if (this.modules.professionalLabelManager) {
                     const createdLabel = this.modules.professionalLabelManager.createLabel({
                         text,
-                        position: { x, y },
+                        position: { x: worldX, y: worldY },
                         targetType: 'free'
                     });
                     const interactionManager = this.modules.interactionManager;
@@ -1577,7 +1617,7 @@ export class DiagramModeIntegration {
                 } else if (this.modules.annotationManager) {
                     this.modules.annotationManager.addAnnotation({
                         text,
-                        position: { x, y },
+                        position: { x: worldX, y: worldY },
                         style: {
                             fontSize: 14,
                             color: '#ffffff'
@@ -2754,19 +2794,51 @@ export class DiagramModeIntegration {
      */
     _toggleRayLinkMode(btn) {
         if (!btn) return;
-        
+
         const isActive = btn.classList.toggle('active');
         this._rayLinkModeActive = isActive;
-        
+
         if (isActive) {
+            // 互斥：关闭标注模式
+            this._deactivateAnnotationMode();
+
             document.body.style.cursor = 'crosshair';
-            console.log('DiagramModeIntegration: Ray link mode enabled');
         } else {
             document.body.style.cursor = '';
             if (this.modules.rayLinkManager) {
                 this.modules.rayLinkManager.cancelLinkCreation();
             }
-            console.log('DiagramModeIntegration: Ray link mode disabled');
+        }
+    }
+
+    /**
+     * 关闭标注模式（不触发 toggle）
+     * @private
+     */
+    _deactivateAnnotationMode() {
+        if (!this._annotationModeActive) return;
+        this._annotationModeActive = false;
+        document.body.style.cursor = '';
+        const btn = document.querySelector('#btn-annotation');
+        if (btn) btn.classList.remove('active');
+        const canvas = document.getElementById('opticsCanvas');
+        if (canvas && this._annotationClickHandler) {
+            canvas.removeEventListener('click', this._annotationClickHandler);
+        }
+    }
+
+    /**
+     * 关闭链接模式（不触发 toggle）
+     * @private
+     */
+    _deactivateRayLinkMode() {
+        if (!this._rayLinkModeActive) return;
+        this._rayLinkModeActive = false;
+        document.body.style.cursor = '';
+        const btn = document.querySelector('#btn-raylink');
+        if (btn) btn.classList.remove('active');
+        if (this.modules.rayLinkManager) {
+            this.modules.rayLinkManager.cancelLinkCreation();
         }
     }
 
