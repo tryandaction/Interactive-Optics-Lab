@@ -3344,6 +3344,29 @@ function handleKeyDown(event) {
         }
     } // --- End 'r' key rotation ---
 
+    // --- Arrow keys: nudge selected components (Figma 风格) ---
+    else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && selectedComponents.length > 0) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (event.key === 'ArrowUp') dy = -step;
+        else if (event.key === 'ArrowDown') dy = step;
+        else if (event.key === 'ArrowLeft') dx = -step;
+        else if (event.key === 'ArrowRight') dx = step;
+
+        selectedComponents.forEach(comp => {
+            if (comp.pos instanceof Vector) {
+                comp.pos.x += dx;
+                comp.pos.y += dy;
+                if (typeof comp.onPositionChanged === 'function') { try { comp.onPositionChanged(); } catch (_) {} }
+                if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (_) {} }
+            }
+        });
+        needsRetrace = true;
+        sceneModified = true;
+        markSceneAsModified();
+    }
+
     // --- Toggle enabled state for sources (Space key) ---
     else if (event.code === 'Space' && selectedComponent && selectedComponent.hasOwnProperty('enabled')) {
         event.preventDefault();

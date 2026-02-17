@@ -924,10 +924,78 @@ export class InteractionManager {
         // 渲染选择框
         this.selection.renderSelectionBox(ctx);
 
-        // 渲染选中项目高亮
-        this.selection.getSelectedItems().forEach(item => {
+        const selectedItems = this.selection.getSelectedItems();
+
+        // 渲染每个选中项目的高亮
+        selectedItems.forEach(item => {
             this._renderSelectionHighlight(ctx, item);
         });
+
+        // 多选时渲染组合边界框
+        if (selectedItems.length > 1) {
+            this._renderMultiSelectionBounds(ctx, selectedItems);
+        }
+    }
+
+    /**
+     * 渲染多选组合边界框 — Figma 风格
+     * @private
+     */
+    _renderMultiSelectionBounds(ctx, items) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        items.forEach(item => {
+            const bb = this._getItemBounds(item);
+            minX = Math.min(minX, bb.x);
+            minY = Math.min(minY, bb.y);
+            maxX = Math.max(maxX, bb.x + bb.width);
+            maxY = Math.max(maxY, bb.y + bb.height);
+        });
+
+        const pad = 8;
+        const rx = minX - pad;
+        const ry = minY - pad;
+        const rw = (maxX - minX) + pad * 2;
+        const rh = (maxY - minY) + pad * 2;
+
+        ctx.save();
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.setLineDash([]);
+
+        // 选中数量标签
+        const count = items.length;
+        const fontSize = 11;
+        ctx.font = `${fontSize}px sans-serif`;
+        const text = `${count} selected`;
+        const textWidth = ctx.measureText(text).width;
+        const labelX = rx + rw / 2 - textWidth / 2 - 6;
+        const labelY = ry - 8;
+        ctx.fillStyle = '#0078d4';
+        ctx.beginPath();
+        const rlx = labelX, rly = labelY - fontSize, rlw = textWidth + 12, rlh = fontSize + 6, rlr = 3;
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(rlx, rly, rlw, rlh, rlr);
+        } else {
+            ctx.moveTo(rlx + rlr, rly);
+            ctx.lineTo(rlx + rlw - rlr, rly);
+            ctx.arcTo(rlx + rlw, rly, rlx + rlw, rly + rlr, rlr);
+            ctx.lineTo(rlx + rlw, rly + rlh - rlr);
+            ctx.arcTo(rlx + rlw, rly + rlh, rlx + rlw - rlr, rly + rlh, rlr);
+            ctx.lineTo(rlx + rlr, rly + rlh);
+            ctx.arcTo(rlx, rly + rlh, rlx, rly + rlh - rlr, rlr);
+            ctx.lineTo(rlx, rly + rlr);
+            ctx.arcTo(rlx, rly, rlx + rlr, rly, rlr);
+            ctx.closePath();
+        }
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(text, rx + rw / 2, labelY - 1);
+
+        ctx.restore();
     }
 
     /**
