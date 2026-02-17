@@ -722,8 +722,9 @@ export class InteractionManager {
             const opacity = item.disabled ? '0.4' : '1';
             btn.style.cssText = `
                 display: flex; justify-content: space-between; align-items: center;
-                padding: 6px 16px; cursor: ${item.disabled ? 'default' : 'pointer'};
+                padding: 6px 16px; cursor: ${item.disabled ? 'not-allowed' : 'pointer'};
                 opacity: ${opacity}; user-select: none;
+                pointer-events: ${item.disabled ? 'none' : 'auto'};
             `;
             btn.innerHTML = `
                 <span>${item.label}</span>

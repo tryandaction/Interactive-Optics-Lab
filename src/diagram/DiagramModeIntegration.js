@@ -2649,6 +2649,10 @@ export class DiagramModeIntegration {
         // 禁用连接点显示
         if (this.modules.connectionPointManager) {
             this.modules.connectionPointManager.visible = false;
+            this.modules.connectionPointManager.setVisibilityMode?.('hidden');
+            this.modules.connectionPointManager.setHoveredComponent?.(null);
+            this.modules.connectionPointManager.setSelectedComponents?.([]);
+            this.modules.connectionPointManager.setLinkModeActive?.(false);
             if (this.modules.connectionPointManager.setSelectedPoint) {
                 this.modules.connectionPointManager.setSelectedPoint(null);
             } else {
@@ -2686,6 +2690,18 @@ export class DiagramModeIntegration {
         // 隐藏小地图
         if (this.modules.minimap) {
             this.modules.minimap.hide();
+        }
+
+        // 清除悬停状态
+        if (this.modules.interactionManager) {
+            this.modules.interactionManager.setHoveredItem(null);
+            this.modules.interactionManager._removeContextMenu?.();
+        }
+
+        // 清除缩放指示器
+        if (typeof document !== 'undefined') {
+            const zoomIndicator = document.getElementById('diagram-zoom-indicator');
+            if (zoomIndicator) zoomIndicator.remove();
         }
 
         // 恢复左侧栏为原始图标

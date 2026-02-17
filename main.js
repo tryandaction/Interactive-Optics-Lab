@@ -2412,12 +2412,13 @@ function handleMouseDown(event) {
                     }
                 });
                 if (duplicated.length > 0) {
-                    // 记录添加操作
+                    // 记录添加操作（含 undoData 以支持撤销删除）
                     const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
                     if (interactionMgr) {
                         interactionMgr.recordAction(
                             window.ActionType?.ADD_COMPONENT || 'add_component',
-                            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) }
+                            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+                            { componentIds: duplicated.map(c => c.id) }
                         );
                     }
                     // 切换选择到复制品
@@ -2425,6 +2426,11 @@ function handleMouseDown(event) {
                     selectedComponents = duplicated;
                     duplicated.forEach(c => c.selected = true);
                     selectedComponent = duplicated[duplicated.length - 1] || null;
+                    // 同步 InteractionManager 选择
+                    if (interactionMgr?.selection) {
+                        interactionMgr.selection.clearSelection();
+                        duplicated.forEach(c => interactionMgr.selection.select(c, true));
+                    }
                 }
             }
 
@@ -2767,6 +2773,17 @@ function handleMouseUp(event) {
                         interactionMgr.selection.clearSelection();
                         selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
                     }
+                }
+                updateInspector();
+            } else {
+                // 单击空白区域（未拖出框选）：清除选择
+                selectedComponents.forEach(c => c.selected = false);
+                selectedComponents = [];
+                selectedComponent = null;
+                const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+                if (isDiagram) {
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr?.selection) interactionMgr.selection.clearSelection();
                 }
                 updateInspector();
             }
@@ -3206,6 +3223,7 @@ function handleKeyDown(event) {
             maxX = Math.max(maxX, bb.x + bb.width);
             maxY = Math.max(maxY, bb.y + bb.height);
         });
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return;
         const padding = 60;
         const rect = canvas.getBoundingClientRect();
         const sceneW = maxX - minX + padding * 2;
@@ -3227,9 +3245,19 @@ function handleKeyDown(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
         event.preventDefault();
         selectedComponents = components.slice();
+        components.forEach(c => c.selected = true);
         selectedComponent = selectedComponents.length > 0 ? selectedComponents[0] : null;
+        // 同步到 InteractionManager
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr?.selection) {
+                interactionMgr.selection.clearSelection();
+                selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+            }
+        }
         updateInspector();
-        console.log(`已选中所有 ${selectedComponents.length} 个组件`);
+        needsRetrace = true;
         return;
     }
 
@@ -3258,12 +3286,25 @@ function handleKeyDown(event) {
                     console.error('复制组件失败:', e);
                 }
             });
+            selectedComponents.forEach(c => c.selected = false);
             selectedComponents = duplicated;
+            duplicated.forEach(c => c.selected = true);
             selectedComponent = duplicated[0] || null;
             needsRetrace = true;
             markSceneAsModified();
+            // 记录撤销历史 + 同步 InteractionManager
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+            if (interactionMgr && window.ActionType) {
+                interactionMgr.recordAction(
+                    window.ActionType.ADD_COMPONENT,
+                    { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+                    { componentIds: duplicated.map(c => c.id) }
+                );
+                interactionMgr.selection.clearSelection();
+                duplicated.forEach(c => interactionMgr.selection.select(c, true));
+            }
             updateInspector();
-            console.log(`已复制 ${duplicated.length} 个组件`);
         }
         return;
     }
@@ -3354,14 +3395,38 @@ function handleKeyDown(event) {
         else if (event.key === 'ArrowLeft') dx = -step;
         else if (event.key === 'ArrowRight') dx = step;
 
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+        const batchActions = [];
+
         selectedComponents.forEach(comp => {
             if (comp.pos instanceof Vector) {
+                const startX = comp.pos.x, startY = comp.pos.y;
                 comp.pos.x += dx;
                 comp.pos.y += dy;
                 if (typeof comp.onPositionChanged === 'function') { try { comp.onPositionChanged(); } catch (_) {} }
                 if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (_) {} }
+                if (interactionMgr && window.ActionType) {
+                    batchActions.push({
+                        type: window.ActionType.MOVE_COMPONENT,
+                        data: { componentId: comp.id, position: { x: comp.pos.x, y: comp.pos.y } },
+                        undoData: { position: { x: startX, y: startY } }
+                    });
+                }
             }
         });
+        if (interactionMgr && batchActions.length > 0) {
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        } else if (!interactionMgr && selectedComponents.length > 0) {
+            const startPositions = new Map();
+            const finalPositions = new Map();
+            selectedComponents.forEach(c => {
+                startPositions.set(c.id, new Vector(c.pos.x - dx, c.pos.y - dy));
+                finalPositions.set(c.id, c.pos.clone());
+            });
+            historyManager.addCommand(new MoveComponentsCommand(selectedComponents.map(c => c.id), startPositions, finalPositions));
+            updateUndoRedoUI();
+        }
         needsRetrace = true;
         sceneModified = true;
         markSceneAsModified();
@@ -3523,6 +3588,16 @@ function deleteSelectedComponents() {
         // Clear selection state AFTER successful deletion
         selectedComponents = [];
         selectedComponent = null;
+        // 同步 InteractionManager 选择状态
+        {
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (isDiagram) {
+                const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                if (interactionMgr?.selection) {
+                    interactionMgr.selection.clearSelection();
+                }
+            }
+        }
         updateInspector(); // Update inspector for cleared selection
         needsRetrace = true; // Ensure redraw after deletion
 
@@ -5422,6 +5497,8 @@ function setupEventListeners() {
         canvas.addEventListener('dblclick', (e) => {
             const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
             if (!isDiagram) return;
+            e.preventDefault();
+            e.stopPropagation();
             const mousePos = getMousePos(canvas, e);
             // 检查是否双击了组件
             let targetComp = null;
