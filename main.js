@@ -2387,8 +2387,49 @@ function handleMouseDown(event) {
             }
         } else {
             // --- Dragging the body (move all selected components) ---
+            // Alt+拖拽：复制并拖拽（Figma 风格）
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (isDiagram && event.altKey && selectedComponents.length > 0) {
+                const duplicated = [];
+                const idMap = new Map();
+                selectedComponents.forEach(comp => {
+                    try {
+                        const data = comp.toJSON();
+                        const ComponentClass = window[data.type];
+                        if (ComponentClass) {
+                            const newComp = new ComponentClass(new Vector(data.pos.x, data.pos.y));
+                            Object.keys(data).forEach(key => {
+                                if (key !== 'type' && key !== 'id' && key !== 'pos') {
+                                    newComp.setProperty?.(key, data[key]);
+                                }
+                            });
+                            idMap.set(comp.id, newComp.id);
+                            components.push(newComp);
+                            duplicated.push(newComp);
+                        }
+                    } catch (e) {
+                        console.error('Alt+drag duplicate failed:', e);
+                    }
+                });
+                if (duplicated.length > 0) {
+                    // 记录添加操作
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr) {
+                        interactionMgr.recordAction(
+                            window.ActionType?.ADD_COMPONENT || 'add_component',
+                            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) }
+                        );
+                    }
+                    // 切换选择到复制品
+                    selectedComponents.forEach(c => c.selected = false);
+                    selectedComponents = duplicated;
+                    duplicated.forEach(c => c.selected = true);
+                    selectedComponent = duplicated[duplicated.length - 1] || null;
+                }
+            }
+
             draggingComponents = [...selectedComponents]; // Drag all selected
-            const startPositions = new Map(); // Use Map for start values { compId -> Vector }
+            const startPositions = new Map();
             draggingComponents.forEach(comp => {
                 if (comp.pos instanceof Vector) {
                     dragStartOffsets.set(comp.id, comp.pos.subtract(mousePos));
@@ -3085,6 +3126,38 @@ function _showZoomIndicator(scale) {
     _zoomIndicatorTimer = setTimeout(() => { el.style.opacity = '0'; }, 1200);
 }
 
+// --- 绘图模式内联文本编辑器 ---
+function _showInlineEditor(clientX, clientY, initialText, onConfirm) {
+    const existing = document.querySelector('.diagram-inline-editor');
+    if (existing) existing.remove();
+
+    const input = document.createElement('input');
+    input.className = 'diagram-inline-editor';
+    input.type = 'text';
+    input.value = initialText;
+    input.style.cssText = `
+        position: fixed; left: ${clientX - 60}px; top: ${clientY - 14}px;
+        min-width: 120px; padding: 4px 8px; z-index: 9999;
+        background: var(--input-bg, #2d2d2d); color: var(--text-color, #fff);
+        border: 2px solid #0078d4; border-radius: 4px; outline: none;
+        font-size: 13px; font-family: sans-serif;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finish = (accept) => {
+        if (accept) onConfirm(input.value);
+        input.remove();
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+}
+
 
 // --- REPLACEMENT for handleKeyDown (V4 - Undo/Redo Shortcuts & Corrected 'r' key logic) ---
 function handleKeyDown(event) {
@@ -3101,6 +3174,52 @@ function handleKeyDown(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault();
         saveCurrentSceneToProject();
+        return;
+    }
+
+    // --- Ctrl+1: Reset zoom to 100% ---
+    if ((event.ctrlKey || event.metaKey) && event.key === '1') {
+        event.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const worldCenterX = (centerX - cameraOffset.x) / cameraScale;
+        const worldCenterY = (centerY - cameraOffset.y) / cameraScale;
+        cameraScale = 1.0;
+        cameraOffset.x = centerX - worldCenterX * cameraScale;
+        cameraOffset.y = centerY - worldCenterY * cameraScale;
+        needsRetrace = true;
+        if (diagramModeIntegration?.isDiagramMode?.()) _showZoomIndicator(cameraScale);
+        return;
+    }
+
+    // --- Ctrl+0: Zoom to fit all components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+        event.preventDefault();
+        if (components.length === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        components.forEach(comp => {
+            const pos = comp.pos || { x: comp.x || 0, y: comp.y || 0 };
+            const bb = typeof comp.getBoundingBox === 'function' ? comp.getBoundingBox() : { x: pos.x - 30, y: pos.y - 30, width: 60, height: 60 };
+            minX = Math.min(minX, bb.x);
+            minY = Math.min(minY, bb.y);
+            maxX = Math.max(maxX, bb.x + bb.width);
+            maxY = Math.max(maxY, bb.y + bb.height);
+        });
+        const padding = 60;
+        const rect = canvas.getBoundingClientRect();
+        const sceneW = maxX - minX + padding * 2;
+        const sceneH = maxY - minY + padding * 2;
+        const scaleX = rect.width / sceneW;
+        const scaleY = rect.height / sceneH;
+        cameraScale = Math.min(scaleX, scaleY, 2.0);
+        cameraScale = Math.max(cameraScale, 0.1);
+        const sceneCenterX = (minX + maxX) / 2;
+        const sceneCenterY = (minY + maxY) / 2;
+        cameraOffset.x = rect.width / 2 - sceneCenterX * cameraScale;
+        cameraOffset.y = rect.height / 2 - sceneCenterY * cameraScale;
+        needsRetrace = true;
+        if (diagramModeIntegration?.isDiagramMode?.()) _showZoomIndicator(cameraScale);
         return;
     }
 
@@ -5275,6 +5394,49 @@ function setupEventListeners() {
                 } catch (_) {}
             }
             interactionMgr.showContextMenu(e, targetComp);
+        });
+        // --- 绘图模式双击编辑标签 ---
+        canvas.addEventListener('dblclick', (e) => {
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (!isDiagram) return;
+            const mousePos = getMousePos(canvas, e);
+            // 检查是否双击了组件
+            let targetComp = null;
+            for (let i = components.length - 1; i >= 0; i--) {
+                try {
+                    if (components[i]._containsPointBody?.(mousePos)) {
+                        targetComp = components[i];
+                        break;
+                    }
+                } catch (_) {}
+            }
+            if (!targetComp) {
+                // 检查是否双击了专业标注
+                const labelManager = diagramModeIntegration.getModule('professionalLabelManager');
+                if (labelManager) {
+                    const label = labelManager.getLabelAtPosition?.(mousePos);
+                    if (label) {
+                        _showInlineEditor(e.clientX, e.clientY, label.text || '', (newText) => {
+                            if (newText.trim()) {
+                                label.text = newText.trim();
+                                needsRetrace = true;
+                                markSceneAsModified();
+                            }
+                        });
+                        return;
+                    }
+                }
+                return;
+            }
+            // 双击组件：编辑标签
+            const currentLabel = targetComp.label || targetComp.type || '';
+            _showInlineEditor(e.clientX, e.clientY, currentLabel, (newLabel) => {
+                if (newLabel.trim()) {
+                    targetComp.label = newLabel.trim();
+                    needsRetrace = true;
+                    markSceneAsModified();
+                }
+            });
         });
         // --- Touch Event Listeners for Canvas ---
         console.log("Adding touch event listeners for canvas...");
