@@ -89,6 +89,11 @@ let cameraOffset = null; // Current pan offset (canvas origin relative to view o
 let isPanning = false;       // Flag: Is the user currently panning?
 let lastPanMousePos = null;  // Mouse position at the start of panning
 
+// --- 绘图模式框选状态 ---
+let isMarqueeSelecting = false;
+let marqueeStart = null;
+let marqueeEnd = null;
+
 // 初始化 Vector 相关变量（在 Vector 类可用后调用）
 function initVectorVariables() {
     if (typeof Vector !== 'undefined') {
@@ -714,6 +719,23 @@ function draw() {
         ctx.restore();
     }
     // --- End Draw Alignment Guides ---
+
+    // --- 绘图模式框选矩形渲染 ---
+    if (isMarqueeSelecting && marqueeStart && marqueeEnd) {
+        ctx.save();
+        const left = Math.min(marqueeStart.x, marqueeEnd.x);
+        const top = Math.min(marqueeStart.y, marqueeEnd.y);
+        const w = Math.abs(marqueeEnd.x - marqueeStart.x);
+        const h = Math.abs(marqueeEnd.y - marqueeStart.y);
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 / cameraScale;
+        ctx.setLineDash([]);
+        ctx.strokeRect(left, top, w, h);
+        ctx.fillStyle = 'rgba(0, 120, 212, 0.08)';
+        ctx.fillRect(left, top, w, h);
+        ctx.restore();
+    }
+    // --- End 框选矩形渲染 ---
 
 
     // --- Draw Image AFTER components in Lens Imaging Mode ---
@@ -2292,11 +2314,20 @@ function handleMouseDown(event) {
     } else { // Clicked empty space
         // --- Clicked Empty Space, No Tool Selected ---
         // (componentToAdd 已在函数开头处理，这里只处理清除选择)
-        if (selectedComponents.length > 0) {
-            selectionChanged = true; // Selection changing from N to 0
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram && !isShiftPressed) {
+            // 绘图模式：开始框选
+            isMarqueeSelecting = true;
+            marqueeStart = { x: mousePos.x, y: mousePos.y };
+            marqueeEnd = { x: mousePos.x, y: mousePos.y };
         }
-        selectedComponents.forEach(comp => comp.selected = false);
-        selectedComponents = []; // Clear selection
+        if (!isShiftPressed) {
+            if (selectedComponents.length > 0) {
+                selectionChanged = true;
+            }
+            selectedComponents.forEach(comp => comp.selected = false);
+            selectedComponents = [];
+        }
     }
 
     // --- Update Selection Visuals & Inspector ---
@@ -2321,6 +2352,18 @@ function handleMouseDown(event) {
         // console.log("Selection state did not change."); // Optional log
     }
     // --- End Add Undo Command ---
+
+    // --- 同步 InteractionManager 选择状态 ---
+    {
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr?.selection) {
+                interactionMgr.selection.clearSelection();
+                selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+            }
+        }
+    }
 
 
     // --- Initiate Dragging ---
@@ -2429,6 +2472,14 @@ function handleMouseMove(event) {
         needsRetrace = true;
         sceneModified = true;
         canvas.style.cursor = 'grabbing';
+        return;
+    }
+
+    // --- 绘图模式框选更新 ---
+    if (isMarqueeSelecting) {
+        marqueeEnd = { x: currentMousePos.x, y: currentMousePos.y };
+        canvas.style.cursor = 'crosshair';
+        needsRetrace = true;
         return;
     }
 
@@ -2641,6 +2692,50 @@ function handleMouseUp(event) {
 
     mouseIsDown = false;
     let dragJustEnded = false;
+
+    // --- 绘图模式框选结束 ---
+    if (isMarqueeSelecting) {
+        isMarqueeSelecting = false;
+        if (marqueeStart && marqueeEnd) {
+            const left = Math.min(marqueeStart.x, marqueeEnd.x);
+            const right = Math.max(marqueeStart.x, marqueeEnd.x);
+            const top = Math.min(marqueeStart.y, marqueeEnd.y);
+            const bottom = Math.max(marqueeStart.y, marqueeEnd.y);
+            // 只有拖出了一定大小才算框选（避免单击误触发）
+            if (right - left > 3 || bottom - top > 3) {
+                const isShift = event.shiftKey;
+                if (!isShift) {
+                    selectedComponents.forEach(c => c.selected = false);
+                    selectedComponents = [];
+                }
+                components.forEach(comp => {
+                    const pos = comp.pos || { x: comp.x || 0, y: comp.y || 0 };
+                    if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom) {
+                        if (!selectedComponents.includes(comp)) {
+                            selectedComponents.push(comp);
+                            comp.selected = true;
+                        }
+                    }
+                });
+                selectedComponent = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null;
+                // 同步到 InteractionManager
+                const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+                if (isDiagram) {
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr?.selection) {
+                        interactionMgr.selection.clearSelection();
+                        selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+                    }
+                }
+                updateInspector();
+            }
+        }
+        marqueeStart = null;
+        marqueeEnd = null;
+        canvas.style.cursor = 'default';
+        needsRetrace = true;
+        return;
+    }
 
     // --- Lens Imaging mode: delegate mouse up to LensImaging ---
     if (currentMode === 'lens_imaging') {
@@ -2959,9 +3054,36 @@ function handleWheelZoom(event) {
     cameraOffset.x = mouseCssX - mousePosBeforeZoom.x * cameraScale;
     cameraOffset.y = mouseCssY - mousePosBeforeZoom.y * cameraScale;
     needsRetrace = true;
+
+    // 绘图模式缩放百分比指示器
+    const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagram) {
+        _showZoomIndicator(cameraScale);
+    }
     // --- End Canvas Zooming ---
 }
 // --- END OF REPLACEMENT for handleWheelZoom ---
+
+// --- 绘图模式缩放百分比指示器 ---
+let _zoomIndicatorTimer = null;
+function _showZoomIndicator(scale) {
+    let el = document.getElementById('diagram-zoom-indicator');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'diagram-zoom-indicator';
+        el.style.cssText = `
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: #fff; padding: 4px 14px;
+            border-radius: 4px; font-size: 13px; font-family: sans-serif;
+            pointer-events: none; z-index: 9000; transition: opacity 0.3s;
+        `;
+        document.body.appendChild(el);
+    }
+    el.textContent = `${Math.round(scale * 100)}%`;
+    el.style.opacity = '1';
+    clearTimeout(_zoomIndicatorTimer);
+    _zoomIndicatorTimer = setTimeout(() => { el.style.opacity = '0'; }, 1200);
+}
 
 
 // --- REPLACEMENT for handleKeyDown (V4 - Undo/Redo Shortcuts & Corrected 'r' key logic) ---
