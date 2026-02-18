@@ -76,6 +76,7 @@ export class IconBrowserPanel {
             </div>
             <div class="icon-browser-actions">
                 <button class="icon-action-btn" id="btn-add-icon" disabled>添加到画布</button>
+                <div class="icon-action-hint">选择图标后点击「添加到画布」，然后在画布上点击放置</div>
             </div>
         `;
         
@@ -131,6 +132,9 @@ export class IconBrowserPanel {
             this.container.classList.remove('open');
         }
         this.isOpen = false;
+        // 关闭时清除待添加组件状态
+        this.selectedIcon = null;
+        window.componentToAdd = null;
     }
 
     /**
@@ -649,6 +653,20 @@ export class IconBrowserPanel {
                 background: var(--disabled-bg, #444);
                 color: var(--disabled-color, #888);
                 cursor: not-allowed;
+            }
+
+            .icon-action-hint {
+                margin-top: 8px;
+                font-size: 11px;
+                color: var(--text-secondary, #888);
+                text-align: center;
+                line-height: 1.4;
+            }
+
+            .icon-item.selected {
+                border-color: var(--accent-color, #0078d4);
+                background: rgba(0, 120, 212, 0.15);
+                box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
             }
         `;
         

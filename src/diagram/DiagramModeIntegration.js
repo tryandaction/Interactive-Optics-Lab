@@ -1137,33 +1137,6 @@ export class DiagramModeIntegration {
                     </svg>
                     <span>链接</span>
                 </button>
-                <button class="toolbar-btn" id="btn-auto-link" title="根据光线路径自动生成链接">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <circle cx="12" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M6 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        <path d="M8 2v3M8 11v3M6.5 4.5h3M6.5 11.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                    </svg>
-                    <span>自动连</span>
-                </button>
-                <button class="toolbar-btn" id="btn-connection-points" title="连接点编辑">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <rect x="3" y="3" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                        <circle cx="3" cy="8" r="2" fill="currentColor"/>
-                        <circle cx="13" cy="8" r="2" fill="currentColor"/>
-                        <circle cx="8" cy="3" r="2" fill="currentColor"/>
-                        <circle cx="8" cy="13" r="2" fill="currentColor"/>
-                    </svg>
-                    <span>连接点</span>
-                </button>
-                <button class="toolbar-btn" id="btn-auto-route" title="自动布线">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <circle cx="3" cy="3" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <circle cx="13" cy="13" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M5 3h4v10h4" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    </svg>
-                    <span>布线</span>
-                </button>
                 <button class="toolbar-btn" id="btn-minimap" title="小地图">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
@@ -1270,36 +1243,21 @@ export class DiagramModeIntegration {
             this._toggleRayLinkMode(e.currentTarget);
         });
 
-        // 自动连接按钮
-        toolbar.querySelector('#btn-auto-link')?.addEventListener('click', (e) => {
-            this._showAutoLinkMenu(e.currentTarget);
-        });
-        
         // 图标浏览器按钮
         toolbar.querySelector('#btn-icon-browser')?.addEventListener('click', (e) => {
             this.modules.iconBrowserPanel?.toggle(e.currentTarget);
         });
-        
+
         // 技术说明按钮
         toolbar.querySelector('#btn-notes')?.addEventListener('click', () => {
             this._toggleTechnicalNotes();
         });
-        
+
         // 模板库按钮
         toolbar.querySelector('#btn-template')?.addEventListener('click', () => {
             this.modules.templateBrowser?.toggle();
         });
-        
-        // 连接点编辑按钮
-        toolbar.querySelector('#btn-connection-points')?.addEventListener('click', (e) => {
-            this._openConnectionPointEditor(e.currentTarget);
-        });
-        
-        // 自动布线按钮
-        toolbar.querySelector('#btn-auto-route')?.addEventListener('click', (e) => {
-            this._showAutoRoutingMenu(e.currentTarget);
-        });
-        
+
         // 小地图按钮
         toolbar.querySelector('#btn-minimap')?.addEventListener('click', (e) => {
             this._toggleMinimap(e.currentTarget);
@@ -1564,6 +1522,29 @@ export class DiagramModeIntegration {
                 font-size: 13px;
                 outline: none;
             ">
+            <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+                <select class="annotation-fontsize-select" title="字号" style="
+                    padding: 4px 6px;
+                    border: 1px solid var(--border-color, #444);
+                    border-radius: 4px;
+                    background: var(--input-bg, #343a40);
+                    color: var(--text-color, #fff);
+                    font-size: 12px;
+                    cursor: pointer;
+                ">
+                    <option value="12">12px</option>
+                    <option value="14" selected>14px</option>
+                    <option value="16">16px</option>
+                    <option value="18">18px</option>
+                    <option value="24">24px</option>
+                </select>
+                <div class="annotation-color-picker" style="display: flex; gap: 4px;">
+                    <span class="annotation-color-opt" data-color="#ffffff" title="白色" style="width:18px;height:18px;border-radius:50%;background:#ffffff;border:2px solid #0078d4;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#facc15" title="黄色" style="width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#22d3ee" title="青色" style="width:18px;height:18px;border-radius:50%;background:#22d3ee;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#4ade80" title="绿色" style="width:18px;height:18px;border-radius:50%;background:#4ade80;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                </div>
+            </div>
             <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
                 <button class="annotation-cancel-btn" style="
                     padding: 4px 12px;
@@ -1587,19 +1568,33 @@ export class DiagramModeIntegration {
         `;
         
         document.body.appendChild(container);
-        
+
         const input = container.querySelector('.annotation-text-input');
         input.focus();
-        
+
+        // 颜色选择器交互
+        let selectedColor = '#ffffff';
+        container.querySelectorAll('.annotation-color-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                selectedColor = opt.dataset.color;
+                container.querySelectorAll('.annotation-color-opt').forEach(o => {
+                    o.style.borderColor = o === opt ? '#0078d4' : 'transparent';
+                });
+            });
+        });
+
         // 确认添加标注
         const confirmAdd = () => {
             const text = input.value.trim();
+            const fontSize = parseInt(container.querySelector('.annotation-fontsize-select')?.value || '14', 10);
             if (text) {
                 if (this.modules.professionalLabelManager) {
                     const createdLabel = this.modules.professionalLabelManager.createLabel({
                         text,
                         position: { x: worldX, y: worldY },
-                        targetType: 'free'
+                        targetType: 'free',
+                        fontSize: fontSize,
+                        color: selectedColor
                     });
                     const interactionManager = this.modules.interactionManager;
                     if (interactionManager) {
@@ -1619,8 +1614,8 @@ export class DiagramModeIntegration {
                         text,
                         position: { x: worldX, y: worldY },
                         style: {
-                            fontSize: 14,
-                            color: '#ffffff'
+                            fontSize: fontSize,
+                            color: selectedColor
                         }
                     });
                 }
@@ -2846,215 +2841,9 @@ export class DiagramModeIntegration {
      * 打开连接点编辑器
      * @private
      */
-    _openConnectionPointEditor(anchorElement) {
-        // 获取当前选中的组件
-        const selectedComponents = this._getSelectedComponents();
-        
-        if (selectedComponents.length === 0) {
-            // 如果没有选中组件，提示用户
-            alert('请先选择一个组件来编辑其连接点');
-            return;
-        }
-        
-        if (selectedComponents.length > 1) {
-            alert('请只选择一个组件来编辑连接点');
-            return;
-        }
-        
-        const component = selectedComponents[0];
-        
-        // 打开编辑器
-        if (this.modules.customConnectionPointEditor) {
-            this.modules.customConnectionPointEditor.toggle(component, anchorElement);
-        }
-    }
-
-    /**
-     * 显示自动连接菜单
-     * @private
-     */
-    _showAutoLinkMenu(button) {
-        const existingMenu = document.querySelector('.auto-link-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-            return;
-        }
-
-        const menu = document.createElement('div');
-        menu.className = 'auto-link-menu dropdown-menu';
-        menu.innerHTML = `
-            <div class="menu-section">
-                <div class="menu-label">光线生成</div>
-                <button data-action="append">生成链接（追加）</button>
-                <button data-action="rebuild">生成链接（重建）</button>
-                <button data-action="append-route">生成并自动布线</button>
-            </div>
-            <hr>
-            <div class="menu-section">
-                <div class="menu-hint">基于当前光线路径匹配连接点</div>
-            </div>
-        `;
-
-        const rect = button.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 5}px`;
-        menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '9000';
-
-        document.body.appendChild(menu);
-
-        menu.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            const action = btn.dataset.action;
-            if (action) {
-                this._executeAutoLinkAction(action);
-            }
-            menu.remove();
-        });
-
-        setTimeout(() => {
-            document.addEventListener('click', function closeMenu(e) {
-                if (!menu.contains(e.target) && e.target !== button) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            });
-        }, 0);
-    }
-
-    /**
-     * 执行自动连接操作
-     * @private
-     */
-    _executeAutoLinkAction(action) {
-        const options = {
-            replace: action === 'rebuild',
-            applyAutoRouting: action === 'append-route'
-        };
-        const result = this._generateRayLinksFromSimulation(options);
-        if (!result) return;
-        const message = result.error
-            ? `自动连接失败：${result.error}`
-            : `自动连接完成：新增 ${result.created} 条，跳过 ${result.skipped} 条`;
-        if (typeof window !== 'undefined' && typeof window.showTemporaryMessage === 'function') {
-            window.showTemporaryMessage(message, result.error ? 'error' : 'success');
-        } else {
-            console.log(message);
-        }
-    }
-
-    /**
-     * 显示自动布线菜单
-     * @private
-     */
-    _showAutoRoutingMenu(button) {
-        const existingMenu = document.querySelector('.auto-route-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-            return;
-        }
-        
-        const menu = document.createElement('div');
-        menu.className = 'auto-route-menu dropdown-menu';
-        menu.innerHTML = `
-            <div class="menu-section">
-                <div class="menu-label">布线样式</div>
-                <button data-style="orthogonal">正交布线</button>
-                <button data-style="diagonal">对角线布线</button>
-                <button data-style="direct">直线布线</button>
-                <button data-style="curved">曲线布线</button>
-            </div>
-            <hr>
-            <div class="menu-section">
-                <div class="menu-label">操作</div>
-                <button data-action="apply-all">应用到所有链接</button>
-                <button data-action="apply-selected">应用到选中链接</button>
-                <button data-action="clear-all">清除所有布线</button>
-            </div>
-        `;
-        
-        // 定位菜单
-        const rect = button.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 5}px`;
-        menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '9000';
-        
-        document.body.appendChild(menu);
-        
-        // 绑定事件
-        menu.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            
-            const style = btn.dataset.style;
-            const action = btn.dataset.action;
-            
-            if (style) {
-                this._setAutoRoutingStyle(style);
-            } else if (action) {
-                this._executeAutoRoutingAction(action);
-            }
-            
-            menu.remove();
-        });
-        
-        // 点击外部关闭
-        setTimeout(() => {
-            document.addEventListener('click', function closeMenu(e) {
-                if (!menu.contains(e.target) && e.target !== button) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            });
-        }, 0);
-    }
-
-    /**
-     * 设置自动布线样式
-     * @private
-     */
-    _setAutoRoutingStyle(style) {
-        if (this.modules.rayLinkManager) {
-            this.modules.rayLinkManager.setAutoRoutingStyle(style);
-            console.log(`DiagramModeIntegration: Auto-routing style set to ${style}`);
-        }
-    }
-
-    /**
-     * 执行自动布线操作
-     * @private
-     */
-    _executeAutoRoutingAction(action) {
-        const rayLinkManager = this.modules.rayLinkManager;
-        if (!rayLinkManager) return;
-        
-        const components = window.components || [];
-        
-        switch (action) {
-            case 'apply-all':
-                const countAll = rayLinkManager.applyAutoRoutingToAll(components);
-                console.log(`DiagramModeIntegration: Applied auto-routing to ${countAll} links`);
-                break;
-                
-            case 'apply-selected':
-                if (rayLinkManager.selectedLink) {
-                    rayLinkManager.applyAutoRouting(rayLinkManager.selectedLink.id, components);
-                    console.log('DiagramModeIntegration: Applied auto-routing to selected link');
-                } else {
-                    alert('请先选择一个光线链接');
-                }
-                break;
-                
-            case 'clear-all':
-                rayLinkManager.clearAllAutoRouting();
-                console.log('DiagramModeIntegration: Cleared all auto-routing');
-                break;
-        }
-        
-        this._triggerRedraw();
-    }
+    // [已移除] _openConnectionPointEditor, _showAutoLinkMenu, _executeAutoLinkAction,
+    // _showAutoRoutingMenu, _setAutoRoutingStyle, _executeAutoRoutingAction
+    // 工具栏入口已精简，底层模块保留
 
     /**
      * 从模拟光线路径生成连接

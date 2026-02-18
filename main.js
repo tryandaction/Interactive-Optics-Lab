@@ -102,6 +102,11 @@ if (typeof window !== 'undefined') {
         set: (value) => { cameraOffset = value; },
         configurable: true
     });
+    Object.defineProperty(window, 'componentToAdd', {
+        get: () => componentToAdd,
+        set: (value) => { componentToAdd = value; },
+        configurable: true
+    });
 }
 
 let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)
@@ -452,6 +457,9 @@ function gameLoop(timestamp) {
 
     // --- Ray Tracing ---
     // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
+    // 绘图模式下跳过光线追踪，节省性能
+    const isDiagramModeForTrace = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (!isDiagramModeForTrace) {
     console.time("RayTrace");
     components.forEach(comp => comp.reset?.()); // Reset components
 
@@ -485,6 +493,7 @@ function gameLoop(timestamp) {
     } finally { // Ensure timing ends even on error
         console.timeEnd("RayTrace");
     }
+    } // end if (!isDiagramModeForTrace)
     // --- End Ray Tracing Block ---
 
     // --- Rendering ---
@@ -635,6 +644,9 @@ function draw() {
     drawGrid(ctx, 50, canvasGridColor);
 
     // --- Draw based on Mode ---
+    // 检查是否为绘图模式（提前声明，供光线渲染和组件渲染使用）
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+
     if (currentMode === 'lens_imaging') {
         // Try to draw lens imaging diagram (includes special rays and image)
         const drawnSuccessfully = drawOpticalSystemDiagram(ctx);
@@ -646,9 +658,11 @@ function draw() {
         }
         // In lens imaging mode, we generally DON'T draw normal moving arrows
     } else { // Default 'ray_trace' mode
-        // Draw calculated ray paths and arrows as before
-        drawRayPaths(ctx, currentRayPaths);
-        drawArrowAnimations(ctx); // Only draw arrows in ray trace mode
+        // 绘图模式下跳过光线和箭头渲染，保持画面干净
+        if (!isDiagramModeActive) {
+            drawRayPaths(ctx, currentRayPaths);
+            drawArrowAnimations(ctx); // Only draw arrows in ray trace mode
+        }
     }
 
     // Draw placement preview if a tool is selected
@@ -656,8 +670,6 @@ function draw() {
     drawPlacementPreview(ctx);
 
     // Draw all components with user content filtering
-    // 检查是否为绘图模式
-    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
     
     components.forEach(comp => {
         try {
@@ -4073,6 +4085,9 @@ function gameLoop(timestamp) {
 
     // --- Ray Tracing ---
     // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
+    // 绘图模式下跳过光线追踪，节省性能
+    const isDiagramModeForTrace = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (!isDiagramModeForTrace) {
     console.time("RayTrace");
     components.forEach(comp => comp.reset?.()); // Reset components
 
@@ -4106,6 +4121,7 @@ function gameLoop(timestamp) {
     } finally { // Ensure timing ends even on error
         console.timeEnd("RayTrace");
     }
+    } // end if (!isDiagramModeForTrace)
     // --- End Ray Tracing Block ---
 
     // --- Rendering ---
@@ -5759,6 +5775,19 @@ function setupEventListeners() {
                 markSceneAsModified();
                 updateInspector();
             }
+        }
+    });
+    document.addEventListener('diagram-icon-selected', (e) => {
+        // 图标浏览器选中图标后，设置添加模式
+        const iconType = e.detail?.iconType || window.componentToAdd;
+        if (iconType) {
+            componentToAdd = iconType;
+            canvas.style.cursor = 'crosshair';
+            // 清除当前选择
+            selectedComponents.forEach(c => c.selected = false);
+            selectedComponents = [];
+            selectedComponent = null;
+            needsRetrace = true;
         }
     });
     // --- End 绘图模式自定义事件监听 ---
