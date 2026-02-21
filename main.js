@@ -431,78 +431,6 @@ const BS_SPLIT_ARROW_THRESHOLD = 0.20; // If BS split results in intensity > 20%
 //     return fullPath;
 // }
 
-// --- Simulation Core Loop --- // (The rest of the file continues from here)
-
-// --- Simulation Core Loop ---
-function gameLoop(timestamp) {
-    const dt = (timestamp - lastTimestamp) / 1000; // Delta time in seconds
-    lastTimestamp = timestamp;
-
-    // Avoid large dt spikes if tab was inactive
-    const maxDt = 0.1; // Limit delta time to 100ms
-    const effectiveDt = Math.min(dt, maxDt);
-
-    // --- Update State ---
-    updateArrowAnimations(effectiveDt);
-
-    // --- Activate Rays Generated Last Frame ---
-    // (Currently only used for Fiber Output)
-    const initialActiveRays = []; // Start with an empty array for the main trace loop
-    if (nextFrameActiveRays.length > 0) {
-        console.log(`[GameLoop] Activating ${nextFrameActiveRays.length} rays from previous frame (fiber outputs).`);
-        initialActiveRays.push(...nextFrameActiveRays); // Add fiber outputs first? Or last? Let's add first.
-        nextFrameActiveRays = []; // Clear the queue for the next frame
-    }
-    // --- End Activation ---
-
-    // --- Ray Tracing ---
-    // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
-    // 绘图模式下跳过光线追踪，节省性能
-    const isDiagramModeForTrace = diagramModeIntegration?.isDiagramMode?.() || false;
-    if (!isDiagramModeForTrace) {
-    console.time("RayTrace");
-    components.forEach(comp => comp.reset?.()); // Reset components
-
-    try {
-        // traceAllRays now potentially returns generated rays separately
-        const traceResult = traceAllRays(components,
-            canvas.width / (window.devicePixelRatio || 1),
-            canvas.height / (window.devicePixelRatio || 1),
-            initialActiveRays); // Pass initial rays (might include last frame's fiber outputs)
-
-        // traceResult should be an object: { completedPaths: [], generatedRays: [] }
-        if (traceResult && Array.isArray(traceResult.completedPaths)) {
-            currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
-            window.currentRayPaths = currentRayPaths;
-            if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
-                // Store newly generated rays (fiber outputs) for the *next* frame
-                nextFrameActiveRays.push(...traceResult.generatedRays);
-                console.log(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
-            }
-        } else {
-            console.error("traceAllRays returned invalid result:", traceResult);
-            currentRayPaths = [];
-            window.currentRayPaths = currentRayPaths;
-        }
-
-    } catch (e) {
-        console.error("!!! Error during traceAllRays:", e);
-        currentRayPaths = []; // Clear paths on error
-        window.currentRayPaths = currentRayPaths;
-        nextFrameActiveRays = []; // Also clear pending rays on error
-    } finally { // Ensure timing ends even on error
-        console.timeEnd("RayTrace");
-    }
-    } // end if (!isDiagramModeForTrace)
-    // --- End Ray Tracing Block ---
-
-    // --- Rendering ---
-    draw();
-
-    // Request next frame
-    requestAnimationFrame(gameLoop);
-}
-
 // --- START OF REPLACEMENT: updateArrowAnimations function ---
 function updateArrowAnimations(dt) { // dt is not directly used, uses global time
     // If arrows are globally off, clear the states map and exit
@@ -4541,20 +4469,6 @@ function closeSettingsModal() {
     }
 }
 // --- END OF REPLACEMENT ---
-
-
-
-function closeSettingsModal() {
-    const modal = document.getElementById('settings-modal');
-    if (modal) {
-        modal.classList.remove('visible');
-        // Wait for fade-out transition to finish before setting display to none
-        // Match transition duration (0.3s = 300ms)
-        setTimeout(() => {
-            modal.style.display = 'none';
-        }, 300);
-    }
-}
 // --- END Settings Modal Functions ---
 
 
@@ -6233,29 +6147,6 @@ function closeSceneManagerModal() {
         // Remove listeners specific to this modal if added dynamically? Or keep them.
         // document.getElementById('scene-manager-save-as-btn')?.removeEventListener('click', handleSaveAsClick); // Example cleanup
     }
-}
-
-// --- NEW Helper to handle "Save As" click (extracted logic) ---
-function handleSaveAsClick() {
-    const defaultName = `场景 ${new Date().toLocaleDateString()}`;
-    const sceneName = prompt("请输入要保存的场景名称:", defaultName);
-    if (sceneName !== null && sceneName.trim() !== "") {
-        const trimmedName = sceneName.trim();
-        const existingNames = getSavedSceneNames();
-        if (existingNames.includes(trimmedName)) {
-            if (!confirm(`场景 "${trimmedName}" 已存在。是否覆盖？`)) {
-                console.log("Save As cancelled, name exists."); return;
-            }
-        }
-        const sceneData = generateSceneDataObject(); // Use helper to get data
-        if (sceneData && saveSceneDataToStorage(trimmedName, sceneData)) {
-            sceneModified = false;
-            updateSavedScenesList(); // Refresh list
-            alert(`场景 "${trimmedName}" 已成功保存到本地浏览器！`);
-            // Optionally close modal after save?
-            // closeSceneManagerModal();
-        }
-    } else { console.log("Save As cancelled by user."); }
 }
 
 
