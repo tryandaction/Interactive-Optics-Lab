@@ -1,0 +1,206 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - button "文件" [ref=e5] [cursor=pointer]:
+        - img [ref=e6]
+        - generic [ref=e9]: 文件
+      - button "编辑" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - generic [ref=e15]: 编辑
+      - button "视图" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+        - generic [ref=e20]: 视图
+      - button "模拟" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - generic [ref=e25]: 模拟
+      - button "帮助" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - generic [ref=e31]: 帮助
+    - button "新建场景 (Ctrl+N)" [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+    - button "暂存到浏览器 (Ctrl+S)" [ref=e37] [cursor=pointer]:
+      - img [ref=e38]
+    - button "导出文件... (Ctrl+E)" [ref=e42] [cursor=pointer]:
+      - img [ref=e43]
+    - button "无法撤销" [ref=e47]:
+      - img [ref=e48]
+    - button "无法重做" [ref=e50]:
+      - img [ref=e51]
+    - generic "当前编辑的场景" [ref=e54]:
+      - generic [ref=e55]: 📄
+      - generic [ref=e57]: 未打开场景
+    - tablist "应用模式切换" [ref=e59]:
+      - tab "模拟" [selected] [ref=e60] [cursor=pointer]:
+        - img [ref=e62]
+        - generic [ref=e65]: 模拟
+      - tab "绘图" [ref=e66] [cursor=pointer]:
+        - img [ref=e68]
+        - generic [ref=e72]: 绘图
+  - generic [ref=e73]:
+    - generic [ref=e74]:
+      - heading "光源" [level=4] [ref=e75]
+      - button "点光源" [ref=e76] [cursor=pointer]:
+        - img [ref=e77]
+        - generic [ref=e81]: 点光源
+      - button "扇形光" [ref=e82] [cursor=pointer]:
+        - img [ref=e83]
+        - generic [ref=e86]: 扇形光
+      - button "线光源" [ref=e87] [cursor=pointer]:
+        - img [ref=e88]
+        - generic [ref=e89]: 线光源
+      - button "白光" [ref=e90] [cursor=pointer]:
+        - img [ref=e91]
+        - generic [ref=e94]: 白光
+      - button "点光源" [ref=e95] [cursor=pointer]:
+        - img [ref=e96]
+        - generic [ref=e98]: 点光源
+      - button "LED" [ref=e99] [cursor=pointer]:
+        - img [ref=e100]
+        - generic [ref=e103]: LED
+      - button "脉冲激光" [ref=e104] [cursor=pointer]:
+        - img [ref=e105]
+        - generic [ref=e107]: 脉冲激光
+      - separator [ref=e108]
+      - heading "透镜" [level=4] [ref=e109]
+      - button "薄透镜" [ref=e110] [cursor=pointer]:
+        - img [ref=e111]
+        - generic [ref=e114]: 薄透镜
+      - button "柱面透镜" [ref=e115] [cursor=pointer]:
+        - img [ref=e116]
+        - generic [ref=e118]: 柱面透镜
+      - button "非球面" [ref=e119] [cursor=pointer]:
+        - img [ref=e120]
+        - generic [ref=e123]: 非球面
+      - button "GRIN" [ref=e124] [cursor=pointer]:
+        - img [ref=e125]
+        - generic [ref=e127]: GRIN
+      - separator [ref=e128]
+      - heading "反射镜" [level=4] [ref=e129]
+      - button "平面镜" [ref=e130] [cursor=pointer]:
+        - img [ref=e131]
+        - generic [ref=e138]: 平面镜
+      - button "凹面镜" [ref=e139] [cursor=pointer]:
+        - img [ref=e140]
+        - generic [ref=e145]: 凹面镜
+      - button "凸面镜" [ref=e146] [cursor=pointer]:
+        - img [ref=e147]
+        - generic [ref=e152]: 凸面镜
+      - button "抛物面镜" [ref=e153] [cursor=pointer]:
+        - img [ref=e154]
+        - generic [ref=e159]: 抛物面镜
+      - button "二向色镜" [ref=e160] [cursor=pointer]:
+        - img [ref=e161]
+        - generic [ref=e162]: 二向色镜
+      - button "金属镜" [ref=e163] [cursor=pointer]:
+        - img [ref=e164]
+        - generic [ref=e168]: 金属镜
+      - button "环形镜" [ref=e169] [cursor=pointer]:
+        - img [ref=e170]
+        - generic [ref=e173]: 环形镜
+      - separator [ref=e174]
+      - heading "其它元件" [level=4] [ref=e175]
+      - button "屏幕" [ref=e176] [cursor=pointer]:
+        - img [ref=e177]
+        - generic [ref=e178]: 屏幕
+      - button "棱镜" [ref=e179] [cursor=pointer]:
+        - img [ref=e180]
+        - generic [ref=e182]: 棱镜
+      - button "衍射光栅" [ref=e183] [cursor=pointer]:
+        - img [ref=e184]
+        - generic [ref=e185]: 衍射光栅
+      - button "光阑/多缝" [ref=e186] [cursor=pointer]:
+        - img [ref=e187]
+        - generic [ref=e191]: 光阑/多缝
+      - button "分束器 (BS/PBS)" [ref=e192] [cursor=pointer]:
+        - img [ref=e193]
+        - generic [ref=e197]:
+          - text: 分束器
+          - text: (BS/PBS)
+      - button "介质块" [ref=e198] [cursor=pointer]:
+        - img [ref=e199]
+        - generic [ref=e201]: 介质块
+      - button "光度计" [ref=e202] [cursor=pointer]:
+        - img [ref=e203]
+        - generic [ref=e206]: 光度计
+      - button "CCD相机" [ref=e207] [cursor=pointer]:
+        - img [ref=e208]
+        - generic [ref=e210]: CCD相机
+      - button "光谱仪" [ref=e211] [cursor=pointer]:
+        - img [ref=e212]
+        - generic [ref=e215]: 光谱仪
+      - button "功率计" [ref=e216] [cursor=pointer]:
+        - img [ref=e217]:
+          - generic [ref=e219]: W
+        - generic [ref=e220]: 功率计
+      - button "偏振分析" [ref=e221] [cursor=pointer]:
+        - img [ref=e222]
+        - generic [ref=e225]: 偏振分析
+      - button "光纤" [ref=e226] [cursor=pointer]:
+        - img [ref=e227]
+        - generic [ref=e231]: 光纤
+      - separator [ref=e232]
+      - heading "偏振与波片" [level=4] [ref=e233]
+      - button "偏振片" [ref=e234] [cursor=pointer]:
+        - img [ref=e235]
+        - generic [ref=e238]: 偏振片
+      - button "半波片" [ref=e239] [cursor=pointer]:
+        - img [ref=e240]:
+          - generic [ref=e242]: λ/2
+        - generic [ref=e243]: 半波片
+      - button "四分之一波片" [ref=e244] [cursor=pointer]:
+        - img [ref=e245]:
+          - generic [ref=e247]: λ/4
+        - generic [ref=e248]: 四分之一波片
+      - button "法拉第旋光器" [ref=e249] [cursor=pointer]:
+        - img [ref=e250]
+        - generic [ref=e254]: 法拉第旋光器
+      - button "Wollaston" [ref=e255] [cursor=pointer]:
+        - img [ref=e256]
+        - generic [ref=e259]: Wollaston
+      - separator [ref=e260]
+      - heading "高级" [level=4] [ref=e261]
+      - button "AOM" [ref=e262] [cursor=pointer]:
+        - img [ref=e263]
+        - generic [ref=e266]: AOM
+      - button "EOM" [ref=e267] [cursor=pointer]:
+        - img [ref=e268]
+        - generic [ref=e270]: EOM
+      - button "衰减器" [ref=e271] [cursor=pointer]:
+        - img [ref=e272]
+        - generic [ref=e275]: 衰减器
+      - button "斩波器" [ref=e276] [cursor=pointer]:
+        - img [ref=e277]
+        - generic [ref=e281]: 斩波器
+      - button "光隔离器" [ref=e282] [cursor=pointer]:
+        - img [ref=e283]
+        - generic [ref=e286]: 光隔离器
+      - separator [ref=e287]
+      - heading "原子物理" [level=4] [ref=e288]
+      - button "原子气室" [ref=e289] [cursor=pointer]:
+        - img [ref=e290]
+        - generic [ref=e295]: 原子气室
+      - button "磁场线圈" [ref=e296] [cursor=pointer]:
+        - img [ref=e297]
+        - generic [ref=e301]: 磁场线圈
+      - separator [ref=e302]
+      - heading "干涉仪" [level=4] [ref=e303]
+      - button "F-P腔" [ref=e304] [cursor=pointer]:
+        - img [ref=e305]
+        - generic [ref=e306]: F-P腔
+      - separator [ref=e307]
+      - heading "辅助工具" [level=4] [ref=e308]
+      - button "自定义元件" [ref=e309] [cursor=pointer]:
+        - img [ref=e310]
+        - generic [ref=e312]: 自定义元件
+    - generic [ref=e313]:
+      - application "光学模拟画布 - 使用鼠标拖拽组件，滚轮缩放，右键打开菜单" [ref=e314]
+      - status [ref=e315]
+    - generic [ref=e316]:
+      - generic [ref=e317]:
+        - button "属性" [ref=e318] [cursor=pointer]
+        - button "设置" [ref=e319] [cursor=pointer]
+        - button "项目" [ref=e320] [cursor=pointer]
+        - button "信息" [ref=e321] [cursor=pointer]
+      - generic [ref=e322]:
+        - paragraph [ref=e324]: 请先选中一个元件...
+        - button "删除选中元件" [disabled] [ref=e325]

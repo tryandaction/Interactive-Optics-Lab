@@ -198,6 +198,8 @@ const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings';
 
 let sceneModified = false;     // Flag: Has the scene been modified since last save/load?
 let isImporting = false;       // Lock to prevent double import clicks/triggers
+let clipboardComponents = null; // Simulation-mode clipboard cache
+let clipboardPasteCount = 0;
 const LOCALSTORAGE_SCENE_KEY = 'opticsLabSceneData'; // Key for saving/loading scene
 // let showGrid = true;         // Default: Show grid initially
 // const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings'; // Key for saving settings
@@ -293,8 +295,9 @@ async function saveCurrentSceneToProject() {
         return;
     }
     
+    const projectSceneModified = !!currentScene?.isModified;
     // 如果没有修改，不需要保存
-    if (!sceneModified) {
+    if (!sceneModified && !projectSceneModified) {
         console.log('[Save] No changes to save');
         showTemporaryMessage('没有需要保存的更改', 'info');
         return;
@@ -317,6 +320,9 @@ async function saveCurrentSceneToProject() {
         
         // 保存场景
         await projectManager.saveScene(components, settings);
+        if (currentScene) {
+            currentScene.isModified = false;
+        }
         
         // 标记为已保存
         markSceneAsSaved();
@@ -1922,6 +1928,12 @@ function getMousePos(canvasElement, event) {
             return new Vector(0, 0);
         }
     }
+    if (!event || typeof event.clientX !== 'number' || typeof event.clientY !== 'number') {
+        if (mousePos && typeof mousePos.clone === 'function') {
+            return mousePos.clone();
+        }
+        return new Vector(0, 0);
+    }
     const rect = canvasElement.getBoundingClientRect();
     // 1. Mouse position relative to canvas top-left (CSS pixels)
     const cssX = event.clientX - rect.left;
@@ -1936,6 +1948,54 @@ function getMousePos(canvasElement, event) {
     return new Vector(logicalX, logicalY);
 }
 // --- END OF REPLACEMENT ---
+
+function resetInteractionState(options = {}) {
+    const { clearSelection = false, clearCursor = true } = options;
+
+    isDragging = false;
+    draggingComponents = [];
+    dragStartOffsets.clear();
+    ongoingActionState = null;
+
+    isLabelDragging = false;
+    draggedLabel = null;
+    labelDragOffset = null;
+    labelDragStartPos = null;
+
+    isHandleDragging = false;
+    handleDragType = null;
+    handleDragHandle = null;
+    handleDragItem = null;
+    handleDragStartBB = null;
+    handleDragStartPos = null;
+
+    isMarqueeSelecting = false;
+    marqueeStart = null;
+    marqueeEnd = null;
+
+    if (isPanning) {
+        isPanning = false;
+        lastPanMousePos = null;
+    }
+
+    activeGuides = [];
+    mouseIsDown = false;
+
+    if (clearSelection) {
+        selectedComponents.forEach(comp => comp.selected = false);
+        selectedComponents = [];
+        selectedComponent = null;
+        updateInspector();
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr?.selection) interactionMgr.selection.clearSelection();
+    }
+
+    if (clearCursor && canvas) {
+        canvas.style.cursor = 'default';
+    }
+
+    needsRetrace = true;
+}
 
 // --- REPLACEMENT for handleMouseDown (V5 - Multi-Select Logic) ---
 function handleMouseDown(event) {
@@ -2316,8 +2376,6 @@ function handleMouseDown(event) {
         historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents)); // Use the arrays before they were potentially modified further
         updateUndoRedoUI(); // Update buttons now that a command is added
         console.log("Selection changed, SelectCommand added.");
-        sceneModified = true; // Changing selection counts as modification
-        markSceneAsModified();
     } else {
         // console.log("Selection state did not change."); // Optional log
     }
@@ -3091,24 +3149,10 @@ function handleMouseLeave(event) {
             } catch (e) { console.error("Error in endDrag on mouse leave (component drag):", e); }
         });
     }
-    // If mouse leaves canvas WHILE panning
     if (isPanning) {
         console.log("Mouse left canvas during pan, stopping pan.");
-        isPanning = false;
-        lastPanMousePos = null;
-        canvas.style.cursor = 'default';
     }
-    // Reset general flags
-    isDragging = false;
-    draggingComponents = []; // Clear dragging components array
-    dragStartOffsets.clear(); // Clear offsets
-    mouseIsDown = false; // Reset mouse down state when leaving
-    ongoingActionState = null; // Clear ongoing action state
-    // componentToAdd = null; // Optionally reset tool selection
-    // clearToolbarSelection();
-    if (!isDragging && !isPanning) {
-        canvas.style.cursor = 'default';
-    }
+    resetInteractionState({ clearSelection: false });
 }
 // --- END OF REPLACEMENT ---
 // --- End Corrected handleMouseLeave ---
@@ -3268,6 +3312,78 @@ function _showInlineEditor(clientX, clientY, initialText, onConfirm) {
     input.addEventListener('blur', () => finish(true));
 }
 
+function copySelectedComponentsToClipboard() {
+    if (!selectedComponents || selectedComponents.length === 0) {
+        return false;
+    }
+    const copied = [];
+    selectedComponents.forEach(comp => {
+        try {
+            if (typeof comp?.toJSON === 'function') {
+                copied.push(comp.toJSON());
+            }
+        } catch (e) {
+            console.error('复制组件失败:', e);
+        }
+    });
+    if (copied.length === 0) {
+        return false;
+    }
+    clipboardComponents = copied;
+    clipboardPasteCount = 0;
+    return true;
+}
+
+function pasteClipboardComponents() {
+    if (!clipboardComponents || clipboardComponents.length === 0) {
+        return false;
+    }
+    clipboardPasteCount += 1;
+    const offset = new Vector(20 * clipboardPasteCount, 20 * clipboardPasteCount);
+    const duplicated = [];
+    clipboardComponents.forEach(data => {
+        try {
+            const basePos = data?.pos ?? { x: data?.posX ?? data?.x ?? 0, y: data?.posY ?? data?.y ?? 0 };
+            const posX = (basePos?.x ?? 0) + offset.x;
+            const posY = (basePos?.y ?? 0) + offset.y;
+            const ComponentClass = window[data.type];
+            if (!ComponentClass) return;
+            const newComp = new ComponentClass(new Vector(posX, posY));
+            Object.keys(data).forEach(key => {
+                if (key !== 'type' && key !== 'id' && key !== 'uuid' && key !== 'pos' && key !== 'posX' && key !== 'posY') {
+                    try { newComp.setProperty?.(key, data[key]); } catch (_) {}
+                }
+            });
+            components.push(newComp);
+            duplicated.push(newComp);
+        } catch (e) {
+            console.error('粘贴组件失败:', e);
+        }
+    });
+    if (duplicated.length === 0) {
+        return false;
+    }
+    selectedComponents.forEach(c => c.selected = false);
+    selectedComponents = duplicated;
+    duplicated.forEach(c => c.selected = true);
+    selectedComponent = duplicated[0] || null;
+    needsRetrace = true;
+    markSceneAsModified();
+    const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+    const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+    if (interactionMgr && window.ActionType) {
+        interactionMgr.recordAction(
+            window.ActionType.ADD_COMPONENT,
+            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+            { componentIds: duplicated.map(c => c.id) }
+        );
+        interactionMgr.selection.clearSelection();
+        duplicated.forEach(c => interactionMgr.selection.select(c, true));
+    }
+    updateInspector();
+    return true;
+}
+
 
 // --- REPLACEMENT for handleKeyDown (V4 - Undo/Redo Shortcuts & Corrected 'r' key logic) ---
 function handleKeyDown(event) {
@@ -3281,7 +3397,7 @@ function handleKeyDown(event) {
     }
 
     // --- Ctrl+S: Save current scene ---
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         saveCurrentSceneToProject();
         return;
@@ -3351,6 +3467,35 @@ function handleKeyDown(event) {
         }
         updateInspector();
         needsRetrace = true;
+        return;
+    }
+
+    // --- Ctrl+C / Ctrl+V: Copy/Paste (simulation-mode fallback) ---
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        const diagramIntegration = window.getDiagramModeIntegration?.();
+        const interactionMgr = diagramIntegration?.isDiagramMode?.()
+            ? diagramIntegration.getModule?.('interactionManager')
+            : null;
+        if (interactionMgr?.copySelection) {
+            interactionMgr.copySelection();
+            return;
+        }
+        copySelectedComponentsToClipboard();
+        return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        const diagramIntegration = window.getDiagramModeIntegration?.();
+        const interactionMgr = diagramIntegration?.isDiagramMode?.()
+            ? diagramIntegration.getModule?.('interactionManager')
+            : null;
+        if (interactionMgr?.paste) {
+            interactionMgr.paste();
+            return;
+        }
+        pasteClipboardComponents();
         return;
     }
 
@@ -4885,6 +5030,13 @@ function loadSceneFromData(sceneData, options = {}) {
                         const bsType = (compData.splitterType || compData.type) === 'PBS' ? 'PBS' : 'BS';
                         newComp = new BeamSplitter(pos, compData.length, angleDeg, bsType, compData.splitRatio, compData.pbsUnpolarizedReflectivity);
                         break;
+                    case 'PBS':
+                        newComp = new BeamSplitter(pos, compData.length, angleDeg, 'PBS', compData.splitRatio, compData.pbsUnpolarizedReflectivity);
+                        break;
+                    case 'AtomicCell':
+                        newComp = new AtomicCell(pos, compData.width, compData.height, angleDeg, compData.atomType, compData.density, compData.temperature);
+                        if (compData.hasOwnProperty('transitionLine')) newComp.setProperty?.('transitionLine', compData.transitionLine);
+                        break;
                     case 'DielectricBlock':
                         newComp = new DielectricBlock(pos, compData.width, compData.height, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB_nm2, compData.absorptionCoeff, compData.showEvanescentWave);
                         break;
@@ -5432,6 +5584,7 @@ function setupEventListeners() {
     document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
     document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
         e.preventDefault(); 
+        resetInteractionState({ clearSelection: true });
         // 切换到专业绘图模式
         const trySwitch = () => {
             if (typeof window.getModeManager === 'function') {
@@ -6161,6 +6314,7 @@ function switchMode(newMode) {
     console.log(`Switching mode from ${oldMode} to ${newMode}`);
     currentMode = newMode;
     hideModeHint();
+    resetInteractionState({ clearSelection: true });
 
     needsRetrace = true;
 
@@ -6206,6 +6360,7 @@ let touchState = {
     // --- ADD THESE ---
     touchStartTime: 0,
     touchStartPos: null, // Store logical position at touch start
+    touchStartClient: null, // Store CSS pixel position at touch start
     isDraggingConfirmed: false, // Flag to confirm drag intent
     dragThreshold: 5 // Pixels (logical) movement needed to confirm drag
     // --- END ADD ---
@@ -6257,6 +6412,7 @@ function handleTouchStart(event) {
         touchState.lastSingleTouchId = touch.identifier;
         touchState.touchStartTime = performance.now(); // Record time
         touchState.touchStartPos = getTouchPos(canvas, touch); // Record logical position
+        touchState.touchStartClient = { x: touch.clientX, y: touch.clientY }; // Record CSS position
 
         // -- DON'T call handleMouseDown here anymore --
 
@@ -6283,6 +6439,7 @@ function handleTouchStart(event) {
         touchState.isDraggingConfirmed = false;
         touchState.touchStartTime = 0;
         touchState.touchStartPos = null;
+        touchState.touchStartClient = null;
 
         const touch1 = event.touches[0];
         const touch2 = event.touches[1];
@@ -6354,8 +6511,8 @@ function handleTouchMove(event) {
 
                     // --- Initiate the Drag (like original mousedown) ---
                     const simulatedMouseDownEvent = {
-                        clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || event.touches[0].clientX, // Use stored start touch if available
-                        clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || event.touches[0].clientY,
+                        clientX: touchState.touchStartClient?.x ?? touch.clientX,
+                        clientY: touchState.touchStartClient?.y ?? touch.clientY,
                         button: 0,
                         preventDefault: () => { }, // Doesn't need to prevent default here
                     };
@@ -6422,8 +6579,8 @@ function handleTouchEnd(event) {
             // Simulate a MouseDown *and* MouseUp at the start position to trigger selection/placement
             if (touchState.touchStartPos && endedTouch) { // Ensure we have start pos
                 const simulatedMouseDownEvent = {
-                    clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || endedTouch.clientX,
-                    clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || endedTouch.clientY,
+                    clientX: touchState.touchStartClient?.x ?? endedTouch.clientX,
+                    clientY: touchState.touchStartClient?.y ?? endedTouch.clientY,
                     button: 0,
                     preventDefault: () => { },
                 };
@@ -6454,6 +6611,7 @@ function handleTouchEnd(event) {
         touchState.isDraggingConfirmed = false;
         touchState.touchStartTime = 0;
         touchState.touchStartPos = null;
+        touchState.touchStartClient = null;
 
     }
 
@@ -6463,6 +6621,7 @@ function handleTouchEnd(event) {
         touchState.isDown = false;
         touchState.isMultiTouch = false;
         touchState.lastSingleTouchId = null;
+        touchState.touchStartClient = null;
         if (!isDragging) { // Reset cursor if not already handled by mouseup->mousemove
             canvas.style.cursor = 'default';
         }
@@ -6660,6 +6819,7 @@ function bootstrapDiagramMode() {
  */
 function handleModeChange(mode, config) {
     console.log(`模式已切换到: ${mode}`);
+    resetInteractionState({ clearSelection: true });
 
     // 更新UI显示
     updateModeSpecificUI(mode);
@@ -6697,10 +6857,14 @@ function updateModeSpecificUI(mode) {
 
 // --- 自动恢复管理器初始化 ---
 let _autoRecoveryManager = null;
+let _autoRecoveryWarned = false;
 
 function _initAutoRecovery() {
     if (typeof AutoRecoveryManager === 'undefined') {
-        console.warn('AutoRecoveryManager not available, skipping auto-save setup.');
+        if (!_autoRecoveryWarned) {
+            console.warn('AutoRecoveryManager not available, skipping auto-save setup.');
+            _autoRecoveryWarned = true;
+        }
         return;
     }
     try {

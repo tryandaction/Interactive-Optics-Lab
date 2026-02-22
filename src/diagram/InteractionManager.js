@@ -289,11 +289,15 @@ export class SelectionManager {
         if (!this.isSelecting || !this.selectionBox) return;
         
         const box = this._normalizeBox(this.selectionBox);
+        const scale = (typeof window !== 'undefined' && typeof window.cameraScale === 'number' && window.cameraScale > 0)
+            ? window.cameraScale
+            : 1;
+        const invScale = 1 / Math.max(1e-6, scale);
         
         ctx.save();
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1 * invScale;
+        ctx.setLineDash([5 * invScale, 5 * invScale]);
         ctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
         
         ctx.fillStyle = 'rgba(0, 120, 212, 0.1)';
@@ -913,6 +917,13 @@ export class InteractionManager {
         this.hoveredItem = item;
     }
 
+    _getCameraScale() {
+        if (typeof window === 'undefined') return 1;
+        const scale = window.cameraScale;
+        if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) return 1;
+        return scale;
+    }
+
     /**
      * 渲染交互元素
      */
@@ -943,6 +954,8 @@ export class InteractionManager {
      * @private
      */
     _renderMultiSelectionBounds(ctx, items) {
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         items.forEach(item => {
             const bb = this._getItemBounds(item);
@@ -952,7 +965,7 @@ export class InteractionManager {
             maxY = Math.max(maxY, bb.y + bb.height);
         });
 
-        const pad = 8;
+        const pad = 8 * invScale;
         const rx = minX - pad;
         const ry = minY - pad;
         const rw = (maxX - minX) + pad * 2;
@@ -960,22 +973,26 @@ export class InteractionManager {
 
         ctx.save();
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1 * invScale;
+        ctx.setLineDash([4 * invScale, 4 * invScale]);
         ctx.strokeRect(rx, ry, rw, rh);
         ctx.setLineDash([]);
 
         // 选中数量标签
         const count = items.length;
-        const fontSize = 11;
+        const fontSize = 11 * invScale;
         ctx.font = `${fontSize}px sans-serif`;
         const text = `${count} selected`;
         const textWidth = ctx.measureText(text).width;
-        const labelX = rx + rw / 2 - textWidth / 2 - 6;
-        const labelY = ry - 8;
+        const labelX = rx + rw / 2 - textWidth / 2 - 6 * invScale;
+        const labelY = ry - 8 * invScale;
         ctx.fillStyle = '#0078d4';
         ctx.beginPath();
-        const rlx = labelX, rly = labelY - fontSize, rlw = textWidth + 12, rlh = fontSize + 6, rlr = 3;
+        const rlx = labelX;
+        const rly = labelY - fontSize;
+        const rlw = textWidth + 12 * invScale;
+        const rlh = fontSize + 6 * invScale;
+        const rlr = 3 * invScale;
         if (typeof ctx.roundRect === 'function') {
             ctx.roundRect(rlx, rly, rlw, rlh, rlr);
         } else {
@@ -994,7 +1011,7 @@ export class InteractionManager {
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(text, rx + rw / 2, labelY - 1);
+        ctx.fillText(text, rx + rw / 2, labelY - 1 * invScale);
 
         ctx.restore();
     }
@@ -1006,7 +1023,9 @@ export class InteractionManager {
     _renderHoverHighlight(ctx, item) {
         const bb = this._getItemBounds(item);
 
-        const pad = 4;
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
         const rx = bb.x - pad;
         const ry = bb.y - pad;
         const rw = bb.width + pad * 2;
@@ -1014,7 +1033,7 @@ export class InteractionManager {
 
         ctx.save();
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * invScale;
         ctx.setLineDash([]);
         ctx.strokeRect(rx, ry, rw, rh);
         ctx.restore();
@@ -1044,13 +1063,15 @@ export class InteractionManager {
 
         const item = selectedItems[0];
         const bb = this._getItemBounds(item);
-        const pad = 4;
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
         const rx = bb.x - pad, ry = bb.y - pad;
         const rw = bb.width + pad * 2, rh = bb.height + pad * 2;
-        const threshold = 6;
+        const threshold = 6 * invScale;
 
         // 旋转手柄
-        const rotX = rx + rw / 2, rotY = ry - 20;
+        const rotX = rx + rw / 2, rotY = ry - 20 * invScale;
         if (Math.hypot(mousePos.x - rotX, mousePos.y - rotY) <= threshold) {
             return { type: 'rotate', item, cursor: 'grab' };
         }
@@ -1091,7 +1112,9 @@ export class InteractionManager {
     _renderSelectionHighlight(ctx, item) {
         const bb = this._getItemBounds(item);
 
-        const pad = 4;
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
         const rx = bb.x - pad;
         const ry = bb.y - pad;
         const rw = bb.width + pad * 2;
@@ -1101,12 +1124,12 @@ export class InteractionManager {
 
         // 1px 蓝色选中边框
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * invScale;
         ctx.setLineDash([]);
         ctx.strokeRect(rx, ry, rw, rh);
 
         // 角手柄：8×8 白色填充 + 1px 蓝色描边
-        const cs = 8;
+        const cs = 8 * invScale;
         const cornerPositions = [
             { x: rx,      y: ry },       // 左上
             { x: rx + rw, y: ry },       // 右上
@@ -1115,14 +1138,14 @@ export class InteractionManager {
         ];
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * invScale;
         cornerPositions.forEach(c => {
             ctx.fillRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
             ctx.strokeRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
         });
 
         // 边中点手柄：6×6 白色填充 + 1px 蓝色描边
-        const ms = 6;
+        const ms = 6 * invScale;
         const midPositions = [
             { x: rx + rw / 2, y: ry },          // 上中
             { x: rx + rw / 2, y: ry + rh },     // 下中
@@ -1135,11 +1158,11 @@ export class InteractionManager {
         });
 
         // 旋转手柄：顶部中心上方的圆形手柄 + 连接线
-        const rotHandleY = ry - 20;
+        const rotHandleY = ry - 20 * invScale;
         const rotHandleX = rx + rw / 2;
         // 连接线
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * invScale;
         ctx.beginPath();
         ctx.moveTo(rotHandleX, ry);
         ctx.lineTo(rotHandleX, rotHandleY);
@@ -1147,9 +1170,9 @@ export class InteractionManager {
         // 圆形手柄
         ctx.fillStyle = '#ffffff';
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1 * invScale;
         ctx.beginPath();
-        ctx.arc(rotHandleX, rotHandleY, 5, 0, Math.PI * 2);
+        ctx.arc(rotHandleX, rotHandleY, 5 * invScale, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 

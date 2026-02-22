@@ -299,11 +299,31 @@
     </div>
 
     <script src="../../src/diagram/index.js" type="module"></script>
-    <script src="./DiagramSystemTests.js"></script>
+    <script src="../../src/compat/legacy-globals.js" type="module"></script>
+    <script src="../../src/libs/jspdf.umd.min.js"></script>
+    <script src="./DiagramSystemTests.js" type="module"></script>
     <script>
         let currentResults = null;
+        function ensureDiagramAssets() {
+            if (window.__diagramAssetsReady) return;
+            try {
+                if (typeof window.registerProfessionalIcons === 'function') {
+                    window.registerProfessionalIcons();
+                }
+                const iconManager = window.getProfessionalIconManager?.();
+                if (typeof window.registerAllExtendedIcons === 'function') {
+                    window.registerAllExtendedIcons(iconManager);
+                } else if (typeof window.registerExtendedIcons === 'function') {
+                    window.registerExtendedIcons();
+                }
+            } catch (e) {
+                console.warn('Diagram assets init failed:', e);
+            }
+            window.__diagramAssetsReady = true;
+        }
 
         window.runTests = async function() {
+            ensureDiagramAssets();
             const resultsDiv = document.getElementById('results');
             const summaryDiv = document.getElementById('summary');
             

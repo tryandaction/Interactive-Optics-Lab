@@ -12,6 +12,8 @@
  * Uses jsPDF library for PDF generation
  */
 
+let warnedMissingJsPDF = false;
+
 export class PDFExporter {
     constructor() {
         this.defaultOptions = {
@@ -58,7 +60,10 @@ export class PDFExporter {
 
         // Check if jsPDF is available
         if (typeof window.jspdf === 'undefined') {
-            console.warn('jsPDF library not loaded, falling back to SVG export');
+            if (!warnedMissingJsPDF) {
+                console.warn('jsPDF library not loaded, falling back to SVG export');
+                warnedMissingJsPDF = true;
+            }
             return this.fallbackToSVG(diagram, opts);
         }
 

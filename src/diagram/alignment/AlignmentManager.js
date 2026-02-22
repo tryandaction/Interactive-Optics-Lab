@@ -326,11 +326,15 @@ export class AlignmentManager {
      */
     renderSmartGuides(ctx) {
         if (!this.showSmartGuides || this.smartGuides.length === 0) return;
+        const scale = (typeof window !== 'undefined' && typeof window.cameraScale === 'number' && window.cameraScale > 0)
+            ? window.cameraScale
+            : 1;
+        const invScale = 1 / Math.max(1e-6, scale);
         
         ctx.save();
         ctx.strokeStyle = this.smartGuideColor;
-        ctx.lineWidth = this.smartGuideWidth;
-        ctx.setLineDash(this.smartGuideDash);
+        ctx.lineWidth = this.smartGuideWidth * invScale;
+        ctx.setLineDash(this.smartGuideDash.map(v => v * invScale));
         
         this.smartGuides.forEach(guide => {
             ctx.beginPath();
@@ -346,14 +350,14 @@ export class AlignmentManager {
             // 绘制标签
             if (guide.label) {
                 ctx.fillStyle = this.smartGuideColor;
-                ctx.font = '10px Arial';
+                ctx.font = `${10 * invScale}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
                 if (guide.type === 'vertical') {
-                    ctx.fillText(guide.label, guide.position, guide.y1 - 10);
+                    ctx.fillText(guide.label, guide.position, guide.y1 - 10 * invScale);
                 } else {
-                    ctx.fillText(guide.label, guide.x1 - 20, guide.position);
+                    ctx.fillText(guide.label, guide.x1 - 20 * invScale, guide.position);
                 }
             }
         });

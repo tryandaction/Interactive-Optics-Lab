@@ -5,6 +5,18 @@
  * 这些测试验证系统在各种输入下的不变性和正确性
  */
 
+const _GLOBAL = (typeof window !== 'undefined') ? window : globalThis;
+const getAdvancedTemplateManager = (...args) => _GLOBAL.getAdvancedTemplateManager?.(...args);
+const getAllTemplates = (...args) => _GLOBAL.getAllTemplates?.(...args);
+const getPDFExporter = (...args) => _GLOBAL.getPDFExporter?.(...args);
+const getDiagramValidator = (...args) => _GLOBAL.getDiagramValidator?.(...args);
+const getProfessionalIconManager = (...args) => _GLOBAL.getProfessionalIconManager?.(...args);
+const getAutoRouter = (...args) => _GLOBAL.getAutoRouter?.(...args);
+const getEventBus = (...args) => _GLOBAL.getEventBus?.(...args);
+const getKeyboardShortcutManager = (...args) => _GLOBAL.getKeyboardShortcutManager?.(...args);
+const getUnifiedHistoryManager = (...args) => _GLOBAL.getUnifiedHistoryManager?.(...args);
+const getThemeManager = (...args) => _GLOBAL.getThemeManager?.(...args);
+
 /**
  * 简单的属性测试框架
  */
@@ -799,7 +811,7 @@ function testValidationSystem() {
                 // Valid diagram
                 {
                     components: [
-                        { id: 'c1', x: 100, y: 100, width: 50, height: 50 }
+                        { id: 'c1', type: 'Mirror', pos: { x: 100, y: 100 }, width: 50, height: 50 }
                     ],
                     rays: [],
                     annotations: []
@@ -807,8 +819,8 @@ function testValidationSystem() {
                 // Overlapping components
                 {
                     components: [
-                        { id: 'c1', x: 100, y: 100, width: 50, height: 50 },
-                        { id: 'c2', x: 110, y: 110, width: 50, height: 50 }
+                        { id: 'c1', type: 'Mirror', pos: { x: 100, y: 100 }, width: 50, height: 50 },
+                        { id: 'c2', type: 'Mirror', pos: { x: 110, y: 110 }, width: 50, height: 50 }
                     ],
                     rays: [],
                     annotations: []
@@ -816,7 +828,7 @@ function testValidationSystem() {
                 // Missing component IDs
                 {
                     components: [
-                        { x: 100, y: 100, width: 50, height: 50 }
+                        { type: 'Mirror', pos: { x: 100, y: 100 }, width: 50, height: 50 }
                     ],
                     rays: [],
                     annotations: []
@@ -933,25 +945,26 @@ function testIconSVGPaths() {
             const icon = allIcons[Math.floor(Math.random() * allIcons.length)];
             
             // Verify SVG path exists and is valid
-            if (!icon.svg || typeof icon.svg !== 'string') {
+            const svg = icon.svg || icon.svgContent;
+            if (!svg || typeof svg !== 'string') {
                 results.push({
                     pass: false,
                     input: { iconId: icon.id },
                     expected: 'Valid SVG string',
-                    actual: icon.svg,
+                    actual: svg,
                     error: 'Missing or invalid SVG path'
                 });
                 continue;
             }
             
             // Check if SVG contains basic elements
-            const hasSVGTag = icon.svg.includes('<svg') || icon.svg.includes('M ') || icon.svg.includes('path');
+            const hasSVGTag = svg.includes('<svg') || svg.includes('M ') || svg.includes('path');
             if (!hasSVGTag) {
                 results.push({
                     pass: false,
                     input: { iconId: icon.id },
                     expected: 'SVG with valid elements',
-                    actual: icon.svg.substring(0, 100),
+                    actual: svg.substring(0, 100),
                     error: 'SVG does not contain valid elements'
                 });
                 continue;
@@ -1082,8 +1095,12 @@ function testIconCategories() {
             const cat1 = categoryIds[Math.floor(Math.random() * categoryIds.length)];
             const cat2 = categoryIds[Math.floor(Math.random() * categoryIds.length)];
             
-            const icons1 = iconManager.getIconsByCategory(cat1);
-            const icons2 = iconManager.getIconsByCategory(cat2);
+            const toIcons = (items) => (items || []).map(item => {
+                if (typeof item === 'string') return iconManager.getIconDefinition(item);
+                return item;
+            }).filter(Boolean);
+            const icons1 = toIcons(iconManager.getIconsByCategory(cat1));
+            const icons2 = toIcons(iconManager.getIconsByCategory(cat2));
             
             // If same category, skip
             if (cat1 === cat2) {
@@ -1781,7 +1798,8 @@ function testShortcutRegistration() {
             
             // Register shortcut
             const registered = keyboard.register(shortcut, handler, {
-                description: 'Test shortcut'
+                description: 'Test shortcut',
+                override: true
             });
             
             if (!registered) {
@@ -2068,7 +2086,8 @@ function testUndoRedoConsistency() {
                 type: 'test:modify',
                 name: 'Modify Value',
                 undo: () => { value = 0; },
-                redo: () => { value = 10; }
+                redo: () => { value = 10; },
+                batchable: false
             });
             
             // Execute
@@ -2308,7 +2327,8 @@ function testHistoryNavigation() {
                     type: 'test:set',
                     name: `Set ${j}`,
                     undo: () => { value = targetValue - 1; },
-                    redo: () => { value = targetValue; }
+                    redo: () => { value = targetValue; },
+                    batchable: false
                 });
                 value = j;
             }

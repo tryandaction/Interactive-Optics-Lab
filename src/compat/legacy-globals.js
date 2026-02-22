@@ -97,6 +97,7 @@ import { LocalStorageAdapter } from '../managers/LocalStorageAdapter.js';
 import { ProjectManager } from '../managers/ProjectManager.js';
 import { ActiveSceneManager } from '../managers/ActiveSceneManager.js';
 import { SyncService } from '../managers/SyncService.js';
+import { AutoRecoveryManager } from '../managers/AutoRecoveryManager.js';
 
 // 应用
 import { SimulationApp } from '../app/SimulationApp.js';
@@ -106,7 +107,11 @@ import {
     ModeManager, APP_MODES, getModeManager, resetModeManager,
     ModeSwitcher, createModeSwitcher,
     DiagramModeIntegration, getDiagramModeIntegration, initializeDiagramMode, resetDiagramModeIntegration,
-    openExportDialog, getExportDialog
+    openExportDialog, getExportDialog,
+    getAdvancedTemplateManager, getAllTemplates, getTemplateById, searchTemplates,
+    getPDFExporter, getDiagramValidator,
+    getProfessionalIconManager, registerProfessionalIcons, registerExtendedIcons, registerAllExtendedIcons,
+    getAutoRouter
 } from '../diagram/index.js';
 
 // 导出到全局
@@ -241,6 +246,7 @@ if (typeof window !== 'undefined') {
     window.ProjectManager = ProjectManager;
     window.ActiveSceneManager = ActiveSceneManager;
     window.SyncService = SyncService;
+    window.AutoRecoveryManager = AutoRecoveryManager;
 
     // 应用
     window.SimulationApp = SimulationApp;
@@ -258,6 +264,17 @@ if (typeof window !== 'undefined') {
     window.resetDiagramModeIntegration = resetDiagramModeIntegration;
     window.openExportDialog = openExportDialog;
     window.getExportDialog = getExportDialog;
+    window.getAdvancedTemplateManager = getAdvancedTemplateManager;
+    window.getAllTemplates = getAllTemplates;
+    window.getTemplateById = getTemplateById;
+    window.searchTemplates = searchTemplates;
+    window.getPDFExporter = getPDFExporter;
+    window.getDiagramValidator = getDiagramValidator;
+    window.getProfessionalIconManager = getProfessionalIconManager;
+    window.registerProfessionalIcons = registerProfessionalIcons;
+    window.registerExtendedIcons = registerExtendedIcons;
+    window.registerAllExtendedIcons = registerAllExtendedIcons;
+    window.getAutoRouter = getAutoRouter;
 
     // 设置加载完成标志
     window.__LEGACY_GLOBALS_LOADED__ = true;

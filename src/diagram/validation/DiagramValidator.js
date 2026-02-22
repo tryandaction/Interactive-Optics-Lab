@@ -15,6 +15,10 @@ export class ValidationResult {
         this.warnings = [];
     }
 
+    get isValid() {
+        return this.valid;
+    }
+
     addError(message, context = {}) {
         this.valid = false;
         this.errors.push({ message, context, timestamp: Date.now() });
@@ -242,6 +246,26 @@ export class DiagramValidator {
                     ids.add(component.id);
                 }
             });
+
+            // 检查组件重叠
+            const getBounds = (comp) => {
+                const x = comp.pos?.x ?? comp.x ?? 0;
+                const y = comp.pos?.y ?? comp.y ?? 0;
+                const w = comp.width ?? comp.w ?? 0;
+                const h = comp.height ?? comp.h ?? 0;
+                return { x, y, w, h };
+            };
+            for (let i = 0; i < diagram.components.length; i++) {
+                for (let j = i + 1; j < diagram.components.length; j++) {
+                    const a = getBounds(diagram.components[i]);
+                    const b = getBounds(diagram.components[j]);
+                    const overlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x ||
+                        a.y + a.h <= b.y || b.y + b.h <= a.y);
+                    if (overlap) {
+                        result.addError('Components overlap detected', { a: diagram.components[i], b: diagram.components[j] });
+                    }
+                }
+            }
         }
 
         // 验证所有光线
@@ -300,6 +324,13 @@ export class DiagramValidator {
         }
 
         return result;
+    }
+
+    /**
+     * 兼容旧接口：validate
+     */
+    validate(diagram) {
+        return this.validateDiagram(diagram);
     }
 
     /**

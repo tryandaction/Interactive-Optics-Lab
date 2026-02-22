@@ -3726,21 +3726,55 @@ export class DiagramModeIntegration {
      * @returns {boolean}
      */
     isDiagramMode() {
-        return this.modules.modeManager?.isDiagramMode() || false;
+        if (this.modules.modeManager?.isDiagramMode) {
+            return this.modules.modeManager.isDiagramMode();
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            return window.getModeManager().isDiagramMode?.() || false;
+        }
+        if (typeof document !== 'undefined' && document.body?.dataset?.appMode) {
+            return document.body.dataset.appMode === APP_MODES.DIAGRAM;
+        }
+        return false;
     }
 
     /**
      * 切换到绘图模式
      */
     switchToDiagramMode() {
-        this.modules.modeManager?.switchMode(APP_MODES.DIAGRAM);
+        if (!this.initialized) {
+            try {
+                this.initialize({
+                    components: window.components || [],
+                    cameraState: {
+                        scale: window.cameraScale || 1,
+                        offset: window.cameraOffset || { x: 0, y: 0 }
+                    }
+                });
+            } catch (error) {
+                console.error('DiagramModeIntegration: Lazy init failed before switching to diagram mode:', error);
+            }
+        }
+        if (this.modules.modeManager?.switchMode) {
+            this.modules.modeManager.switchMode(APP_MODES.DIAGRAM);
+            return;
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            window.getModeManager().switchMode?.(APP_MODES.DIAGRAM);
+        }
     }
 
     /**
      * 切换到模拟模式
      */
     switchToSimulationMode() {
-        this.modules.modeManager?.switchMode(APP_MODES.SIMULATION);
+        if (this.modules.modeManager?.switchMode) {
+            this.modules.modeManager.switchMode(APP_MODES.SIMULATION);
+            return;
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            window.getModeManager().switchMode?.(APP_MODES.SIMULATION);
+        }
     }
 
     /**

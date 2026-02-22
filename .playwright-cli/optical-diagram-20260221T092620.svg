@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+width="1047" height="631" 
+viewBox="0 0 1047 631">
+
+<defs>
+    <style type="text/css">
+        .ray { stroke-linecap: round; stroke-linejoin: round; }
+        .ray-solid { stroke-dasharray: none; }
+        .ray-dashed { stroke-dasharray: 10,5; }
+        .ray-dotted { stroke-dasharray: 2,3; }
+        .component { stroke-linecap: round; stroke-linejoin: round; }
+        .annotation { font-family: Arial, sans-serif; }
+        .note { font-family: Arial, sans-serif; font-size: 12px; }
+    </style>
+</defs>
+<rect width="1047" height="631" fill="#ffffff"/>
+<g id="diagram" transform="translate(60, 40)">
+<g id="diagram-links">
+<path id="diagram-link-link_mlw45ycp_rmoexh9hb" d="M 570 430 L 741 420" stroke="#ff0000" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="741,420 732.8268291013568,417.27249611153854 735.4095511053281,420.3269268359457 733.2004597710092,423.6615805625921" fill="#ff0000"/>
+</g>
+<g id="components">
+<g id="component-mlw45stl-hh3fu" opacity="1" 
+transform="translate(228, 430) rotate(0)">
+
+<rect x="-15" y="-7.5" width="30" height="15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="15" y1="0" x2="24" y2="0" 
+    stroke="#333333" stroke-width="2"/>
+<polygon points="24,0 19.5,-2.6999999999999997 19.5,2.6999999999999997" 
+    fill="#333333"/>
+</g>
+<g id="component-mlw45t3f-y4ww7" opacity="1" 
+transform="translate(570, 430) rotate(101.45915590261647)">
+<line x1="0" y1="-15" x2="0" y2="15" stroke="#4488ff" stroke-width="3"/>
+<line x1="-2" y1="-11.25" x2="-6" y2="-7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-7.5" x2="-6" y2="-3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-3.75" x2="-6" y2="0" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="0" x2="-6" y2="3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="3.75" x2="-6" y2="7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="7.5" x2="-6" y2="11.25" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="11.25" x2="-6" y2="15" stroke="#4488ff" stroke-width="1"/>
+</g>
+<g id="component-mlw45t84-5ll9h" opacity="1" 
+transform="translate(741, 430) rotate(90)">
+
+<path d="M 0 -15 
+    A 18 18 0 0 1 0 15 
+    A 18 18 0 0 1 0 -15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<polygon points="0,-19.5 -2.6999999999999997,-15 2.6999999999999997,-15" fill="#333333"/>
+<polygon points="0,19.5 -2.6999999999999997,15 2.6999999999999997,15" fill="#333333"/>
+</g>
+<g id="component-mlw45tdk-lnwvz" opacity="1" 
+transform="translate(912, 516) rotate(45)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+<g id="component-mlw461lo-2l4d2" opacity="1" 
+transform="translate(228, 430) rotate(0)">
+
+<rect x="-15" y="-7.5" width="30" height="15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="15" y1="0" x2="24" y2="0" 
+    stroke="#333333" stroke-width="2"/>
+<polygon points="24,0 19.5,-2.6999999999999997 19.5,2.6999999999999997" 
+    fill="#333333"/>
+</g>
+<g id="component-id_mlw461lo_rmtnytfax" opacity="1" 
+transform="translate(20, 20) rotate(0)">
+
+<rect x="-15" y="-7.5" width="30" height="15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="15" y1="0" x2="24" y2="0" 
+    stroke="#333333" stroke-width="2"/>
+<polygon points="24,0 19.5,-2.6999999999999997 19.5,2.6999999999999997" 
+    fill="#333333"/>
+</g>
+</g>
+</g>
+</svg>

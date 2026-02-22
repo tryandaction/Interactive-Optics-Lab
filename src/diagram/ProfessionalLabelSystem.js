@@ -208,6 +208,8 @@ export class ProfessionalLabel {
      */
     render(ctx, targetPosition = null) {
         const segments = this.parseFormattedText();
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
         
         ctx.save();
         
@@ -233,13 +235,14 @@ export class ProfessionalLabel {
         // 选中/悬停效果
         if (this.selected || this.hovered) {
             ctx.strokeStyle = this.selected ? '#0078d4' : '#666666';
-            ctx.lineWidth = 1;
-            ctx.setLineDash(this.selected ? [] : [3, 3]);
+            ctx.lineWidth = 1 * invScale;
+            ctx.setLineDash(this.selected ? [] : [3 * invScale, 3 * invScale]);
+            const pad = 4 * invScale;
             ctx.strokeRect(
-                this.position.x - 4,
-                this.position.y - bbox.height - 4,
-                bbox.width + 8,
-                bbox.height + 8
+                this.position.x - pad,
+                this.position.y - bbox.height - pad,
+                bbox.width + pad * 2,
+                bbox.height + pad * 2
             );
             ctx.setLineDash([]);
         }
@@ -354,12 +357,21 @@ export class ProfessionalLabel {
      */
     hitTest(position, tolerance = 5) {
         if (!this._boundingBox) return false;
+        const scale = this._getCameraScale();
+        const effectiveTolerance = tolerance / Math.max(1e-6, scale);
         
         const bbox = this._boundingBox;
-        return position.x >= this.position.x - tolerance &&
-               position.x <= this.position.x + bbox.width + tolerance &&
-               position.y >= this.position.y - bbox.height - tolerance &&
-               position.y <= this.position.y + tolerance;
+        return position.x >= this.position.x - effectiveTolerance &&
+               position.x <= this.position.x + bbox.width + effectiveTolerance &&
+               position.y >= this.position.y - bbox.height - effectiveTolerance &&
+               position.y <= this.position.y + effectiveTolerance;
+    }
+
+    _getCameraScale() {
+        if (typeof window === 'undefined') return 1;
+        const scale = window.cameraScale;
+        if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) return 1;
+        return scale;
     }
 
     /**

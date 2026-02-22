@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+width="169" height="132" 
+viewBox="0 0 169 132">
+
+<defs>
+    <style type="text/css">
+        .ray { stroke-linecap: round; stroke-linejoin: round; }
+        .ray-solid { stroke-dasharray: none; }
+        .ray-dashed { stroke-dasharray: 10,5; }
+        .ray-dotted { stroke-dasharray: 2,3; }
+        .component { stroke-linecap: round; stroke-linejoin: round; }
+        .professional-icon { stroke-linecap: round; stroke-linejoin: round; shape-rendering: geometricPrecision; }
+        .annotation { font-family: Arial, sans-serif; }
+        .note { font-family: Arial, sans-serif; font-size: 12px; }
+    </style>
+</defs>
+<rect width="169" height="132" fill="#ffffff"/>
+<g id="diagram" transform="translate(81, 66)">
+<g id="rays">
+</g>
+<g id="diagram-links">
+<path id="diagram-link-link_mlwg85by_v1t007ron" d="M 0 0 L 40 0" stroke="rgba(0,0,0,0.041)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="40,0 32,-3.2 34.4,0 32,3.2" fill="rgba(0,0,0,0.041)"/>
+</g>
+<g id="components">
+<g id="component-laser_cool" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-7.5" width="30" height="15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="15" y1="0" x2="24" y2="0" 
+    stroke="#333333" stroke-width="2"/>
+<polygon points="24,0 19.5,-2.6999999999999997 19.5,2.6999999999999997" 
+    fill="#333333"/>
+</g>
+<g id="component-aom_cool" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-9" width="30" height="18" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<text x="0" y="-1.8" text-anchor="middle" font-size="6" fill="#333333">AOM</text>
+</g>
+<g id="component-hwp_cool" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+<g id="component-pbs_cool" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-10.5" y="-10.5" width="21" height="21" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="-10.5" y1="10.5" x2="10.5" y2="-10.5" 
+    stroke="#333333" stroke-width="2"/>
+</g>
+<g id="component-qwp_x" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+<g id="component-mirror_x" opacity="1" 
+transform="translate(0, 0) rotate(0.785)">
+<line x1="0" y1="-15" x2="0" y2="15" stroke="#4488ff" stroke-width="3"/>
+<line x1="-2" y1="-11.25" x2="-6" y2="-7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-7.5" x2="-6" y2="-3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-3.75" x2="-6" y2="0" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="0" x2="-6" y2="3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="3.75" x2="-6" y2="7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="7.5" x2="-6" y2="11.25" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="11.25" x2="-6" y2="15" stroke="#4488ff" stroke-width="1"/>
+</g>
+<g id="component-qwp_y" opacity="1" 
+transform="translate(0, 0) rotate(1.5709999999999997)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+<g id="component-cell_mot" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-18" y="-9" width="36" height="18" rx="5.3999999999999995" ry="5.3999999999999995" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<circle cx="-7.2" cy="-1.8" r="1.2" fill="#333333"/>
+<circle cx="3.6" cy="1.8" r="1.2" fill="#333333"/>
+<circle cx="0" cy="0" r="1.2" fill="#333333"/>
+</g>
+<g id="component-mirror_y" opacity="1" 
+transform="translate(0, 0) rotate(2.356)">
+<line x1="0" y1="-15" x2="0" y2="15" stroke="#4488ff" stroke-width="3"/>
+<line x1="-2" y1="-11.25" x2="-6" y2="-7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-7.5" x2="-6" y2="-3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="-3.75" x2="-6" y2="0" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="0" x2="-6" y2="3.75" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="3.75" x2="-6" y2="7.5" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="7.5" x2="-6" y2="11.25" stroke="#4488ff" stroke-width="1"/>
+<line x1="-2" y1="11.25" x2="-6" y2="15" stroke="#4488ff" stroke-width="1"/>
+</g>
+<g id="component-qwp_z" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+<g id="component-laser_repump" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-7.5" width="30" height="15" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<line x1="15" y1="0" x2="24" y2="0" 
+    stroke="#333333" stroke-width="2"/>
+<polygon points="24,0 19.5,-2.6999999999999997 19.5,2.6999999999999997" 
+    fill="#333333"/>
+</g>
+<g id="component-aom_repump" opacity="1" 
+transform="translate(0, 0) rotate(0)">
+
+<rect x="-15" y="-9" width="30" height="18" 
+    stroke="#333333" stroke-width="2" fill="none"/>
+<text x="0" y="-1.8" text-anchor="middle" font-size="6" fill="#333333">AOM</text>
+</g>
+<g id="component-bs_repump" opacity="1" 
+transform="translate(0, 0) rotate(0.785)">
+
+<rect x="-15" y="-15" width="30" height="30" 
+    stroke="#333333" stroke-width="2" fill="none" stroke-dasharray="3,3"/>
+<text x="0" y="5" text-anchor="middle" font-size="12" fill="#333333">?</text>
+</g>
+</g>
+</g>
+</svg>

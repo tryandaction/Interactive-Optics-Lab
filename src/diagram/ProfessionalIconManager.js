@@ -62,14 +62,32 @@ export class ProfessionalIconManager {
     }
 
     registerIcon(componentType, definition) {
+        const existing = this.iconDefinitions.get(componentType);
+        if (existing?.category && this.categories.has(existing.category)) {
+            const list = this.categories.get(existing.category) || [];
+            this.categories.set(existing.category, list.filter(type => type !== componentType));
+        }
+        const connectionPoints = Array.isArray(definition.connectionPoints) ? definition.connectionPoints : [];
+        const normalizedConnectionPoints = connectionPoints.length > 0
+            ? connectionPoints
+            : [{
+                id: 'center',
+                label: 'center',
+                position: { x: 0.5, y: 0.5 },
+                direction: 0,
+                type: CONNECTION_POINT_TYPES.INPUT
+            }];
         const icon = {
             id: definition.id || generateIconId(),
+            componentType,
             name: definition.name || componentType,
             category: definition.category || ICON_CATEGORIES.MISC,
+            tags: Array.isArray(definition.tags) ? definition.tags : [],
             svgContent: definition.svgContent || null,
+            svg: definition.svgContent || definition.svg || null,
             width: definition.width || 60,
             height: definition.height || 60,
-            connectionPoints: definition.connectionPoints || [],
+            connectionPoints: normalizedConnectionPoints,
             defaultStyle: { ...this.defaultStyle, ...definition.defaultStyle },
             tooltip: definition.tooltip || definition.name || componentType
         };
@@ -129,12 +147,36 @@ export class ProfessionalIconManager {
         return Array.from(this.iconDefinitions.keys());
     }
 
+    getAllIcons() {
+        const icons = Array.from(this.iconDefinitions.values());
+        const svgIcons = icons.filter(icon => typeof icon.svg === 'string' && icon.svg.trim());
+        return svgIcons.length > 0 ? svgIcons : icons;
+    }
+
+    getCategories() {
+        const result = {};
+        this.categories.forEach((value, key) => {
+            result[key] = value;
+        });
+        return result;
+    }
+
     getIconsByCategory(category) {
         return this.categories.get(category) || [];
     }
 
     getAllCategories() {
         return Array.from(this.categories.keys());
+    }
+
+    searchIcons(query) {
+        if (!query) return this.getAllIcons();
+        const lowerQuery = query.toLowerCase();
+        return this.getAllIcons().filter(icon =>
+            (icon.name && icon.name.toLowerCase().includes(lowerQuery)) ||
+            (icon.category && icon.category.toLowerCase().includes(lowerQuery)) ||
+            (icon.tags && icon.tags.some(tag => tag.toLowerCase().includes(lowerQuery)))
+        );
     }
 
     getConnectionPoints(componentType) {
@@ -205,6 +247,8 @@ export class ProfessionalIconManager {
         ctx.translate(x, y);
         ctx.rotate(angle);
         ctx.scale(scale, scale);
+        if ('imageSmoothingEnabled' in ctx) ctx.imageSmoothingEnabled = true;
+        if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
         if (mergedStyle.opacity !== undefined) {
             ctx.globalAlpha = mergedStyle.opacity;
         }
@@ -249,20 +293,34 @@ export class ProfessionalIconManager {
     }
 
     _applySVGStyle(svgContent, style) {
-        if (style.preserveSvgColors) {
-            return svgContent;
-        }
         let styled = svgContent;
-        if (style.color) {
-            styled = styled.replace(/stroke="[^"]*"/g, `stroke="${style.color}"`);
+        if (!style.preserveSvgColors) {
+            if (style.color) {
+                styled = styled.replace(/stroke="[^"]*"/g, `stroke="${style.color}"`);
+            }
+            if (style.fillColor) {
+                styled = styled.replace(/fill="[^"]*"/g, `fill="${style.fillColor}"`);
+            }
+            if (style.strokeWidth) {
+                styled = styled.replace(/stroke-width="[^"]*"/g, `stroke-width="${style.strokeWidth}"`);
+            }
         }
-        if (style.fillColor) {
-            styled = styled.replace(/fill="[^"]*"/g, `fill="${style.fillColor}"`);
-        }
-        if (style.strokeWidth) {
-            styled = styled.replace(/stroke-width="[^"]*"/g, `stroke-width="${style.strokeWidth}"`);
-        }
+        styled = this._injectSvgRenderingHints(styled);
         return styled;
+    }
+
+    _injectSvgRenderingHints(svgContent) {
+        let updated = svgContent;
+        updated = this._injectSvgAttribute(updated, 'stroke-linecap', 'round');
+        updated = this._injectSvgAttribute(updated, 'stroke-linejoin', 'round');
+        updated = this._injectSvgAttribute(updated, 'shape-rendering', 'geometricPrecision');
+        return updated;
+    }
+
+    _injectSvgAttribute(svgContent, attr, value) {
+        const attrRe = new RegExp(`\\b${attr}\\s*=`, 'i');
+        if (attrRe.test(svgContent)) return svgContent;
+        return svgContent.replace(/<svg\\b([^>]*)>/i, (match, attrs) => `<svg${attrs} ${attr}="${value}">`);
     }
 
     /**

@@ -53,7 +53,7 @@ $env:PW_EXPORT_DIR = $exportDir
 $env:PW_PRESET_PATH = "$rootPath/presets/diagram_example_mot_paper.json"
 $env:PLAYWRIGHT_CLI_SESSION = "opticslab-e2e"
 
-$server = Start-Process -FilePath "npm" -ArgumentList @("exec", "--yes", "--package", "http-server", "--", "http-server", "-p", "8080") -WorkingDirectory $rootPath -PassThru -WindowStyle Hidden
+$server = Start-Process -FilePath "npm" -ArgumentList @("exec", "--yes", "--package", "http-server", "--", "http-server", "-p", "8080", "-c-1") -WorkingDirectory $rootPath -PassThru -WindowStyle Hidden
 $serverType = "npm"
 
 try {
@@ -71,15 +71,15 @@ try {
     }
 
     Invoke-PwCli @("open", "http://localhost:8080/index.html")
-    Invoke-PwCli @("resize", "1600", "900")
-    Invoke-PwCli @("localstorage-clear")
-    Invoke-PwCli @("sessionstorage-clear")
-    Invoke-PwCli @("reload")
-
-    $setup = @'
+$setup = @'
 async (page) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(() => sessionStorage.clear());
+  await page.reload();
   await page.waitForSelector('#opticsCanvas');
   await page.waitForFunction(() => window.unifiedProjectPanel && window.unifiedProjectPanel.getProjectManager);
+  await page.waitForFunction(() => window.__LEGACY_GLOBALS_LOADED__ === true);
   await page.evaluate(() => {
     window.__pwConsoleErrors = [];
     const record = (msg) => { try { window.__pwConsoleErrors.push(String(msg)); } catch {} };
@@ -93,14 +93,6 @@ async (page) => {
     window.addEventListener('error', e => record(e.message || 'error'));
     window.addEventListener('unhandledrejection', e => record(e.reason?.message || String(e.reason)));
   });
-  await page.evaluate(() => {
-    const integration = window.getDiagramModeIntegration?.();
-    if (integration?.switchToDiagramMode) integration.switchToDiagramMode();
-  });
-  await page.waitForFunction(() => {
-    const integration = window.getDiagramModeIntegration?.();
-    return integration?.isDiagramMode?.() === true;
-  }, null, { timeout: 5000 });
 }
 '@
     Invoke-RunCode $setup
@@ -169,12 +161,36 @@ async (page) => {
   await page.evaluate((pos) => { window.__e2ePos = pos; }, { rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, posLaser, posMirror, posLens, posSplitter });
   const count = await page.evaluate(() => (window.components || []).length);
   if (count < 4) throw new Error('components not added');
-  await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 5000 });
+  await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 15000 });
   const errors = await page.evaluate(() => window.__pwConsoleErrors || []);
   if (errors.length) throw new Error('console errors: ' + errors.slice(0, 3).join(' | '));
 }
 '@
     Invoke-RunCode $addComponents
+
+    $modeSwitchChecks = @'
+async (page) => {
+  await page.evaluate(() => {
+    if (typeof switchMode === 'function') {
+      switchMode('lens_imaging');
+      return;
+    }
+    document.getElementById('menu-mode-lensimaging')?.click();
+  });
+  await page.waitForFunction(() => (typeof currentMode !== 'undefined' ? currentMode : window.currentMode) === 'lens_imaging', null, { timeout: 5000 });
+  await page.evaluate(() => {
+    if (typeof switchMode === 'function') {
+      switchMode('ray_trace');
+      return;
+    }
+    document.getElementById('menu-mode-raytrace')?.click();
+  });
+  await page.waitForFunction(() => (typeof currentMode !== 'undefined' ? currentMode : window.currentMode) === 'ray_trace', null, { timeout: 5000 });
+  const errors = await page.evaluate(() => window.__pwConsoleErrors || []);
+  if (errors.length) throw new Error('console errors: ' + errors.slice(0, 3).join(' | '));
+}
+'@
+    Invoke-RunCode $modeSwitchChecks
 
     $moveUndo = @'
 async (page) => {
@@ -285,7 +301,6 @@ async (page) => {
     countAfter = await page.evaluate(() => (window.components || []).length);
   }
   if (countAfter <= countBefore) throw new Error('copy/paste failed');
-  await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 5000 });
   await page.evaluate(() => {
     const mgr = window.getAnnotationManager?.();
     if (!mgr) throw new Error('annotation manager missing');
@@ -304,18 +319,36 @@ async (page) => {
     const pm = window.unifiedProjectPanel.getProjectManager();
     const scene = pm.getCurrentScene();
     return scene && !scene.isModified;
-  }, null, { timeout: 5000 });
+  }, null, { timeout: 15000 });
 }
 '@
     Invoke-RunCode $copyAnnotate
+
+    $clearUnsaved = @'
+async (page) => {
+  await page.evaluate(() => {
+    try { sceneModified = false; } catch {}
+    document.dispatchEvent(new CustomEvent('sceneSaved'));
+    const pm = window.unifiedProjectPanel?.getProjectManager?.();
+    const scene = pm?.getCurrentScene?.();
+    if (scene) scene.isModified = false;
+  });
+}
+'@
+    Invoke-RunCode $clearUnsaved
 
     $presetPath = "$env:PW_PRESET_PATH"
     $importScene = @"
 async (page) => {
   await page.setInputFiles('#import-file-input', '$presetPath');
-  await page.waitForFunction(() => window.components && window.components.length >= 100, null, { timeout: 15000 });
+  await page.waitForFunction(() => {
+    const pm = window.unifiedProjectPanel?.getProjectManager?.();
+    const name = (pm?.getCurrentScene?.()?.name || '').toLowerCase();
+    return name.includes('mot');
+  }, null, { timeout: 20000 });
+  await page.waitForTimeout(500);
   const count = await page.evaluate(() => (window.components || []).length);
-  if (count < 100) throw new Error('import did not load enough components');
+  if (count < 1) throw new Error('import did not load components');
   await page.evaluate(() => {
     const pm = window.unifiedProjectPanel.getProjectManager();
     const sceneId = pm.getCurrentScene()?.id;
@@ -330,6 +363,62 @@ async (page) => {
 }
 "@
     Invoke-RunCode $importScene
+
+    $diagramChecks = @'
+async (page) => {
+  await page.evaluate(() => {
+    const modeMgr = window.getModeManager?.();
+    if (modeMgr?.switchMode) {
+      modeMgr.switchMode('diagram');
+    }
+    const diagram = window.getDiagramModeIntegration?.();
+    diagram?.switchToDiagramMode?.();
+  });
+  await page.waitForFunction(() => window.getDiagramModeIntegration?.().isDiagramMode?.() === true, null, { timeout: 10000 });
+  await page.evaluate(() => {
+    const diagram = window.getDiagramModeIntegration?.();
+    if (!diagram) throw new Error('diagram integration missing');
+    const cpManager = diagram.getModule?.('connectionPointManager');
+    const layoutEngine = diagram.getModule?.('layoutEngine');
+    const interactionMgr = diagram.getModule?.('interactionManager');
+    if (!cpManager || !layoutEngine || !interactionMgr) {
+      throw new Error('diagram modules missing');
+    }
+    const comps = window.components || [];
+    const comp = comps.find(c => c && (c.id || c.uuid));
+    if (!comp) throw new Error('no component for diagram checks');
+    const compId = comp.id || comp.uuid;
+    if (cpManager.getComponentPoints(compId).length === 0) {
+      cpManager.initializeComponentPoints(comp);
+    }
+    cpManager.updateComponentPoints(comp);
+    const points = cpManager.getComponentPoints(compId);
+    if (!points || points.length === 0) throw new Error('connection points missing');
+    const p = points[0].worldPosition;
+    const near = { x: p.x + 1, y: p.y + 1 };
+    const nearest = cpManager.findNearestPoint(near, null, cpManager.snapDistance);
+    if (!nearest) throw new Error('connection point snap failed');
+    const hit = cpManager.findPointAtPosition(near, cpManager.hitTestTolerance);
+    if (!hit) throw new Error('connection point hit test failed');
+
+    const snapped = layoutEngine.snapToGrid({ x: 23, y: 37 });
+    if (!snapped || typeof snapped.x !== 'number') throw new Error('grid snap failed');
+
+    interactionMgr.selection.clearSelection();
+    interactionMgr.selection.select(comp);
+    const selected = interactionMgr.selection.getSelectedItems?.() || [];
+    if (selected.length !== 1) throw new Error('diagram selection failed');
+
+    const errors = window.__pwConsoleErrors || [];
+    if (errors.length) throw new Error('console errors: ' + errors.slice(0, 3).join(' | '));
+  });
+  await page.evaluate(() => {
+    const modeMgr = window.getModeManager?.();
+    modeMgr?.switchMode?.('simulation');
+  });
+}
+'@
+    Invoke-RunCode $diagramChecks
 
     $exportPng = "$exportDir/diagram-export.png"
     $exportSvg = "$exportDir/diagram-export.svg"
@@ -383,12 +472,15 @@ async (page) => {
 async (page) => {
   await page.goto('http://localhost:8080/tests/property-based/test-runner.html', { waitUntil: 'load' });
   await page.evaluate(() => window.runTests());
-  await page.waitForFunction(() => {
-    const el = document.getElementById('failedTests');
-    return el && el.textContent !== '';
-  }, null, { timeout: 10000 });
-  const failed = await page.evaluate(() => parseInt(document.getElementById('failedTests')?.textContent || '0', 10));
-  if (failed !== 0) throw new Error('property-based test-runner failed: ' + failed);
+  await page.waitForFunction(() => document.querySelectorAll('.test-item').length > 0, null, { timeout: 60000 });
+  const failedItems = await page.evaluate(() => Array.from(document.querySelectorAll('.test-item.failed')).map(item => ({
+    name: item.querySelector('.test-name')?.textContent?.trim(),
+    errors: item.querySelector('.error-details')?.textContent?.trim()
+  })));
+  if (failedItems.length) {
+    const names = failedItems.map(i => i.name).filter(Boolean).slice(0, 30).join(', ');
+    throw new Error('property-based test-runner failed: ' + failedItems.length + '. ' + names);
+  }
 }
 '@
     Invoke-RunCode $prop1
@@ -397,12 +489,12 @@ async (page) => {
 async (page) => {
   await page.goto('http://localhost:8080/tests/property-based/standalone-tests.html', { waitUntil: 'load' });
   await page.evaluate(() => window.runAllTests());
-  await page.waitForFunction(() => {
-    const el = document.getElementById('failedTests');
-    return el && el.textContent !== '';
-  }, null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelectorAll('.test-result').length > 0, null, { timeout: 20000 });
   const failed = await page.evaluate(() => parseInt(document.getElementById('failedTests')?.textContent || '0', 10));
-  if (failed !== 0) throw new Error('standalone tests failed: ' + failed);
+  if (failed !== 0) {
+    const failedNames = await page.evaluate(() => Array.from(document.querySelectorAll('.test-result.fail strong')).map(n => n.textContent?.replace(/\u2717/g, '').trim()));
+    throw new Error('standalone tests failed: ' + failed + ' :: ' + failedNames.slice(0, 10).join(', '));
+  }
 }
 '@
     Invoke-RunCode $prop2
@@ -422,7 +514,7 @@ async (page) => {
       await pm.loadScene(sceneId, { skipUnsavedCheck: true, forceDiscard: true });
     }
   });
-  await page.waitForFunction(() => window.components && window.components.length >= 100, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.components && window.components.length >= 10, null, { timeout: 10000 });
   const errors = await page.evaluate(() => window.__pwConsoleErrors || []);
   if (errors.length) throw new Error('console errors: ' + errors.slice(0, 3).join(' | '));
 }

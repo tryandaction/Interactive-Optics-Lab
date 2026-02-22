@@ -189,16 +189,29 @@ export class LensImaging {
     // ==================== Component Finding ====================
 
     _findObjectSource(components) {
-        return components.find(comp =>
+        const isSource = (comp) => comp && (
             comp.constructor.name === 'LaserSource' ||
             comp.constructor.name === 'FanSource' ||
             comp.constructor.name === 'LineSource' ||
             comp.constructor.name === 'WhiteLightSource'
         );
+        for (let i = components.length - 1; i >= 0; i--) {
+            const comp = components[i];
+            if (isSource(comp) && comp.selected) return comp;
+        }
+        return components.find(comp => isSource(comp));
     }
 
     _findLens(components) {
-        return components.find(comp => comp.constructor.name === 'ThinLens');
+        const isLensLike = (comp) => comp && (
+            comp.constructor.name === 'ThinLens' ||
+            (typeof comp.focalLength === 'number' && comp.axisDirection && comp.p1 && comp.p2)
+        );
+        for (let i = components.length - 1; i >= 0; i--) {
+            const comp = components[i];
+            if (isLensLike(comp) && comp.selected) return comp;
+        }
+        return components.find(comp => isLensLike(comp));
     }
 
     _validateInputs(objectSource, lens, showHint) {
@@ -223,13 +236,20 @@ export class LensImaging {
         const F = lens.isThickLens ? lens.effectiveFocalLength : lens.focalLength;
         const isFlat = Math.abs(F) === Infinity;
         const LENS_CENTER = lens.pos;
-        const LENS_AXIS = lens.axisDirection.clone();
+        let LENS_AXIS = lens.axisDirection.clone();
         const LENS_PLANE_DIR = lens.p1.subtract(lens.p2).normalize();
 
         // 物体投影到光轴
         const OBJ_TIP = objectTip;
         const vecCenterToObjTip = OBJ_TIP.subtract(LENS_CENTER);
-        const u_dist_signed = vecCenterToObjTip.dot(LENS_AXIS);
+        if (LENS_AXIS.magnitudeSquared() < 1e-9) return null;
+        LENS_AXIS = LENS_AXIS.normalize();
+        let u_dist_signed = vecCenterToObjTip.dot(LENS_AXIS);
+        // 统一符号：确保光轴方向指向物体侧，使 u 为正
+        if (u_dist_signed < 0) {
+            LENS_AXIS = LENS_AXIS.multiply(-1);
+            u_dist_signed = -u_dist_signed;
+        }
         const OBJ_BASE = LENS_CENTER.add(LENS_AXIS.multiply(u_dist_signed));
         const objHeightVec = OBJ_TIP.subtract(OBJ_BASE);
         const ho_signed = objHeightVec.dot(LENS_PLANE_DIR);
@@ -243,8 +263,8 @@ export class LensImaging {
 
         if (!this._isValidVector(OBJ_BASE, OBJ_TIP_EFFECTIVE)) return null;
 
-        // 薄透镜方程: 1/f = 1/v - 1/u  (符号约定: u 为物距，物在左侧 u>0)
-        const u = -u_dist_signed;
+        // 薄透镜方程: 1/f = 1/v + 1/u  (符号约定: 物在光轴正方向一侧时 u>0)
+        const u = u_dist_signed;
         let v = Infinity, M = 0, hi_signed = 0;
         let IMG_TIP = null, IMG_BASE = null;
         let isRealImage = false, imageAtInfinity = false;
@@ -269,11 +289,11 @@ export class LensImaging {
         }
 
         if (!imageAtInfinity) {
-            IMG_BASE = LENS_CENTER.add(LENS_AXIS.multiply(v));
+            IMG_BASE = LENS_CENTER.add(LENS_AXIS.multiply(-v));
             hi_signed = M * ho_effective;
             if (!this._isValidNumber(hi_signed)) hi_signed = 0;
             IMG_TIP = IMG_BASE.add(LENS_PLANE_DIR.multiply(hi_signed));
-            isRealImage = (u_dist_signed * v < -1e-9);
+            isRealImage = v > 1e-9;
             if (!this._isValidVector(IMG_BASE, IMG_TIP)) {
                 IMG_BASE = null; IMG_TIP = null;
             }
@@ -282,8 +302,11 @@ export class LensImaging {
         // 焦点世界坐标
         let F_obj_world = null, F_img_world = null;
         if (!isFlat) {
-            F_obj_world = LENS_CENTER.add(LENS_AXIS.multiply(-F));
-            F_img_world = LENS_CENTER.add(LENS_AXIS.multiply(F));
+            const F_abs = Math.abs(F);
+            if (isFinite(F_abs)) {
+                F_obj_world = LENS_CENTER.add(LENS_AXIS.multiply(F_abs));
+                F_img_world = LENS_CENTER.add(LENS_AXIS.multiply(-F_abs));
+            }
         }
 
         return {
@@ -383,35 +406,36 @@ export class LensImaging {
             lensP1, lensP2
         } = params;
 
-        const drawPrincipalRay = (startPoint, hitPoint, dirOut, endPoint, isVirtualIn, isVirtualOut, color) => {
+        const isVirtualOut = !isRealImage && !imageAtInfinity;
+
+        const drawPrincipalRay = (startPoint, hitPoint, dirOut, endPoint, isVirtualIn, color) => {
             if (!hitPoint) return;
             // 入射段
             this._drawLine(ctx, startPoint, hitPoint, color, RAY_WIDTH, isVirtualIn ? DASH_PATTERN : []);
             // 出射段（实际路径 - 实线）
-            const effectiveEnd = imageAtInfinity
+            const actualEnd = (imageAtInfinity || isVirtualOut)
                 ? this._extendRay(hitPoint, dirOut, canvasWidth, canvasHeight)
                 : endPoint;
-            if (effectiveEnd) {
-                this._drawLine(ctx, hitPoint, effectiveEnd, color, RAY_WIDTH);
+            if (actualEnd) {
+                this._drawLine(ctx, hitPoint, actualEnd, color, RAY_WIDTH);
             }
-            // 反向延长（虚像路径 - 虚线）
-            if (isVirtualOut && effectiveEnd) {
-                const virtualOrigin = this._extendRay(hitPoint, dirOut.multiply(-1), canvasWidth, canvasHeight);
-                this._drawLine(ctx, hitPoint, virtualOrigin, color, RAY_WIDTH, DASH_PATTERN);
+            // 反向延长（虚像路径 - 虚线，指向像点）
+            if (isVirtualOut && endPoint) {
+                this._drawLine(ctx, hitPoint, endPoint, color, RAY_WIDTH, DASH_PATTERN);
             }
         };
 
-        // 光线1：平行于光轴 → 经透镜后过像方焦点 F'
-        if (!isFlat && F_img_world) {
+        // 光线1：平行于光轴 → 经透镜后过像方焦点 F'（凹透镜为发散，来自物方焦点）
+        if (!isFlat && (F_img_world || F_obj_world)) {
             const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = LENS_AXIS.clone();
+            const dirIn = LENS_AXIS.clone().multiply(-1);
             const hitPoint = this._intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
             if (hitPoint) {
                 let dirOut;
-                if (F > 0) { dirOut = F_img_world.subtract(hitPoint).normalize(); }
-                else { dirOut = hitPoint.subtract(F_img_world).normalize(); }
+                if (F > 0 && F_img_world) { dirOut = F_img_world.subtract(hitPoint).normalize(); }
+                else if (F < 0 && F_obj_world) { dirOut = hitPoint.subtract(F_obj_world).normalize(); }
                 if (this._isValidVector(dirOut)) {
-                    drawPrincipalRay(startPoint, hitPoint, dirOut, IMG_TIP, false, !isRealImage, styles.RAY_PARALLEL_COLOR);
+                    drawPrincipalRay(startPoint, hitPoint, dirOut, IMG_TIP, false, styles.RAY_PARALLEL_COLOR);
                 }
             }
         }
@@ -422,23 +446,23 @@ export class LensImaging {
             const hitPoint = LENS_CENTER;
             const dir = hitPoint.subtract(startPoint).normalize();
             if (this._isValidVector(dir)) {
-                drawPrincipalRay(startPoint, hitPoint, dir, IMG_TIP, false, !isRealImage, styles.RAY_CENTER_COLOR);
+                drawPrincipalRay(startPoint, hitPoint, dir, IMG_TIP, false, styles.RAY_CENTER_COLOR);
             }
         }
 
-        // 光线3：过物方焦点 F → 经透镜后平行于光轴
-        if (!isFlat && F_obj_world) {
+        // 光线3：过物方焦点 F → 经透镜后平行于光轴（凹透镜改为指向像方焦点）
+        if (!isFlat && (F_obj_world || F_img_world)) {
             const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = F_obj_world.subtract(startPoint).normalize();
-            if (this._isValidVector(dirIn) && dirIn.magnitudeSquared() > 1e-9) {
-                const isVirtualIn = (F < 0);
-                const hitPoint = this._intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
-                if (hitPoint) {
-                    const dirOut = LENS_AXIS.clone();
-                    drawPrincipalRay(startPoint, hitPoint, dirOut, IMG_TIP, isVirtualIn, !isRealImage, styles.RAY_FOCAL_COLOR);
-                } else if (isVirtualIn) {
-                    const aimPoint = this._extendRay(startPoint, dirIn, canvasWidth, canvasHeight);
-                    this._drawLine(ctx, startPoint, aimPoint, styles.RAY_FOCAL_COLOR, RAY_WIDTH, DASH_PATTERN);
+            const focalTarget = (F > 0 ? F_obj_world : F_img_world);
+            if (focalTarget) {
+                const dirIn = focalTarget.subtract(startPoint).normalize();
+                if (this._isValidVector(dirIn) && dirIn.magnitudeSquared() > 1e-9) {
+                    const isVirtualIn = false;
+                    const hitPoint = this._intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
+                    if (hitPoint) {
+                        const dirOut = LENS_AXIS.clone().multiply(-1);
+                        drawPrincipalRay(startPoint, hitPoint, dirOut, IMG_TIP, isVirtualIn, styles.RAY_FOCAL_COLOR);
+                    }
                 }
             }
         }

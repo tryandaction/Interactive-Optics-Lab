@@ -537,7 +537,9 @@ export class ConnectionPointManager {
      */
     findNearestPoint(position, excludeComponentId = null, maxDistance = null, options = {}) {
         if (!this.snapEnabled && options.ignoreSnap !== true) return null;
-        const searchDistance = maxDistance || this.snapDistance;
+        const scale = (typeof window !== 'undefined' && window.cameraScale) ? window.cameraScale : 1;
+        const baseDistance = maxDistance || this.snapDistance;
+        const searchDistance = baseDistance / Math.max(1e-6, scale);
         let nearest = null;
         let minDist = searchDistance;
         
@@ -563,13 +565,15 @@ export class ConnectionPointManager {
      * 查找指定位置的连接点
      */
     findPointAtPosition(position, tolerance = 10) {
+        const scale = (typeof window !== 'undefined' && window.cameraScale) ? window.cameraScale : 1;
+        const effectiveTolerance = tolerance / Math.max(1e-6, scale);
         for (const [_, points] of this.componentPoints) {
             for (const point of points) {
                 const dist = Math.hypot(
                     position.x - point.worldPosition.x,
                     position.y - point.worldPosition.y
                 );
-                if (dist <= tolerance) {
+                if (dist <= effectiveTolerance) {
                     return point;
                 }
             }
@@ -700,7 +704,7 @@ export class ConnectionPointManager {
      * 处理鼠标移动
      */
     handleMouseMove(position) {
-        const point = this.findPointAtPosition(position);
+        const point = this.findPointAtPosition(position, this.hitTestTolerance);
         this.setHoveredPoint(point);
         return point;
     }
@@ -709,7 +713,7 @@ export class ConnectionPointManager {
      * 处理鼠标点击
      */
     handleMouseClick(position) {
-        const point = this.findPointAtPosition(position);
+        const point = this.findPointAtPosition(position, this.hitTestTolerance);
         this.setSelectedPoint(point);
         return point;
     }
