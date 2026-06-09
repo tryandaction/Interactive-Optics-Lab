@@ -190,7 +190,8 @@ export class GRINLens extends OpticalComponent {
         
         const hitPoint = rayOrigin.add(rayDirection.multiply(t));
         const localHit = hitPoint.subtract(entryCenter);
-        const radialDist = Math.abs(localHit.dot(this.perpDirection));
+        const signedRadialDist = localHit.dot(this.perpDirection);
+        const radialDist = Math.abs(signedRadialDist);
         
         if (radialDist > this.diameter / 2) return [];
         
@@ -202,7 +203,7 @@ export class GRINLens extends OpticalComponent {
             point: hitPoint,
             normal: normal,
             surfaceId: 'entry',
-            radialDist: radialDist
+            radialDist: signedRadialDist
         }];
     }
 

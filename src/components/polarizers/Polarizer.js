@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { Ray } from '../../core/Ray.js';
+import { normalizeJones } from '../../core/OpticsMath.js';
 
 export class Polarizer extends OpticalComponent {
     static functionDescription = "选择并透过某一线偏振分量，衰减垂直分量。";
@@ -141,6 +142,7 @@ export class Polarizer extends OpticalComponent {
         const outIntensity = Ray._cAbs2(transmittedJones.Ex) + Ray._cAbs2(transmittedJones.Ey);
         const scale = inIntensity > 1e-12 ? (outIntensity / inIntensity) : 0;
         const transmittedIntensity = ray.intensity * scale;
+        const normalizedJones = normalizeJones(transmittedJones);
 
         let transmittedRay = null;
         if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
@@ -154,7 +156,7 @@ export class Polarizer extends OpticalComponent {
                     ray.sourceId, axis, ray.ignoreDecay,
                     ray.history.concat([newOrigin.clone()])
                 );
-                transmittedRay.setJones(transmittedJones);
+                transmittedRay.setJones(normalizedJones);
             } catch (e) { console.error(`Polarizer (${this.id}) create ray error:`, e); }
         }
 

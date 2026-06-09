@@ -6,6 +6,7 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
+import { paraxialForwardLensDirection } from '../../core/OpticsMath.js';
 
 export class AsphericLens extends OpticalComponent {
     static functionDescription = "支持圆锥常数和高阶非球面系数的非球面透镜。";
@@ -268,29 +269,22 @@ export class AsphericLens extends OpticalComponent {
         // Calculate effective focal length with aspheric correction
         const f_base = this.getEffectiveFocalLength();
         
-        // Apply aspheric correction to deviation
-        // The aspheric terms reduce spherical aberration
         const h = r;
-        let deviation;
+        let effectiveFocalLength = Infinity;
         if (Math.abs(f_base) === Infinity || Math.abs(f_base) < 1e-9) {
-            deviation = 0;
+            effectiveFocalLength = Infinity;
         } else {
-            // Basic thin lens deviation with aspheric correction
             const slopeCorrection = slope * 0.1; // Small correction factor
-            deviation = -h / f_base * (1 + slopeCorrection);
+            effectiveFocalLength = f_base / (1 + slopeCorrection);
         }
 
-        const axisDir = this.axisDirection;
-        const axisAngle = axisDir.angle();
-        const incidentWorldAngle = incidentDirection.angle();
-        const incidentAngleRelAxis = Math.atan2(
-            Math.sin(incidentWorldAngle - axisAngle), 
-            Math.cos(incidentWorldAngle - axisAngle)
+        const newDirection = paraxialForwardLensDirection(
+            incidentDirection,
+            this.axisDirection,
+            lensPlaneDir,
+            h,
+            effectiveFocalLength
         );
-
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisAngle + outputAngleRelAxis;
-        const newDirection = Vector.fromAngle(outputWorldAngle);
 
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             ray.terminate('aspheric_calc_error');

@@ -29,6 +29,17 @@ const MIN_RAY_INTENSITY = DEFAULT_MIN_RAY_INTENSITY;
 const MIN_RAY_WIDTH = DEFAULT_MIN_RAY_WIDTH;
 const MAX_RAY_WIDTH = DEFAULT_MAX_RAY_WIDTH;
 
+const DEBUG_RAY_TRACE = false;
+function traceDebug(...args) {
+    if (DEBUG_RAY_TRACE) console.debug(...args);
+}
+function traceTime(label) {
+    if (DEBUG_RAY_TRACE) console.time(label);
+}
+function traceTimeEnd(label) {
+    if (DEBUG_RAY_TRACE) console.timeEnd(label);
+}
+
 // --- Global DOM Elements ---
 let canvas, ctx, toolbar, simulationArea, inspector, inspectorContent, deleteBtn,
     toggleArrowsBtn, toggleSelectedArrowBtn, arrowSpeedSlider;
@@ -569,13 +580,14 @@ function draw() {
     const computed = getComputedStyle(cssVarsSource);
     const canvasBg = computed.getPropertyValue('--canvas-bg').trim() || '#111111';
     const canvasGridColor = computed.getPropertyValue('--canvas-grid').trim() || 'rgba(255, 255, 255, 0.05)';
+    const canvasGridMajorColor = computed.getPropertyValue('--canvas-grid-major').trim() || 'rgba(255, 255, 255, 0.12)';
     // Bypass theme guard for the background fill so white canvas remains pure white
     ctx.__bypassThemeGuard = true;
     ctx.fillStyle = canvasBg;
     ctx.__bypassThemeGuard = false;
     ctx.fillRect(viewPortMinX, viewPortMinY, viewPortLogicalWidth, viewPortLogicalHeight);
     // Draw grid background using theme-aware grid color
-    drawGrid(ctx, 50, canvasGridColor);
+    drawGrid(ctx, 50, canvasGridColor, canvasGridMajorColor);
 
     // --- Draw based on Mode ---
     // 检查是否为绘图模式（提前声明，供光线渲染和组件渲染使用）
@@ -727,26 +739,60 @@ function draw() {
     ctx.restore();
 } // --- End of draw function ---
 
-function drawGrid(context, gridSize, gridColor) {
+function drawGrid(context, gridSize, gridColor, majorGridColor) {
     if (!showGrid) {
         return; // Don't draw grid if it's turned off
     }
     const dpr = window.devicePixelRatio || 1;
     const logicalWidth = context.canvas.width / dpr;
     const logicalHeight = context.canvas.height / dpr;
+    const style = typeof window.computeGridRenderStyle === 'function'
+        ? window.computeGridRenderStyle({
+            dpr,
+            gridSize,
+            minorColor: gridColor,
+            majorColor: majorGridColor
+        })
+        : {
+            minorColor: gridColor,
+            majorColor: majorGridColor || gridColor,
+            minorWidth: 1 / dpr,
+            majorWidth: 1.25 / dpr,
+            pixelOffset: 0.5 / dpr,
+            gridSize,
+            majorEvery: 5
+        };
 
-    context.strokeStyle = gridColor;
-    context.lineWidth = 1 / dpr; // Make grid lines thin (1 physical pixel)
-    context.beginPath();
-    for (let x = gridSize; x < logicalWidth; x += gridSize) {
-        context.moveTo(x + 0.5 / dpr, 0); // Offset for crisp lines
-        context.lineTo(x + 0.5 / dpr, logicalHeight);
-    }
-    for (let y = gridSize; y < logicalHeight; y += gridSize) {
-        context.moveTo(0, y + 0.5 / dpr);
-        context.lineTo(logicalWidth, y + 0.5 / dpr);
-    }
-    context.stroke();
+    const drawGridLayer = (major) => {
+        context.strokeStyle = major ? style.majorColor : style.minorColor;
+        context.lineWidth = major ? style.majorWidth : style.minorWidth;
+        context.beginPath();
+
+        let xIndex = 1;
+        for (let x = style.gridSize; x < logicalWidth; x += style.gridSize, xIndex++) {
+            const isMajor = typeof window.isMajorGridLine === 'function'
+                ? window.isMajorGridLine(xIndex, style.majorEvery)
+                : xIndex > 0 && xIndex % style.majorEvery === 0;
+            if (isMajor !== major) continue;
+            context.moveTo(x + style.pixelOffset, 0);
+            context.lineTo(x + style.pixelOffset, logicalHeight);
+        }
+
+        let yIndex = 1;
+        for (let y = style.gridSize; y < logicalHeight; y += style.gridSize, yIndex++) {
+            const isMajor = typeof window.isMajorGridLine === 'function'
+                ? window.isMajorGridLine(yIndex, style.majorEvery)
+                : yIndex > 0 && yIndex % style.majorEvery === 0;
+            if (isMajor !== major) continue;
+            context.moveTo(0, y + style.pixelOffset);
+            context.lineTo(logicalWidth, y + style.pixelOffset);
+        }
+
+        context.stroke();
+    };
+
+    drawGridLayer(false);
+    drawGridLayer(true);
 }
 
 function drawRayPaths(context, completedPaths) {
@@ -1103,13 +1149,13 @@ function drawOpticalSystemDiagram(ctx) {
 // --- Ray Tracing Core ---
 // --- PASTE this entire function into main.js, replacing the old traceAllRays ---
 function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveRays = []) {
-    console.log("[traceAllRays] Starting trace (Debug TIR Version).");
+    traceDebug("[traceAllRays] Starting trace.");
     let completedPaths = []; // Stores Ray objects representing terminated paths
     let activeRays = []; // Queue for tracing
 
     // 1. Generate initial rays
 
-    console.log("  --- Generating Initial Rays ---");
+    traceDebug("  --- Generating Initial Rays ---");
     sceneComponents.forEach(comp => {
         if (typeof comp.generateRays === 'function' && comp.enabled) {
             if (typeof Ray !== 'undefined') {
@@ -1121,7 +1167,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                                 r.animateArrow = true; // Enable animation by default
                                 if (r.shouldTerminate()) { // Check initial termination
                                     if (r.endReason === 'low_intensity') r.animateArrow = false;
-                                    console.log(` -> Initial Ray ${r.sourceId}-0 terminated immediately: ${r.endReason}`);
+                                    traceDebug(` -> Initial Ray ${r.sourceId}-0 terminated immediately: ${r.endReason}`);
                                     completedPaths.push(r);
                                 } else {
                                     activeRays.push(r);
@@ -1133,13 +1179,13 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             } else { console.error("Ray class undefined during generation!"); }
         }
     });
-    console.log(`  --- Initial Active Queue Size: ${activeRays.length} ---`);
+    traceDebug(`  --- Initial Active Queue Size: ${activeRays.length} ---`);
 
     // After generating NEW initial rays from sources...
     if (initialActiveRays.length > 0) {
-        console.log(`  --- Adding ${initialActiveRays.length} initial rays from previous frame ---`);
+        traceDebug(`  --- Adding ${initialActiveRays.length} initial rays from previous frame ---`);
         activeRays.push(...initialActiveRays); // Add rays passed in (e.g., fiber outputs)
-        console.log(`  --- Active Queue now size: ${activeRays.length} ---`);
+        traceDebug(`  --- Active Queue now size: ${activeRays.length} ---`);
     }
 
     let tracedCount = 0;
@@ -1152,7 +1198,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         // --- LOG 1: Before pre-check ---
         if (currentRay.bouncesSoFar > 3) { // Log only for rays with multiple bounces
-            console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}: State: Term=${currentRay.terminated}, Reason=${currentRay.endReason}, I=${currentRay.intensity.toExponential(3)}, O=(${currentRay.origin?.x.toFixed(1)},${currentRay.origin?.y.toFixed(1)}), D=(${currentRay.direction?.x.toFixed(3)},${currentRay.direction?.y.toFixed(3)})`);
+            traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}: State: Term=${currentRay.terminated}, Reason=${currentRay.endReason}, I=${currentRay.intensity.toExponential(3)}, O=(${currentRay.origin?.x.toFixed(1)},${currentRay.origin?.y.toFixed(1)}), D=(${currentRay.direction?.x.toFixed(3)},${currentRay.direction?.y.toFixed(3)})`);
         }
 
         // --- Pre-computation Termination Check ---
@@ -1164,7 +1210,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
         // }
         // Explicitly check max bounces here, before calling shouldTerminate
         if (currentRay.bouncesSoFar >= MAX_RAY_BOUNCES) {
-            console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATING (max bounces ${MAX_RAY_BOUNCES})`);
+            traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATING (max bounces ${MAX_RAY_BOUNCES})`);
             currentRay.terminate('max_bounces');
             // NOTE: shouldTerminate will also catch this, but checking here first is slightly cleaner
         }
@@ -1174,7 +1220,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             const reason = currentRay.endReason || 'unknown_shouldTerminate';
             // Don't log termination again if reason was max_bounces, it was logged above
             if (reason !== 'max_bounces') {
-                console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATED (Pre-Check). Reason: ${reason}. Adding to completed.`);
+                traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATED (Pre-Check). Reason: ${reason}. Adding to completed.`);
             }
             if (!completedPaths.includes(currentRay)) {
                 let historyValid = currentRay.history && currentRay.history.length > 0 && currentRay.history.every(p => p instanceof Vector && !isNaN(p.x));
@@ -1245,7 +1291,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
         // 4. Process the intersection (or lack thereof)
         // --- Process Fiber Hit OR Component Hit ---
         if (fiberComp && fiberHit && fiberDist <= closestDist) { // Fiber hit is closer or equal
-            console.log(` -> Fiber Input Hit: Fiber ${fiberComp.id}, Dist ${fiberDist.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`); // DEBUG
+            traceDebug(` -> Fiber Input Hit: Fiber ${fiberComp.id}, Dist ${fiberDist.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
 
             // Add history point *up to* the fiber input facet plane
             if (!(fiberHit.point instanceof Vector) || isNaN(fiberHit.point.x)) {
@@ -1284,7 +1330,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         } else if (hitComponent && closestHit) {
             // --- LOG 3: After intersection found ---
-            if (currentRay.bouncesSoFar > 3) console.log(` -> Hit found: Comp ${hitComponent.label} (${hitComponent.id}), Dist ${closestHit.distance.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
+            if (currentRay.bouncesSoFar > 3) traceDebug(` -> Hit found: Comp ${hitComponent.label} (${hitComponent.id}), Dist ${closestHit.distance.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
 
             // Add hit point to history *before* interaction
             // Check validity of the hit point before adding
@@ -1298,13 +1344,13 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
             let interactionResult = [];
             try {
-                console.log(` ---> Calling interact() on ${hitComponent.label} for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}`);
+                traceDebug(` ---> Calling interact() on ${hitComponent.label} for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}`);
                 interactionResult = hitComponent.interact(currentRay, closestHit, Ray);
                 if (!currentRay.terminated) {
                     console.warn(`!!! Interact for ${hitComponent.label} did not terminate parent ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Forcing.`);
                     currentRay.terminate('segment_end_after_interaction');
                 }
-                console.log(` ---> Interact() finished for Bnc ${currentRay.bouncesSoFar}. Got ${Array.isArray(interactionResult) ? interactionResult.length : '?'} successors.`);
+                traceDebug(` ---> Interact() finished for Bnc ${currentRay.bouncesSoFar}. Got ${Array.isArray(interactionResult) ? interactionResult.length : '?'} successors.`);
 
             } catch (e) {
                 console.error(`Interact Err on component ${hitComponent?.label} (${hitComponent?.id}):`, e, currentRay, closestHit);
@@ -1356,7 +1402,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 // --- Process and Add Successors ---
                 successors.forEach(newRay => {
                     // --- LOG 6: Processing each successor ---
-                    if (newRay.bouncesSoFar > 3) console.log(` ----> Processing Successor Bnc ${newRay.bouncesSoFar}: State: Term=${newRay.terminated}, Reason=${newRay.endReason}, I=${newRay.intensity.toExponential(3)}, Anim=${newRay.animateArrow}`);
+                    if (newRay.bouncesSoFar > 3) traceDebug(` ----> Processing Successor Bnc ${newRay.bouncesSoFar}: State: Term=${newRay.terminated}, Reason=${newRay.endReason}, I=${newRay.intensity.toExponential(3)}, Anim=${newRay.animateArrow}`);
 
                     // // Check 1: Max bounce limit (only if limits active)
                     // let hitBounceLimit = !window.ignoreMaxBounces && newRay.bouncesSoFar >= MAX_RAY_BOUNCES;
@@ -1392,7 +1438,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                         const reason = newRay.endReason || 'unknown_successor_terminate';
                         // Log termination (avoid duplicate logging if max_bounces)
                         if (reason !== 'max_bounces') { // max_bounces termination is logged inside shouldTerminate now
-                            console.log(`[TraceLoop Successor] Ray ${newRay.sourceId}-${newRay.bouncesSoFar} terminated immediately (${reason}). Adding to completed.`);
+                            traceDebug(`[TraceLoop Successor] Ray ${newRay.sourceId}-${newRay.bouncesSoFar} terminated immediately (${reason}). Adding to completed.`);
                         }
                         if (reason === 'low_intensity') newRay.animateArrow = false;
 
@@ -1404,7 +1450,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                         // Continue to the next successor, DO NOT add to active queue
                     } else {
                         // Ray is valid, continue tracing
-                        if (newRay.bouncesSoFar > 3) console.log(` ----> ADDING Successor Bnc ${newRay.bouncesSoFar} to active queue.`);
+                        if (newRay.bouncesSoFar > 3) traceDebug(` ----> ADDING Successor Bnc ${newRay.bouncesSoFar} to active queue.`);
                         activeRays.push(newRay);
                     }
                 }); // End successors.forEach
@@ -1415,7 +1461,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 if (currentRay.terminated && !completedPaths.includes(currentRay)) {
                     let historyValid = currentRay.history && currentRay.history.length > 0 && currentRay.history.every(p => p instanceof Vector && !isNaN(p.x));
                     if (historyValid) {
-                        console.log(` -----> Adding terminated parent Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} (Reason: ${currentRay.endReason}) to completedPaths.`); // 添加日志
+                        traceDebug(` -----> Adding terminated parent Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} (Reason: ${currentRay.endReason}) to completedPaths.`);
                         completedPaths.push(currentRay);
                     } else {
                         console.error(` -----> SKIPPED adding terminated parent ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} due to invalid history after interaction.`);
@@ -1439,7 +1485,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         } else { // No hit
             // --- LOG 8: No hit / OOB ---
-            if (currentRay.bouncesSoFar > 3) console.log(` -> No Hit for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Terminating OOB.`);
+            if (currentRay.bouncesSoFar > 3) traceDebug(` -> No Hit for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Terminating OOB.`);
             // Terminate ray, add final segment to completedPaths
             const exitDistance = Math.max(canvasWidth, canvasHeight) * 2;
             if (currentRay.origin instanceof Vector && currentRay.direction instanceof Vector &&
@@ -1461,14 +1507,14 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
     if (tracedCount >= MAX_TOTAL_RAYS_TO_PROCESS) {
         console.warn(`Ray tracing limit (${MAX_TOTAL_RAYS_TO_PROCESS}) reached.`);
     }
-    console.log(`[traceAllRays] Trace complete. ${activeRays.length} rays left in queue (should be 0). ${completedPaths.length} total paths generated.`);
+    traceDebug(`[traceAllRays] Trace complete. ${activeRays.length} rays left in queue (should be 0). ${completedPaths.length} total paths generated.`);
     // Add any remaining rays in active queue to completed (they might be stuck or error states)
     activeRays.forEach(ray => {
         if (!ray.terminated) ray.terminate('stuck_in_queue');
         if (!completedPaths.includes(ray)) completedPaths.push(ray);
     });
     // --- Generate Fiber Output Rays AFTER main tracing ---
-    console.log("[traceAllRays] Generating fiber outputs...");
+    traceDebug("[traceAllRays] Generating fiber outputs...");
     let fiberOutputRays = []; // Store rays generated THIS frame
     sceneComponents.forEach(comp => {
         if (comp instanceof OpticalFiber && typeof comp.generateOutputRays === 'function') {
@@ -1481,7 +1527,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             } catch (e) { console.error(`Fiber (${comp.id}) generateOutputRays error:`, e); }
         }
     });
-    console.log(`  -> Generated ${fiberOutputRays.length} rays from fiber outputs this frame.`);
+    traceDebug(`  -> Generated ${fiberOutputRays.length} rays from fiber outputs this frame.`);
     // --- End Fiber Output Generation ---
 
     // Return BOTH completed paths from this frame AND newly generated rays
@@ -1544,6 +1590,35 @@ function updateInspector() {
             funcDesc.className = 'component-function';
             funcDesc.textContent = selectedComponent.constructor.functionDescription;
             infoHeader.appendChild(funcDesc);
+        }
+
+        const reliability = typeof window.getComponentReliability === 'function'
+            ? window.getComponentReliability(selectedComponent)
+            : null;
+        if (reliability) {
+            const reliabilityBox = document.createElement('div');
+            reliabilityBox.className = `component-reliability reliability-${reliability.level || 'unknown'}`;
+
+            const badge = document.createElement('span');
+            badge.className = 'component-reliability-badge';
+            badge.textContent = typeof window.getReliabilityLabel === 'function'
+                ? window.getReliabilityLabel(reliability.level)
+                : (reliability.level || '未评估');
+            reliabilityBox.appendChild(badge);
+
+            const scope = document.createElement('p');
+            scope.className = 'component-reliability-scope';
+            scope.textContent = reliability.scope || '该元件尚未纳入可信度基线。';
+            reliabilityBox.appendChild(scope);
+
+            if (reliability.limitations) {
+                const limitations = document.createElement('p');
+                limitations.className = 'component-reliability-limitations';
+                limitations.textContent = reliability.limitations;
+                reliabilityBox.appendChild(limitations);
+            }
+
+            infoHeader.appendChild(reliabilityBox);
         }
 
         const notesContainer = document.createElement('div');
@@ -1869,10 +1944,11 @@ function handlePropertyChange(propName, rawValue, isFinalChange = false) {
 function getComponentPropertyValue(component, propName) {
     try {
         // Prioritize special cases (like angles stored in radians)
-        if (propName === 'angleDeg' && component.hasOwnProperty('angleRad')) return component.angleRad;
-        if (propName === 'transmissionAxisAngleDeg' && component.hasOwnProperty('transmissionAxisRad')) return component.transmissionAxisRad;
-        if (propName === 'fastAxisAngleDeg' && component.hasOwnProperty('fastAxisRad')) return component.fastAxisRad;
-        if (propName === 'outputAngleDeg' && component instanceof OpticalFiber && component.hasOwnProperty('outputAngleRad')) return component.outputAngleRad;
+        const radToDeg = (angleRad) => angleRad * (180 / Math.PI);
+        if (propName === 'angleDeg' && component.hasOwnProperty('angleRad')) return radToDeg(component.angleRad);
+        if (propName === 'transmissionAxisAngleDeg' && component.hasOwnProperty('transmissionAxisRad')) return radToDeg(component.transmissionAxisRad);
+        if (propName === 'fastAxisAngleDeg' && component.hasOwnProperty('fastAxisRad')) return radToDeg(component.fastAxisRad);
+        if (propName === 'outputAngleDeg' && component instanceof OpticalFiber && component.hasOwnProperty('outputAngleRad')) return radToDeg(component.outputAngleRad);
         if (propName === 'outputPos' && component instanceof OpticalFiber && component.outputPos instanceof Vector) return component.outputPos.clone();
         if (propName === 'posX' && component.pos instanceof Vector) return component.pos.x;
         if (propName === 'posY' && component.pos instanceof Vector) return component.pos.y;
@@ -4161,7 +4237,7 @@ function gameLoop(timestamp) {
     // 绘图模式下跳过光线追踪，节省性能
     const isDiagramModeForTrace = diagramModeIntegration?.isDiagramMode?.() || false;
     if (!isDiagramModeForTrace) {
-    console.time("RayTrace");
+    traceTime("RayTrace");
     components.forEach(comp => comp.reset?.()); // Reset components
 
     try {
@@ -4178,7 +4254,7 @@ function gameLoop(timestamp) {
             if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
                 // Store newly generated rays (fiber outputs) for the *next* frame
                 nextFrameActiveRays.push(...traceResult.generatedRays);
-                console.log(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
+                traceDebug(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
             }
         } else {
             console.error("traceAllRays returned invalid result:", traceResult);
@@ -4192,7 +4268,7 @@ function gameLoop(timestamp) {
         window.currentRayPaths = currentRayPaths;
         nextFrameActiveRays = []; // Also clear pending rays on error
     } finally { // Ensure timing ends even on error
-        console.timeEnd("RayTrace");
+        traceTimeEnd("RayTrace");
     }
     } // end if (!isDiagramModeForTrace)
     // --- End Ray Tracing Block ---
@@ -4937,10 +5013,87 @@ function generateSceneDataObject() {
             console.error(`Error calling toJSON for component ${comp?.label} (${comp?.id}):`, e);
         }
     });
+    sceneData.diagram = buildDiagramPayloadForExport();
     console.log("Generated scene data using toJSON. Mode:", currentMode);
     return sceneData;
 }
 // --- END REPLACEMENT ---
+
+function buildDiagramPayloadForExport() {
+    try {
+        if (typeof window.createSceneToDiagramAdapter !== 'function') {
+            return null;
+        }
+
+        const adapter = window.createSceneToDiagramAdapter({
+            includePageFrame: true,
+            page: {
+                width: canvas?.width || 1920,
+                height: canvas?.height || 1080,
+                margin: 48
+            }
+        });
+
+        return adapter.convert({
+            name: document?.title || 'OpticsLab scene',
+            components,
+            rays: currentRayPaths
+        });
+    } catch (error) {
+        console.warn('[Export] Failed to build diagram payload:', error);
+        return null;
+    }
+}
+
+function generateProfessionalSVGString(options = {}) {
+    const diagram = buildDiagramPayloadForExport();
+    if (!diagram) {
+        throw new Error('Professional diagram payload is not available.');
+    }
+    if (typeof window.createDiagramObjectSVGRenderer !== 'function') {
+        throw new Error('Professional SVG renderer is not available.');
+    }
+
+    const renderer = window.createDiagramObjectSVGRenderer({
+        includeXmlDeclaration: true,
+        includeBackground: true,
+        includePageFrame: true,
+        showLabels: true,
+        showOpticalAxis: true,
+        showFocalMarkers: true,
+        rayGlow: true,
+        showRayArrows: true,
+        autoFit: true,
+        contentPadding: 72,
+        stylePreset: 'paper',
+        ...options
+    });
+
+    return renderer.render(diagram);
+}
+
+function exportProfessionalSVG() {
+    console.log('[Export] Exporting professional SVG...');
+    try {
+        const svgString = generateProfessionalSVGString();
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `optics_professional_${new Date().toISOString().slice(0, 10)}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showTemporaryMessage('专业 SVG 已下载', 'success');
+    } catch (error) {
+        console.error('[Export] Professional SVG export failed:', error);
+        showTemporaryMessage(`专业 SVG 导出失败: ${error.message}`, 'error');
+    }
+}
+
+window.generateProfessionalSVGString = generateProfessionalSVGString;
+window.exportProfessionalSVG = exportProfessionalSVG;
 
 // --- REPLACEMENT for loadSceneFromData (V2 - Uses constructor & setProperty correctly) ---
 /**
@@ -5535,6 +5688,7 @@ function setupEventListeners() {
     
     document.getElementById('menu-import-scene')?.addEventListener('click', (e) => { e.preventDefault(); triggerFileInputForImport(); });
     document.getElementById('menu-export-scene')?.addEventListener('click', (e) => { e.preventDefault(); exportScene(); });
+    document.getElementById('menu-export-professional-svg')?.addEventListener('click', (e) => { e.preventDefault(); exportProfessionalSVG(); });
     document.getElementById('menu-manage-scenes')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('unified-project-tab'); });
 
     // Edit Menu
@@ -5585,7 +5739,7 @@ function setupEventListeners() {
     document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
         e.preventDefault(); 
         resetInteractionState({ clearSelection: true });
-        // 切换到专业绘图模式
+        // 切换到科研图示模式
         const trySwitch = () => {
             if (typeof window.getModeManager === 'function') {
                 const modeManager = window.getModeManager();
@@ -5601,18 +5755,18 @@ function setupEventListeners() {
         
         if (!trySwitch()) {
             // 模块可能还在加载中，显示提示并重试
-            showTemporaryMessage('专业绘图模式正在加载中...', 'info');
+            showTemporaryMessage('科研图示模式正在加载中...', 'info');
             let retryCount = 0;
             const maxRetries = 20; // 最多重试20次，每次100ms
             const retryInterval = setInterval(() => {
                 retryCount++;
                 if (trySwitch()) {
                     clearInterval(retryInterval);
-                    showTemporaryMessage('已切换到专业绘图模式', 'success');
+                    showTemporaryMessage('已切换到科研图示模式', 'success');
                 } else if (retryCount >= maxRetries) {
                     clearInterval(retryInterval);
-                    console.error('专业绘图模式模块加载失败');
-                    showTemporaryMessage('专业绘图模式加载失败，请刷新页面重试', 'error');
+                    console.error('科研图示模式模块加载失败');
+                    showTemporaryMessage('科研图示模式加载失败，请刷新页面重试', 'error');
                 }
             }, 100);
         }
@@ -6698,7 +6852,7 @@ let diagramModeIntegration = null;
 let diagramModeBootstrapDone = false;
 
 /**
- * 初始化专业绘图模式集成
+ * 初始化科研图示模式集成
  * 创建DiagramModeIntegration实例并设置相关功能
  */
 function initializeDiagramModeIntegration() {
@@ -6712,10 +6866,10 @@ function initializeDiagramModeIntegration() {
                         offset: cameraOffset
                     }
                 });
-                console.log('专业绘图模式集成已初始化');
+                console.log('科研图示模式集成已初始化');
                 return true;
             } catch (error) {
-                console.error('初始化专业绘图模式失败:', error);
+                console.error('初始化科研图示模式失败:', error);
                 return false;
             }
         } else if (typeof window.getDiagramModeIntegration === 'function') {
@@ -6728,10 +6882,10 @@ function initializeDiagramModeIntegration() {
                         offset: cameraOffset
                     }
                 });
-                console.log('专业绘图模式集成已初始化');
+                console.log('科研图示模式集成已初始化');
                 return true;
             } catch (error) {
-                console.error('初始化专业绘图模式失败:', error);
+                console.error('初始化科研图示模式失败:', error);
                 return false;
             }
         }
@@ -6747,10 +6901,10 @@ function initializeDiagramModeIntegration() {
             retryCount++;
             if (doInit()) {
                 clearInterval(retryInterval);
-                console.log('专业绘图模式集成已延迟初始化');
+                console.log('科研图示模式集成已延迟初始化');
             } else if (retryCount >= maxRetries) {
                 clearInterval(retryInterval);
-                console.warn('DiagramModeIntegration模块加载超时，专业绘图功能可能不可用');
+                console.warn('DiagramModeIntegration模块加载超时，科研图示功能可能不可用');
             }
         }, 100);
     }
@@ -6850,7 +7004,7 @@ function updateModeSpecificUI(mode) {
     
     // 更新模式提示
     if (modeHintElement) {
-        const modeText = mode === 'simulation' ? '模拟模式' : '绘图模式';
+        const modeText = mode === 'simulation' ? '模拟模式' : '科研图示模式';
         // 可以在这里显示模式提示，但不覆盖现有的操作提示
     }
 }

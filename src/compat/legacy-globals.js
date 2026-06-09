@@ -60,10 +60,20 @@ import { AtomicCell, MagneticCoil } from '../components/atomic/index.js';
 // 干涉仪
 import { FabryPerotCavity } from '../components/interferometers/index.js';
 
+// 元件可信度基线
+import {
+    RELIABILITY_LEVELS,
+    RELIABILITY_LABELS,
+    COMPONENT_RELIABILITY,
+    getComponentReliability,
+    getReliabilityLabel
+} from '../components/ComponentReliability.js';
+
 // 渲染器
 import { 
     RayRenderer, GridRenderer, ArrowRenderer, 
-    PreviewRenderer, GuideRenderer, GUIDE_CONFIG 
+    PreviewRenderer, GuideRenderer, GUIDE_CONFIG,
+    computeGridRenderStyle, isMajorGridLine
 } from '../rendering/index.js';
 
 // 模拟模块
@@ -106,6 +116,8 @@ import { SimulationApp } from '../app/SimulationApp.js';
 import { 
     ModeManager, APP_MODES, getModeManager, resetModeManager,
     ModeSwitcher, createModeSwitcher,
+    SceneToDiagramAdapter, createSceneToDiagramAdapter, DIAGRAM_OBJECT_TYPES,
+    DiagramObjectSVGRenderer, createDiagramObjectSVGRenderer,
     DiagramModeIntegration, getDiagramModeIntegration, initializeDiagramMode, resetDiagramModeIntegration,
     openExportDialog, getExportDialog,
     getAdvancedTemplateManager, getAllTemplates, getTemplateById, searchTemplates,
@@ -189,6 +201,13 @@ if (typeof window !== 'undefined') {
     // 干涉仪
     window.FabryPerotCavity = FabryPerotCavity;
 
+    // 元件可信度基线
+    window.RELIABILITY_LEVELS = RELIABILITY_LEVELS;
+    window.RELIABILITY_LABELS = RELIABILITY_LABELS;
+    window.COMPONENT_RELIABILITY = COMPONENT_RELIABILITY;
+    window.getComponentReliability = getComponentReliability;
+    window.getReliabilityLabel = getReliabilityLabel;
+
     // 渲染器
     window.RayRenderer = RayRenderer;
     window.GridRenderer = GridRenderer;
@@ -196,6 +215,8 @@ if (typeof window !== 'undefined') {
     window.PreviewRenderer = PreviewRenderer;
     window.GuideRenderer = GuideRenderer;
     window.GUIDE_CONFIG = GUIDE_CONFIG;
+    window.computeGridRenderStyle = computeGridRenderStyle;
+    window.isMajorGridLine = isMajorGridLine;
 
     // 模拟模块
     window.RayTracer = RayTracer;
@@ -258,6 +279,11 @@ if (typeof window !== 'undefined') {
     window.resetModeManager = resetModeManager;
     window.ModeSwitcher = ModeSwitcher;
     window.createModeSwitcher = createModeSwitcher;
+    window.SceneToDiagramAdapter = SceneToDiagramAdapter;
+    window.createSceneToDiagramAdapter = createSceneToDiagramAdapter;
+    window.DIAGRAM_OBJECT_TYPES = DIAGRAM_OBJECT_TYPES;
+    window.DiagramObjectSVGRenderer = DiagramObjectSVGRenderer;
+    window.createDiagramObjectSVGRenderer = createDiagramObjectSVGRenderer;
     window.DiagramModeIntegration = DiagramModeIntegration;
     window.getDiagramModeIntegration = getDiagramModeIntegration;
     window.initializeDiagramMode = initializeDiagramMode;

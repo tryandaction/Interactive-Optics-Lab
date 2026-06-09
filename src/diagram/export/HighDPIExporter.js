@@ -8,6 +8,8 @@
 /**
  * 高DPI导出器类
  */
+import { computeRayRenderStyle } from '../../rendering/RayRenderStyle.js';
+
 export class HighDPIExporter {
     constructor(options = {}) {
         this.options = {
@@ -135,8 +137,12 @@ export class HighDPIExporter {
         
         ctx.save();
         
-        ctx.strokeStyle = ray.color || '#ff0000';
-        ctx.lineWidth = ray.lineWidth || 2;
+        const renderStyle = computeRayRenderStyle(
+            { ...ray, color: ray.color || '#ff0000', lineWidth: ray.lineWidth || 2 },
+            { dpr: 1, background: 'light' }
+        );
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
         
         // Set line style
         if (ray.lineStyle === 'dashed') {
@@ -145,17 +151,24 @@ export class HighDPIExporter {
             ctx.setLineDash([2, 3]);
         }
         
-        ctx.beginPath();
-        ctx.moveTo(ray.pathPoints[0].x, ray.pathPoints[0].y);
-        
-        for (let i = 1; i < ray.pathPoints.length; i++) {
-            ctx.lineTo(ray.pathPoints[i].x, ray.pathPoints[i].y);
-        }
-        
-        ctx.stroke();
+        this._strokeRayPath(ctx, ray.pathPoints, renderStyle.glowColor, renderStyle.glowWidth);
+        this._strokeRayPath(ctx, ray.pathPoints, renderStyle.coreColor, renderStyle.coreWidth);
         ctx.setLineDash([]);
         
         ctx.restore();
+    }
+
+    _strokeRayPath(ctx, pathPoints, color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+        
+        for (let i = 1; i < pathPoints.length; i++) {
+            ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+        }
+        
+        ctx.stroke();
     }
 
     /**

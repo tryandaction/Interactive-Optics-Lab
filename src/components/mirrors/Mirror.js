@@ -5,6 +5,7 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
+import { reflectDirection } from '../../core/OpticsMath.js';
 
 export class Mirror extends OpticalComponent {
     static functionDescription = "依据反射定律反射入射光线，改变光路方向。";
@@ -118,10 +119,7 @@ export class Mirror extends OpticalComponent {
         const hitPoint = intersectionInfo.point;
         const normal = intersectionInfo.normal;
 
-        const I = ray.direction;
-        const N = normal;
-        const dot_I_N = I.dot(N);
-        const reflectedDirection = I.subtract(N.multiply(2 * dot_I_N)).normalize();
+        const reflectedDirection = reflectDirection(ray.direction, normal);
 
         const newOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
         const reflectedIntensity = ray.ignoreDecay ? ray.intensity : ray.intensity * 0.99;

@@ -5,6 +5,7 @@
 
 import { Vector } from '../core/Vector.js';
 import { ARROW_SIZE_PIXELS } from '../core/constants.js';
+import { computeRayRenderStyle } from './RayRenderStyle.js';
 
 export class RayRenderer {
     constructor(ctx) {
@@ -18,7 +19,11 @@ export class RayRenderer {
         if (!completedPaths || completedPaths.length === 0) return;
         
         const ctx = this.ctx;
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+        const canvasTheme = typeof document !== 'undefined'
+            ? document.body?.getAttribute('data-canvas-theme')
+            : null;
+        const background = canvasTheme === 'light' ? 'light' : 'dark';
 
         ctx.save();
         ctx.lineCap = 'round';
@@ -31,37 +36,9 @@ export class RayRenderer {
             if (!pathPoints || pathPoints.length < 2) return;
 
             try {
-                ctx.strokeStyle = ray.getColor();
-                const logicalWidth = ray.getLineWidth();
-                ctx.lineWidth = Math.max(1.0 / dpr, logicalWidth / dpr);
-                ctx.beginPath();
-
-                let firstPoint = pathPoints[0];
-                let movedToStart = false;
-
-                if (this._isValidPoint(firstPoint)) {
-                    ctx.moveTo(firstPoint.x, firstPoint.y);
-                    movedToStart = true;
-                } else {
-                    return;
-                }
-
-                let lastValidPoint = firstPoint;
-                for (let i = 1; i < pathPoints.length; i++) {
-                    const currentPoint = pathPoints[i];
-                    if (this._isValidPoint(currentPoint)) {
-                        if (currentPoint.distanceSquaredTo(lastValidPoint) > 1e-8) {
-                            ctx.lineTo(currentPoint.x, currentPoint.y);
-                            lastValidPoint = currentPoint;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-
-                if (movedToStart && pathPoints.length > 1) {
-                    ctx.stroke();
-                }
+                const style = computeRayRenderStyle(ray, { dpr, background });
+                this._strokePath(pathPoints, style.glowColor, style.glowWidth);
+                this._strokePath(pathPoints, style.coreColor, style.coreWidth);
             } catch (e) {
                 console.error(`Error drawing path ${pathIndex}:`, e);
             }
@@ -84,7 +61,7 @@ export class RayRenderer {
         if (!globalShowArrows || arrowAnimationStates.size === 0) return;
 
         const ctx = this.ctx;
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
         const arrowSize = ARROW_SIZE_PIXELS / dpr;
         const arrowColor = '#FFFF00';
         const EPSILON_DIST = 1e-6;
@@ -183,6 +160,34 @@ export class RayRenderer {
 
     _isValidPoint(point) {
         return point instanceof Vector && !isNaN(point.x) && !isNaN(point.y);
+    }
+
+    _strokePath(pathPoints, strokeStyle, lineWidth) {
+        const ctx = this.ctx;
+        const firstPoint = pathPoints[0];
+        if (!this._isValidPoint(firstPoint)) return;
+
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(firstPoint.x, firstPoint.y);
+
+        let lastValidPoint = firstPoint;
+        let hasSegment = false;
+        for (let i = 1; i < pathPoints.length; i++) {
+            const currentPoint = pathPoints[i];
+            if (!this._isValidPoint(currentPoint)) break;
+
+            if (currentPoint.distanceSquaredTo(lastValidPoint) > 1e-8) {
+                ctx.lineTo(currentPoint.x, currentPoint.y);
+                lastValidPoint = currentPoint;
+                hasSegment = true;
+            }
+        }
+
+        if (hasSegment) {
+            ctx.stroke();
+        }
     }
 }
 

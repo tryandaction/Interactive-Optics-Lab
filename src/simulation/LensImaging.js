@@ -1,13 +1,14 @@
 /**
- * LensImaging.js - 透镜成像交互式绘制器
- * 负责绘制透镜成像的光学系统图，支持可拖拽物体箭头和实时成像计算
+ * LensImaging.js - 理想薄透镜成像交互式绘制器
+ * 负责绘制理想薄透镜的主光线图，支持可拖拽物体箭头和实时成像计算
  */
 
 import { Vector } from '../core/Vector.js';
+import { thinLensImaging } from '../core/OpticsMath.js';
 
 /**
- * 透镜成像绘制器类
- * 绘制透镜成像的主光线和像，支持交互式物体拖拽
+ * 理想薄透镜成像绘制器类
+ * 绘制理想薄透镜成像的主光线和像，支持交互式物体拖拽
  */
 export class LensImaging {
     constructor() {
@@ -154,7 +155,7 @@ export class LensImaging {
             this._drawInfo(ctx, params, dpr);
         } catch (error) {
             console.error("[LensImaging] Error during drawing:", error);
-            showHint('绘制透镜成像图时出错!');
+            showHint('绘制理想薄透镜成像图时出错!');
             ctx.restore();
             return false;
         } finally {
@@ -216,7 +217,7 @@ export class LensImaging {
 
     _validateInputs(objectSource, lens, showHint) {
         if (!objectSource || !lens) {
-            showHint('透镜成像需要：1个有效光源和1个有效薄透镜。');
+            showHint('理想薄透镜成像需要：1个有效光源和1个有效薄透镜。');
             return false;
         }
         if (!this._isValidVector(objectSource.pos, lens.pos, lens.axisDirection, lens.p1, lens.p2)) {
@@ -263,37 +264,18 @@ export class LensImaging {
 
         if (!this._isValidVector(OBJ_BASE, OBJ_TIP_EFFECTIVE)) return null;
 
-        // 薄透镜方程: 1/f = 1/v + 1/u  (符号约定: 物在光轴正方向一侧时 u>0)
         const u = u_dist_signed;
-        let v = Infinity, M = 0, hi_signed = 0;
+        const imaging = thinLensImaging(u, F);
+        let v = imaging.v, M = imaging.magnification, hi_signed = 0;
         let IMG_TIP = null, IMG_BASE = null;
-        let isRealImage = false, imageAtInfinity = false;
-
-        if (isFlat) {
-            v = -u; M = 1.0;
-        } else if (Math.abs(u) < 1e-9) {
-            v = 0; M = 1.0;
-        } else if (Math.abs(F) < 1e-9) {
-            v = -u; M = 1.0;
-        } else if (Math.abs(u - F) < 1e-6) {
-            // 物体恰好在焦点 → 像在无穷远
-            v = Infinity; M = Infinity; imageAtInfinity = true;
-        } else {
-            const one_over_v = 1 / F - 1 / u;
-            if (Math.abs(one_over_v) < 1e-9) {
-                v = Infinity; M = Infinity; imageAtInfinity = true;
-            } else {
-                v = 1 / one_over_v;
-                M = -v / u;
-            }
-        }
+        const isRealImage = imaging.isRealImage;
+        const imageAtInfinity = imaging.imageAtInfinity;
 
         if (!imageAtInfinity) {
             IMG_BASE = LENS_CENTER.add(LENS_AXIS.multiply(-v));
             hi_signed = M * ho_effective;
             if (!this._isValidNumber(hi_signed)) hi_signed = 0;
             IMG_TIP = IMG_BASE.add(LENS_PLANE_DIR.multiply(hi_signed));
-            isRealImage = v > 1e-9;
             if (!this._isValidVector(IMG_BASE, IMG_TIP)) {
                 IMG_BASE = null; IMG_TIP = null;
             }

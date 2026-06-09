@@ -70,3 +70,5 @@ error.log
 
 .kiro
 .vercel
+.playwright-cli/
+test-results/

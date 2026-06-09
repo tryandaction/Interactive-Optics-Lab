@@ -1737,6 +1737,77 @@ body[data-ui-theme="dark"] .scene-save-hint {
     line-height: 1.4;
 }
 
+.component-reliability {
+    margin: 0 0 14px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-left-width: 3px;
+    border-radius: 6px;
+    background: var(--input-bg);
+}
+
+.component-reliability-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #fff;
+    background: #6c757d;
+}
+
+.component-reliability-scope,
+.component-reliability-limitations {
+    margin: 6px 0 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-color);
+}
+
+.component-reliability-limitations {
+    color: var(--secondary-color);
+}
+
+.reliability-exact_geometric {
+    border-left-color: #198754;
+}
+
+.reliability-exact_geometric .component-reliability-badge {
+    background: #198754;
+}
+
+.reliability-paraxial_approximation {
+    border-left-color: #0d6efd;
+}
+
+.reliability-paraxial_approximation .component-reliability-badge {
+    background: #0d6efd;
+}
+
+.reliability-educational_visualization {
+    border-left-color: #b58100;
+}
+
+.reliability-educational_visualization .component-reliability-badge {
+    background: #b58100;
+}
+
+.reliability-experimental {
+    border-left-color: #b44d12;
+}
+
+.reliability-experimental .component-reliability-badge {
+    background: #b44d12;
+}
+
+.reliability-visual_only,
+.reliability-unknown {
+    border-left-color: #6c757d;
+}
+
 .notes-prop {
     flex-direction: column;
     align-items: flex-start; /* Align label to the left */

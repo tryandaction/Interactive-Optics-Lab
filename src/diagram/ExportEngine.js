@@ -9,6 +9,7 @@ import { getSymbolLibrary } from './SymbolLibrary.js';
 import { getProfessionalIconManager } from './ProfessionalIconManager.js';
 import { ProfessionalLabel } from './ProfessionalLabelSystem.js';
 import { getAnnotationManager } from './AnnotationSystem.js';
+import { computeRayRenderStyle } from '../rendering/RayRenderStyle.js';
 
 /**
  * 导出格式枚举
@@ -353,22 +354,27 @@ export class ExportEngine {
         const parts = [];
         parts.push(`<g id="rays">`);
         const strokeScale = config.strokeScale || 1;
+        const background = this._getRayRenderBackground(config);
         
         rays.forEach((ray, index) => {
             if (!ray.pathPoints || ray.pathPoints.length < 2) return;
             
             const pathData = this._buildPathData(ray.pathPoints);
             const color = ray.color || config.rayStyle.color;
-            const lineWidth = (ray.lineWidth || config.rayStyle.lineWidth) * strokeScale;
+            const lineWidth = ray.lineWidth || config.rayStyle.lineWidth;
             const lineStyle = ray.lineStyle || config.rayStyle.lineStyle;
+            const renderStyle = computeRayRenderStyle(
+                { ...ray, color, lineWidth },
+                { dpr: 1, background }
+            );
             
             let styleClass = 'ray ray-solid';
             if (lineStyle === 'dashed') styleClass = 'ray ray-dashed';
             else if (lineStyle === 'dotted') styleClass = 'ray ray-dotted';
             
-            parts.push(`<path id="ray-${index}" class="${styleClass}" `);
-            parts.push(`d="${pathData}" `);
-            parts.push(`stroke="${color}" stroke-width="${lineWidth}" fill="none"/>`);
+            const pathAttrs = `class="${styleClass}" d="${pathData}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+            parts.push(`<path id="ray-${index}-glow" ${pathAttrs} stroke="${renderStyle.glowColor}" stroke-width="${renderStyle.glowWidth * strokeScale}"/>`);
+            parts.push(`<path id="ray-${index}-core" ${pathAttrs} stroke="${renderStyle.coreColor}" stroke-width="${renderStyle.coreWidth * strokeScale}"/>`);
         });
         
         parts.push(`</g>`);
@@ -388,6 +394,13 @@ export class ExportEngine {
         }
         
         return pathData;
+    }
+
+    _getRayRenderBackground(config) {
+        const backgroundColor = String(config.backgroundColor || '').trim().toLowerCase();
+        return backgroundColor === '#ffffff' || backgroundColor === '#fff' || backgroundColor === 'white'
+            ? 'light'
+            : 'dark';
     }
 
 
@@ -1168,14 +1181,19 @@ export class ExportEngine {
      */
     _renderRaysToCanvas(ctx, rays, config) {
         const strokeScale = config.strokeScale || 1;
+        const background = this._getRayRenderBackground(config);
         rays.forEach(ray => {
             if (!ray.pathPoints || ray.pathPoints.length < 2) return;
             
             ctx.save();
-            ctx.strokeStyle = ray.color || config.rayStyle.color;
-            ctx.lineWidth = (ray.lineWidth || config.rayStyle.lineWidth) * strokeScale;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+            const color = ray.color || config.rayStyle.color;
+            const lineWidth = ray.lineWidth || config.rayStyle.lineWidth;
+            const renderStyle = computeRayRenderStyle(
+                { ...ray, color, lineWidth },
+                { dpr: 1, background }
+            );
             
             // 设置线型
             const lineStyle = ray.lineStyle || config.rayStyle.lineStyle;
@@ -1185,14 +1203,21 @@ export class ExportEngine {
                 ctx.setLineDash([2, 3]);
             }
             
-            ctx.beginPath();
-            ctx.moveTo(ray.pathPoints[0].x, ray.pathPoints[0].y);
-            for (let i = 1; i < ray.pathPoints.length; i++) {
-                ctx.lineTo(ray.pathPoints[i].x, ray.pathPoints[i].y);
-            }
-            ctx.stroke();
+            this._strokeRayPath(ctx, ray.pathPoints, renderStyle.glowColor, renderStyle.glowWidth * strokeScale);
+            this._strokeRayPath(ctx, ray.pathPoints, renderStyle.coreColor, renderStyle.coreWidth * strokeScale);
             ctx.restore();
         });
+    }
+
+    _strokeRayPath(ctx, pathPoints, color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+        for (let i = 1; i < pathPoints.length; i++) {
+            ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+        }
+        ctx.stroke();
     }
 
     /**

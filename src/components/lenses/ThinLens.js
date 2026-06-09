@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { DEFAULT_WAVELENGTH_NM } from '../../core/constants.js';
+import { paraxialThinLensDirection } from '../../core/OpticsMath.js';
 
 // --- Lens Type Constants ---
 export const LENS_TYPES = {
@@ -423,16 +424,15 @@ export class ThinLens extends OpticalComponent {
             ray.terminate('nan_focal_thick_lens');
             return [];
         }
-        const deviation = (Math.abs(f_eff) < 1e-9) ? 0 : -h / f_eff;
 
         const incidentDirection = ray.direction;
-        const incidentAngleRelAxis = Math.atan2(
-            incidentDirection.dot(axisDir.rotate(Math.PI / 2)),
-            incidentDirection.dot(axisDir)
+        const newDirection = paraxialThinLensDirection(
+            incidentDirection,
+            axisDir,
+            lensPlaneDir,
+            h,
+            f_eff
         );
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisDir.angle() + outputAngleRelAxis;
-        const newDirection = Vector.fromAngle(outputWorldAngle);
 
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             ray.terminate('nan_direction_thick_lens');
@@ -541,15 +541,13 @@ export class ThinLens extends OpticalComponent {
         const vecCenterToHit = hitPoint.subtract(lensCenter);
         const h = vecCenterToHit.dot(lensPlaneDir);
 
-        const axisAngle = axisDir.angle();
-        const incidentWorldAngle = incidentDirection.angle();
-        const incidentAngleRelAxis = Math.atan2(Math.sin(incidentWorldAngle - axisAngle), Math.cos(incidentWorldAngle - axisAngle));
-
-        const deviation = (Math.abs(f_actual) < 1e-9) ? 0 : -h / f_actual;
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisAngle + outputAngleRelAxis;
-        const normalizedOutputWorldAngle = Math.atan2(Math.sin(outputWorldAngle), Math.cos(outputWorldAngle));
-        const newDirection = Vector.fromAngle(normalizedOutputWorldAngle);
+        const newDirection = paraxialThinLensDirection(
+            incidentDirection,
+            axisDir,
+            lensPlaneDir,
+            h,
+            f_actual
+        );
 
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             console.error(`ThinLens (${this.id}): NaN/zero direction calculated. Fallback.`);

@@ -1,32 +1,39 @@
-# OpticsLab — 交互式光学模拟与专业绘图平台
+# OpticsLab — 科研光路草图与交互式光学验证工作台
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](package.json)
 
-交互式光学模拟与专业绘图工具。支持 94+ 光学元件的实时光线追踪、透镜成像分析和出版级光路图绘制。
+OpticsLab 当前定位为面向教学、AMO/激光实验草图和科研光路快速验证的 Web 工作台。项目正在救援重构阶段：核心光线追踪、理想薄透镜成像和科研图示能力可用，但专业仿真精度、厚透镜模型和出版级导出仍需要逐项验证与重构。
 
-An interactive optical simulation and professional diagram tool with 94+ optical components, real-time ray tracing, lens imaging analysis, and publication-quality diagram export.
+An interactive optics workbench for educational ray tracing, AMO/laser-lab sketching, ideal thin-lens diagrams, and research diagram prototyping. This project is under active rescue/refactoring; physics fidelity and publication export quality are being rebuilt around explicit validation.
+
+## 当前可信边界 / Current Reliability Scope
+
+- **适合使用**：几何光路演示、反射/折射/TIR/色散的交互观察、理想薄透镜教学图、科研光路草图。
+- **谨慎使用**：厚透镜、非球面/GRIN、高斯光束、复杂偏振系统、衍射/干涉的定量结论。
+- **暂不承诺**：替代 Zemax/COMSOL/CODE V 等专业光学设计软件，或直接生成无需人工审校的期刊最终图。
 
 ## 主要特性 / Key Features
 
-### 模拟模式 — 实时光线追踪
+### 模拟模式 — 交互式光线追踪
 - 光线折射、反射、全反射、色散模拟
-- 偏振态追踪（Jones 矩阵）与高斯光束传播（ABCD 矩阵）
-- 薄透镜 / 厚透镜（透镜制造者公式）
-- 衍射光栅、声光调制器、法布里-珀罗腔等高级元件
+- 部分偏振态追踪（Jones 矩阵）与高斯光束近似
+- 薄透镜近轴模型；厚透镜模型处于待验证状态
+- 衍射光栅、声光调制器、法布里-珀罗腔等高级元件处于实验性阶段
 
-### 透镜成像模式 — 交互式成像分析
-- 薄透镜方程 (1/f = 1/v - 1/u) 实时计算
+### 理想薄透镜成像模式 — 教学主光线图
+- 薄透镜方程 (1/f = 1/u + 1/v) 实时计算
 - 三条主光线自动绘制（平行光线、过光心、过焦点）
 - 可拖拽物体箭头，实时更新像的位置、大小和性质
 - 实像/虚像自动判断与渲染（虚线表示虚像）
+- 仅用于理想薄透镜教学图，不代表复杂透镜系统仿真
 
-### 绘图模式 — 出版级光路图
-- 94+ 专业光学元件图标
+### 绘图模式 — 科研图示原型
+- 光学元件图标库和科研光路连接草图
 - 光线链接与连接点系统
 - 标注系统（文本、上下标、自动布局）
-- 高质量导出（SVG/PNG/JPEG/PDF/EPS）
-- 论文/报告/海报模板预设
+- SVG/PNG/JPEG/PDF/EPS 导出能力正在验证中
+- 论文/报告/海报模板预设处于重构前状态
 
 ## 快速开始 / Quick Start
 
@@ -75,56 +82,15 @@ api.annotations.createText('激光源', { x: 100, y: 150 });
 - **用户指南**: [UserGuide.md](UserGuide.md)
 - **示例页面**: [example-complete-system.html](example-complete-system.html)
 - **故障排除**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-- **论文级示例预设**: `presets/diagram_example_mot_paper.json`
+- **科研图示示例预设**: `presets/diagram_example_mot_paper.json`
 - **桌面版打包**: [DESKTOP_GUIDE.md](DESKTOP_GUIDE.md)
-- **商业化规划**: [COMMERCIAL_PLAN.md](COMMERCIAL_PLAN.md)
-- **落地页文案**: [COMMERCIAL_LANDING_PAGE.md](COMMERCIAL_LANDING_PAGE.md)
-- **许可证系统**: [LICENSE_SYSTEM.md](LICENSE_SYSTEM.md) — 许可证激活和管理指南
-- **商业化策略**: [MONETIZATION_STRATEGY.md](MONETIZATION_STRATEGY.md) — Open Core 商业模式详解
-- **零成本云存储**: [PHASE3_ZERO_COST_PLAN.md](PHASE3_ZERO_COST_PLAN.md) — GitHub Gists 云端方案
+- **商业化草案**: [MONETIZATION_STRATEGY.md](MONETIZATION_STRATEGY.md) — 历史草案，核心质量稳定前不建议启用
+- **许可证系统**: [LICENSE_SYSTEM.md](LICENSE_SYSTEM.md) — 实验性实现，当前不作为产品承诺
 - **API文档**: 查看代码中的JSDoc注释
 
-## 许可证与定价 / Licensing & Pricing
+## 商业化状态 / Commercialization Status
 
-OpticsLab 采用 **Open Core** 商业模式：
-
-### 免费版 (Free)
-- ✅ 完整的光学模拟引擎
-- ✅ 本地场景保存（无限制）
-- ✅ 基础预设场景
-- ✅ 标准导出（PNG/SVG，最高 1080p）
-
-### 专业版 (Pro) - $99/年
-- ✅ 免费版所有功能
-- ✅ 云端同步（GitHub Gists 集成）
-- ✅ 高分辨率导出（4K）
-- ✅ 高级预设场景库（50+ 场景）
-- ✅ 批量导出
-- ✅ 论文模板库
-- ✅ 去除水印
-
-### 教育版 (Education) - $49/年
-- ✅ 专业版所有功能
-- ✅ 教育专用预设
-- ✅ 课程模板
-- 需学生/教师认证
-
-### 团队版 (Team) - $588/年（5 席位）
-- ✅ 专业版所有功能
-- ✅ 团队共享场景库
-- ✅ 协作编辑
-- ✅ 团队管理后台
-
-详细信息请查看 [MONETIZATION_STRATEGY.md](MONETIZATION_STRATEGY.md)
-
-### 激活许可证
-
-1. 点击右上角的许可证状态指示器
-2. 输入您的许可证密钥
-3. 点击"激活"按钮
-4. 刷新页面以应用更改
-
-详细指南: [LICENSE_SYSTEM.md](LICENSE_SYSTEM.md)
+商业化、许可证、云同步和 Pro 版本仍是历史草案或实验性功能。当前优先级是恢复核心物理可信度、绘图审美和导出可靠性。请不要在完成验证基线前将本项目作为收费产品发布。
 
 ## 快捷键 / Shortcuts
 

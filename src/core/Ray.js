@@ -8,6 +8,18 @@ import {
     N_AIR, DEFAULT_WAVELENGTH_NM, MAX_RAY_BOUNCES, MIN_RAY_INTENSITY,
     MIN_RAY_WIDTH, MAX_RAY_WIDTH, PIXELS_PER_NANOMETER
 } from './constants.js';
+import {
+    complexAdd,
+    complexSub,
+    complexMul,
+    complexScale,
+    complexAbs2,
+    applyJonesMatrix,
+    jonesRotationMatrix,
+    jonesLinear,
+    jonesCircular,
+    jonesIntensity
+} from './OpticsMath.js';
 
 export class Ray {
     constructor(
@@ -149,38 +161,31 @@ export class Ray {
     // --- Jones矢量辅助方法 ---
     hasJones() { return !!(this.jones && this.jones.Ex && this.jones.Ey); }
     
-    static _cAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
-    static _cSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
-    static _cMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
-    static _cScale(a, s) { return { re: a.re * s, im: a.im * s }; }
-    static _cAbs2(a) { return a.re * a.re + a.im * a.im; }
+    static _cAdd(a, b) { return complexAdd(a, b); }
+    static _cSub(a, b) { return complexSub(a, b); }
+    static _cMul(a, b) { return complexMul(a, b); }
+    static _cScale(a, s) { return complexScale(a, s); }
+    static _cAbs2(a) { return complexAbs2(a); }
     
     static _rot2(theta) {
-        const c = Math.cos(theta), s = Math.sin(theta);
-        return [[{ re: c, im: 0 }, { re: -s, im: 0 }], [{ re: s, im: 0 }, { re: c, im: 0 }]];
+        return jonesRotationMatrix(theta);
     }
     
     static _apply2x2(J, v) {
-        const Ex = Ray._cAdd(Ray._cMul(J[0][0], v.Ex), Ray._cMul(J[0][1], v.Ey));
-        const Ey = Ray._cAdd(Ray._cMul(J[1][0], v.Ex), Ray._cMul(J[1][1], v.Ey));
-        return { Ex, Ey };
+        return applyJonesMatrix(J, v);
     }
     
     static jonesLinear(angleRad) {
-        const c = Math.cos(angleRad), s = Math.sin(angleRad);
-        return { Ex: { re: c, im: 0 }, Ey: { re: s, im: 0 } };
+        return jonesLinear(angleRad);
     }
     
     static jonesCircular(rightHanded = true) {
-        const inv = 1 / Math.sqrt(2);
-        return rightHanded 
-            ? { Ex: { re: inv, im: 0 }, Ey: { re: 0, im: inv } }
-            : { Ex: { re: inv, im: 0 }, Ey: { re: 0, im: -inv } };
+        return jonesCircular(rightHanded);
     }
     
     jonesIntensity() {
         if (!this.hasJones()) return null;
-        return Ray._cAbs2(this.jones.Ex) + Ray._cAbs2(this.jones.Ey);
+        return jonesIntensity(this.jones);
     }
 
     ensureJonesVector() {
@@ -204,8 +209,8 @@ export class Ray {
     }
 
     _updatePolarizationFromJones() {
-        const Ex_mag2 = Ray._cAbs2(this.jones.Ex);
-        const Ey_mag2 = Ray._cAbs2(this.jones.Ey);
+        const Ex_mag2 = complexAbs2(this.jones.Ex);
+        const Ey_mag2 = complexAbs2(this.jones.Ey);
         const totalIntensity = Ex_mag2 + Ey_mag2;
 
         if (totalIntensity < 1e-9) {

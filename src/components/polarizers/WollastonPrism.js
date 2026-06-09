@@ -5,7 +5,7 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
-import { Ray } from '../../core/Ray.js';
+import { splitJonesByOrthogonalAxes } from '../../core/OpticsMath.js';
 
 export class WollastonPrism extends OpticalComponent {
     static functionDescription = "将入射光分为两束正交偏振光的Wollaston棱镜。";
@@ -178,18 +178,9 @@ export class WollastonPrism extends OpticalComponent {
         let oIntensity, eIntensity;
         
         if (ray.hasJones()) {
-            // Split based on Jones vector components
-            const totalIntensity = Ray._cAbs2(ray.jones.Ex) + Ray._cAbs2(ray.jones.Ey);
-            if (totalIntensity > 1e-12) {
-                // Assume optic axis is vertical for first prism
-                // O-ray: horizontal polarization (Ex)
-                // E-ray: vertical polarization (Ey)
-                oIntensity = ray.intensity * Ray._cAbs2(ray.jones.Ex) / totalIntensity;
-                eIntensity = ray.intensity * Ray._cAbs2(ray.jones.Ey) / totalIntensity;
-            } else {
-                oIntensity = ray.intensity * 0.5;
-                eIntensity = ray.intensity * 0.5;
-            }
+            const split = splitJonesByOrthogonalAxes(ray.jones, 0);
+            oIntensity = ray.intensity * split.primaryScale;
+            eIntensity = ray.intensity * split.secondaryScale;
         } else {
             // Unpolarized: split 50/50
             oIntensity = ray.intensity * 0.5;

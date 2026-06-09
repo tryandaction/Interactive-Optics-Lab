@@ -217,13 +217,25 @@ export class DiagnosticSystem {
             total: 0,
             initialized: 0,
             failed: 0,
+            optional: 0,
             details: {}
         };
         
         for (const [name, module] of Object.entries(modules)) {
             result.total++;
+            const isDescriptor = module
+                && typeof module === 'object'
+                && Object.prototype.hasOwnProperty.call(module, 'optional')
+                && Object.prototype.hasOwnProperty.call(module, 'instance');
+            const instance = isDescriptor ? module.instance : module;
+            const isOptional = isDescriptor && module.optional === true;
             
-            if (module === null || module === undefined) {
+            if (instance === null || instance === undefined) {
+                if (isOptional) {
+                    result.optional++;
+                    result.details[name] = module.reason || 'optional';
+                    continue;
+                }
                 result.failed++;
                 result.details[name] = 'not initialized';
             } else {

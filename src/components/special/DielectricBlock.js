@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { DEFAULT_WAVELENGTH_NM, N_AIR } from '../../core/constants.js';
+import { reflectDirection, snellRefraction } from '../../core/OpticsMath.js';
 
 export class DielectricBlock extends OpticalComponent {
     static functionDescription = "介质块内发生折射与反射，可模拟全反射与色散。";
@@ -238,33 +239,9 @@ export class DielectricBlock extends OpticalComponent {
             }
         }
 
-        let cosI = Math.max(0.0, Math.min(1.0, I.multiply(-1.0).dot(N)));
-        if (cosI > 1.0) cosI = 1.0;
-        const sinI2 = 1.0 - cosI * cosI;
-
-        const nRatio = n1 / n2;
-        const sinT2 = nRatio * nRatio * sinI2;
-        const isTotalInternalReflection = (n1 > n2) && (sinT2 >= 1.0 - 1e-9);
-
-        let R = 0.0;
-        let cosT = 0.0;
-        if (isTotalInternalReflection) {
-            R = 1.0;
-        } else if (sinT2 < 0) {
-            R = 1.0;
-        } else {
-            cosT = Math.sqrt(1.0 - sinT2);
-            const n1cosI = n1 * cosI;
-            const n2cosT = n2 * cosT;
-            const n1cosT = n1 * cosT;
-            const n2cosI = n2 * cosI;
-            const rs_den = n1cosI + n2cosT;
-            const rp_den = n1cosT + n2cosI;
-            const rs = (Math.abs(rs_den) < 1e-9) ? 1.0 : (n1cosI - n2cosT) / rs_den;
-            const rp = (Math.abs(rp_den) < 1e-9) ? 1.0 : (n1cosT - n2cosI) / rp_den;
-            R = 0.5 * (rs * rs + rp * rp);
-            R = Math.max(0.0, Math.min(1.0, R));
-        }
+        const refraction = snellRefraction(I, N, n1, n2);
+        const isTotalInternalReflection = refraction.isTotalInternalReflection;
+        const R = refraction.reflectance;
 
         let absorptionFactor = 1.0;
         if (!isEntering && this.absorptionCoeff > 1e-9 && ray.history.length >= 2) {
@@ -283,7 +260,7 @@ export class DielectricBlock extends OpticalComponent {
 
         const reflectedIntensity = intensityBeforeSplit * R;
         if (reflectedIntensity >= ray.minIntensityThreshold) {
-            const reflectedDir = I.subtract(N.multiply(2.0 * I.dot(N))).normalize();
+            const reflectedDir = reflectDirection(I, N);
             const reflectOrigin = hitPoint.add(reflectedDir.multiply(1e-6));
             try {
                 if (isNaN(reflectOrigin.x) || isNaN(reflectedDir.x) || reflectedDir.magnitudeSquared() < 0.5) throw new Error("NaN/zero reflected dir");
@@ -295,8 +272,8 @@ export class DielectricBlock extends OpticalComponent {
         if (!isTotalInternalReflection) {
             const T = 1.0 - R;
             const transmittedIntensity = intensityBeforeSplit * T;
-            if (transmittedIntensity >= ray.minIntensityThreshold) {
-                const refractedDir = I.multiply(nRatio).add(N.multiply(nRatio * cosI - cosT)).normalize();
+            if (transmittedIntensity >= ray.minIntensityThreshold && refraction.refractedDirection) {
+                const refractedDir = refraction.refractedDirection;
                 const refractOrigin = hitPoint.add(refractedDir.multiply(1e-6));
                 try {
                     if (isNaN(refractOrigin.x) || isNaN(refractedDir.x) || refractedDir.magnitudeSquared() < 0.5) throw new Error("NaN/zero refracted dir");

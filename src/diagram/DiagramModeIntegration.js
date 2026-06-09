@@ -1080,6 +1080,14 @@ export class DiagramModeIntegration {
         // 如果HTML中已有容器，ModeSwitcher应该已经由main.js初始化
 
         // 创建绘图模式工具栏
+        if (existingModeSwitcherContainer && !this.modules.modeSwitcher) {
+            this.modules.modeSwitcher = {
+                optional: true,
+                instance: null,
+                reason: 'managed by main mode switcher'
+            };
+        }
+
         this._createDiagramToolbar();
     }
 

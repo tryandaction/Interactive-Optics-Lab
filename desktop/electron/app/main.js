@@ -1979,10 +1979,11 @@ function handlePropertyChange(propName, rawValue, isFinalChange = false) {
 function getComponentPropertyValue(component, propName) {
     try {
         // Prioritize special cases (like angles stored in radians)
-        if (propName === 'angleDeg' && component.hasOwnProperty('angleRad')) return component.angleRad;
-        if (propName === 'transmissionAxisAngleDeg' && component.hasOwnProperty('transmissionAxisRad')) return component.transmissionAxisRad;
-        if (propName === 'fastAxisAngleDeg' && component.hasOwnProperty('fastAxisRad')) return component.fastAxisRad;
-        if (propName === 'outputAngleDeg' && component instanceof OpticalFiber && component.hasOwnProperty('outputAngleRad')) return component.outputAngleRad;
+        const radToDeg = (angleRad) => angleRad * (180 / Math.PI);
+        if (propName === 'angleDeg' && component.hasOwnProperty('angleRad')) return radToDeg(component.angleRad);
+        if (propName === 'transmissionAxisAngleDeg' && component.hasOwnProperty('transmissionAxisRad')) return radToDeg(component.transmissionAxisRad);
+        if (propName === 'fastAxisAngleDeg' && component.hasOwnProperty('fastAxisRad')) return radToDeg(component.fastAxisRad);
+        if (propName === 'outputAngleDeg' && component instanceof OpticalFiber && component.hasOwnProperty('outputAngleRad')) return radToDeg(component.outputAngleRad);
         if (propName === 'outputPos' && component instanceof OpticalFiber && component.outputPos instanceof Vector) return component.outputPos.clone();
         if (propName === 'posX' && component.pos instanceof Vector) return component.pos.x;
         if (propName === 'posY' && component.pos instanceof Vector) return component.pos.y;
@@ -4380,10 +4381,87 @@ function generateSceneDataObject() {
             console.error(`Error calling toJSON for component ${comp?.label} (${comp?.id}):`, e);
         }
     });
+    sceneData.diagram = buildDiagramPayloadForExport();
     console.log("Generated scene data using toJSON. Mode:", currentMode);
     return sceneData;
 }
 // --- END REPLACEMENT ---
+
+function buildDiagramPayloadForExport() {
+    try {
+        if (typeof window.createSceneToDiagramAdapter !== 'function') {
+            return null;
+        }
+
+        const adapter = window.createSceneToDiagramAdapter({
+            includePageFrame: true,
+            page: {
+                width: canvas?.width || 1920,
+                height: canvas?.height || 1080,
+                margin: 48
+            }
+        });
+
+        return adapter.convert({
+            name: document?.title || 'OpticsLab scene',
+            components,
+            rays: currentRayPaths
+        });
+    } catch (error) {
+        console.warn('[Export] Failed to build diagram payload:', error);
+        return null;
+    }
+}
+
+function generateProfessionalSVGString(options = {}) {
+    const diagram = buildDiagramPayloadForExport();
+    if (!diagram) {
+        throw new Error('Professional diagram payload is not available.');
+    }
+    if (typeof window.createDiagramObjectSVGRenderer !== 'function') {
+        throw new Error('Professional SVG renderer is not available.');
+    }
+
+    const renderer = window.createDiagramObjectSVGRenderer({
+        includeXmlDeclaration: true,
+        includeBackground: true,
+        includePageFrame: true,
+        showLabels: true,
+        showOpticalAxis: true,
+        showFocalMarkers: true,
+        rayGlow: true,
+        showRayArrows: true,
+        autoFit: true,
+        contentPadding: 72,
+        stylePreset: 'paper',
+        ...options
+    });
+
+    return renderer.render(diagram);
+}
+
+function exportProfessionalSVG() {
+    console.log('[Export] Exporting professional SVG...');
+    try {
+        const svgString = generateProfessionalSVGString();
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `optics_professional_${new Date().toISOString().slice(0, 10)}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showTemporaryMessage('专业 SVG 已下载', 'success');
+    } catch (error) {
+        console.error('[Export] Professional SVG export failed:', error);
+        showTemporaryMessage(`专业 SVG 导出失败: ${error.message}`, 'error');
+    }
+}
+
+window.generateProfessionalSVGString = generateProfessionalSVGString;
+window.exportProfessionalSVG = exportProfessionalSVG;
 
 // --- REPLACEMENT for loadSceneFromData (V2 - Uses constructor & setProperty correctly) ---
 /**
@@ -4971,6 +5049,7 @@ function setupEventListeners() {
     
     document.getElementById('menu-import-scene')?.addEventListener('click', (e) => { e.preventDefault(); triggerFileInputForImport(); });
     document.getElementById('menu-export-scene')?.addEventListener('click', (e) => { e.preventDefault(); exportScene(); });
+    document.getElementById('menu-export-professional-svg')?.addEventListener('click', (e) => { e.preventDefault(); exportProfessionalSVG(); });
     document.getElementById('menu-manage-scenes')?.addEventListener('click', (e) => { e.preventDefault(); activateTab('unified-project-tab'); });
 
     // Edit Menu

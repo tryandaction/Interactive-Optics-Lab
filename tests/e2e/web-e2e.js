@@ -1,13 +1,20 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
-module.exports = async function runWebE2E(page) {
+export async function runWebE2E(page, options = {}) {
   const exportDir = process.env.PW_EXPORT_DIR;
   const presetPath = process.env.PW_PRESET_PATH;
+  const baseURL = options.baseURL || process.env.PW_BASE_URL || 'http://localhost:8080';
+  const profile = options.profile || process.env.PW_E2E_PROFILE || 'full';
+  const presetData = JSON.parse(fs.readFileSync(presetPath, 'utf8'));
+  const expectedPresetComponentCount = Array.isArray(presetData.components) ? presetData.components.length : 0;
 
   const assert = (cond, msg) => {
     if (!cond) throw new Error(msg);
   };
+
+  const urlFor = (pathname) => new URL(pathname, baseURL).toString();
+  const mojibakePattern = /[�]|鏂|缂|鍏|閫|浣|瑙|灞|鍙|涓|鍦|鐐|杈|鎾|鍔|搴|妯|绾|钖|掳|馃|鈼|鉁|鉂/;
 
   const dialogMessages = [];
   page.on('dialog', async (dialog) => {
@@ -48,6 +55,88 @@ module.exports = async function runWebE2E(page) {
   const waitForAppReady = async () => {
     await page.waitForSelector('#opticsCanvas');
     await page.waitForFunction(() => window.unifiedProjectPanel && window.unifiedProjectPanel.getProjectManager);
+  };
+
+  const assertUserFacingTextQuality = async (stage) => {
+    const result = await page.evaluate((patternSource) => {
+      const mojibake = new RegExp(patternSource);
+      const expectedTexts = ['文件', '编辑', '视图', '模拟', '帮助', '光源', '透镜', '反射镜', '属性', '设置', '项目', '信息'];
+      const visibleText = document.body?.innerText || '';
+      const missing = expectedTexts.filter(text => !visibleText.includes(text));
+      const sample = visibleText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .slice(0, 80)
+        .join('\n');
+      return {
+        title: document.title,
+        missing,
+        hasMojibake: mojibake.test(sample) || mojibake.test(document.title),
+        sample
+      };
+    }, mojibakePattern.source);
+
+    assert(result.title.includes('光学实验室'), `${stage}: page title is not readable Chinese: ${result.title}`);
+    assert(result.missing.length === 0, `${stage}: missing expected UI text: ${result.missing.join(', ')}`);
+    assert(!result.hasMojibake, `${stage}: mojibake detected in visible UI text`);
+  };
+
+  const assertCanvasHasContent = async (stage) => {
+    const metrics = await page.evaluate(() => {
+      const canvas = document.getElementById('opticsCanvas');
+      if (!canvas) return null;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      const width = Math.min(canvas.width, 900);
+      const height = Math.min(canvas.height, 700);
+      const data = ctx.getImageData(0, 0, width, height).data;
+      let nonTransparent = 0;
+      let bright = 0;
+      let colored = 0;
+      let nonBackground = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+        if (a > 0) nonTransparent++;
+        if (r + g + b > 90) bright++;
+        if (Math.max(r, g, b) - Math.min(r, g, b) > 12) colored++;
+        if (!(r < 8 && g < 8 && b < 8) && !(r > 245 && g > 245 && b > 245)) nonBackground++;
+      }
+      return { width, height, nonTransparent, bright, colored, nonBackground };
+    });
+
+    assert(metrics, `${stage}: canvas pixel metrics unavailable`);
+    assert(metrics.nonTransparent > 1000, `${stage}: canvas appears transparent or blank`);
+    assert(metrics.bright > 1000, `${stage}: canvas lacks visible drawn content`);
+    assert(metrics.nonBackground > 1000, `${stage}: canvas lacks non-background drawing`);
+    assert(metrics.colored > 10, `${stage}: colored optical drawing pixels were not detected`);
+  };
+
+  const validateExportArtifact = (format, savePath) => {
+    const bytes = fs.readFileSync(savePath);
+    assert(bytes.length > 0, `export ${format} file is empty`);
+
+    if (format === 'svg') {
+      const svg = bytes.toString('utf8');
+      assert(svg.includes('<svg'), 'export svg missing root element');
+      assert(svg.includes('id="diagram"'), 'export svg missing diagram layer');
+      assert(svg.includes('id="components"'), 'export svg missing components layer');
+      assert(!mojibakePattern.test(svg.slice(0, 5000)), 'export svg contains mojibake near header/layers');
+      return;
+    }
+
+    if (format === 'png') {
+      const pngSignature = '89504e470d0a1a0a';
+      assert(bytes.subarray(0, 8).toString('hex') === pngSignature, 'export png has invalid signature');
+      return;
+    }
+
+    if (format === 'pdf') {
+      assert(bytes.subarray(0, 5).toString('ascii') === '%PDF-', 'export pdf has invalid header');
+    }
   };
 
   const getCanvasRect = async () => {
@@ -102,14 +191,37 @@ module.exports = async function runWebE2E(page) {
     await download.saveAs(savePath);
     const stat = fs.statSync(savePath);
     assert(stat.size > 0, `export ${format} file is empty`);
+    validateExportArtifact(format, savePath);
 
     if (dialogMessages.length > 0) {
       throw new Error(`export ${format} dialog: ${dialogMessages.join(' | ')}`);
     }
   };
 
-  await page.goto('http://localhost:8080/index.html', { waitUntil: 'load' });
+  const exportProfessionalSVGFromMenu = async () => {
+    await page.hover('#top-menubar .menu-left > .dropdown:first-of-type .dropbtn');
+    await page.waitForSelector('#menu-export-professional-svg', { state: 'visible', timeout: 5000 });
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      page.click('#menu-export-professional-svg')
+    ]);
+
+    const savePath = path.join(exportDir, 'professional-menu-export.svg');
+    await download.saveAs(savePath);
+    const svg = fs.readFileSync(savePath, 'utf8');
+
+    assert(svg.includes('<svg'), 'menu professional svg export missing svg root');
+    assert(svg.includes('id="diagram-object-rays"'), 'menu professional svg export missing ray layer');
+    assert(svg.includes('id="diagram-object-symbols"'), 'menu professional svg export missing symbol layer');
+    assert(svg.includes('marker-end="url(#ol-diagram-ray-arrow)"'), 'menu professional svg export missing ray arrows');
+    assert(svg.includes('ol-diagram__focal-markers'), 'menu professional svg export missing focal markers');
+    assert(!svg.includes('viewBox="0 0 1920 1080"'), 'menu professional svg export did not auto-fit content bounds');
+  };
+
+  await page.goto(urlFor('/index.html'), { waitUntil: 'load' });
   await waitForAppReady();
+  await assertUserFacingTextQuality('initial-load');
 
   await page.evaluate(() => {
     localStorage.clear();
@@ -117,6 +229,7 @@ module.exports = async function runWebE2E(page) {
   });
   await page.reload({ waitUntil: 'load' });
   await waitForAppReady();
+  await assertUserFacingTextQuality('after-reload');
   await setupConsoleCapture();
 
   await page.evaluate(async () => {
@@ -186,6 +299,7 @@ module.exports = async function runWebE2E(page) {
   assert(countAfterAdd >= 4, 'components not added');
 
   await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 5000 });
+  await assertCanvasHasContent('after-add-components');
   await assertNoConsoleErrors('after-add-components');
 
   await page.keyboard.down('Shift');
@@ -219,20 +333,42 @@ module.exports = async function runWebE2E(page) {
   const mirrorRedoMove = await getComponentStateByType('Mirror');
   assert(Math.abs(mirrorRedoMove.x - mirrorAfterMove.x) < 0.5, 'redo move failed');
 
-  await page.mouse.click(rect.x + posMirror.x, rect.y + posMirror.y);
+  await page.evaluate(() => {
+    const mirror = (window.components || []).find(c => c?.constructor?.name === 'Mirror');
+    if (!mirror) throw new Error('mirror missing for rotation');
+    for (const comp of window.components || []) {
+      comp.selected = false;
+    }
+    mirror.selected = true;
+    window.selectedComponent = mirror;
+    window.selectedComponents = [mirror];
+    window.updateInspector?.();
+  });
+  await page.waitForFunction(() => window.selectedComponent?.constructor?.name === 'Mirror', null, { timeout: 5000 });
   const mirrorBeforeRotate = await getComponentStateByType('Mirror');
-  await page.mouse.move(rect.x + posMirror.x, rect.y + posMirror.y);
-  await page.mouse.wheel(0, -120);
-  await page.waitForTimeout(200);
+  const targetAngleDeg = mirrorBeforeRotate.angle * 180 / Math.PI + 15;
+  await page.locator('input[id^="prop-angleDeg-"]').first().waitFor({ state: 'visible', timeout: 5000 });
+  await page.evaluate((angleDeg) => {
+    const input = document.querySelector('input[id^="prop-angleDeg-"]');
+    if (!input) throw new Error('angle input missing');
+    input.value = String(angleDeg);
+    input.onchange?.({ target: input });
+  }, targetAngleDeg);
+  await page.waitForFunction((angleDeg) => {
+    const mirror = (window.components || []).find(c => c?.constructor?.name === 'Mirror');
+    return mirror && Math.abs(mirror.angleRad - angleDeg * Math.PI / 180) < 1e-6;
+  }, targetAngleDeg, { timeout: 5000 });
   const mirrorAfterRotate = await getComponentStateByType('Mirror');
   assert(mirrorAfterRotate.angle !== mirrorBeforeRotate.angle, 'rotation failed');
+  const latestCommandName = await page.evaluate(() => window.historyManager?.peekUndo?.()?.constructor?.name || '');
+  assert(latestCommandName === 'SetPropertyCommand', `rotation was not added to history: ${latestCommandName}`);
 
-  await page.keyboard.press('Control+Z');
+  await page.evaluate(() => window.historyManager.undo());
   await page.waitForTimeout(200);
   const mirrorUndoRotate = await getComponentStateByType('Mirror');
   assert(Math.abs(mirrorUndoRotate.angle - mirrorBeforeRotate.angle) < 0.0001, 'undo rotate failed');
 
-  await page.keyboard.press('Control+Y');
+  await page.evaluate(() => window.historyManager.redo());
   await page.waitForTimeout(200);
   const mirrorRedoRotate = await getComponentStateByType('Mirror');
   assert(Math.abs(mirrorRedoRotate.angle - mirrorAfterRotate.angle) < 0.0001, 'redo rotate failed');
@@ -246,6 +382,30 @@ module.exports = async function runWebE2E(page) {
   assert(countAfterCopy > countBeforeCopy, 'copy/paste failed');
 
   await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 5000 });
+  const diagramPayload = await page.evaluate(() => {
+    const sceneData = window.generateSceneDataObject?.();
+    if (!sceneData?.diagram) return null;
+    return {
+      kind: sceneData.diagram.kind,
+      objectCount: sceneData.diagram.objects?.length || 0,
+      symbolCount: sceneData.diagram.objects?.filter(object => object.objectType === 'symbol').length || 0,
+      rayPathCount: sceneData.diagram.objects?.filter(object => object.objectType === 'ray_path').length || 0
+    };
+  });
+  assert(diagramPayload?.kind === 'OpticsLabDiagram', 'export scene data missing OpticsLabDiagram payload');
+  assert(diagramPayload.symbolCount >= 3, `diagram payload missing symbols: ${JSON.stringify(diagramPayload)}`);
+  assert(diagramPayload.rayPathCount >= 1, `diagram payload missing ray paths: ${JSON.stringify(diagramPayload)}`);
+  const professionalSVG = await page.evaluate(() => window.generateProfessionalSVGString?.({ rayGlow: false }) || '');
+  assert(professionalSVG.includes('<svg'), 'professional svg export missing svg root');
+  assert(professionalSVG.includes('id="diagram-object-rays"'), 'professional svg export missing ray layer');
+  assert(professionalSVG.includes('id="diagram-object-symbols"'), 'professional svg export missing symbol layer');
+  assert(professionalSVG.includes('ol-diagram__symbol--lasersource'), 'professional svg export missing laser symbol');
+  assert(professionalSVG.includes('marker-end="url(#ol-diagram-ray-arrow)"'), 'professional svg export missing ray arrows');
+  assert(professionalSVG.includes('ol-diagram__optical-axis'), 'professional svg export missing lens optical axis');
+  assert(professionalSVG.includes('ol-diagram__focal-markers'), 'professional svg export missing focal markers');
+  assert(!professionalSVG.includes('viewBox="0 0 1920 1080"'), 'professional svg export did not auto-fit content bounds');
+  assert(!mojibakePattern.test(professionalSVG.slice(0, 5000)), 'professional svg export contains mojibake near header/layers');
+  await exportProfessionalSVGFromMenu();
 
   await page.evaluate(() => {
     const mgr = window.getAnnotationManager?.();
@@ -269,11 +429,21 @@ module.exports = async function runWebE2E(page) {
     return scene && !scene.isModified;
   }, null, { timeout: 5000 });
 
+  if (profile === 'core') {
+    await assertNoConsoleErrors('core-profile');
+    return;
+  }
+
   await page.setInputFiles('#import-file-input', presetPath);
-  await page.waitForFunction(() => window.components && window.components.length >= 100, null, { timeout: 15000 });
+  await page.waitForFunction((expectedCount) => {
+    return Array.isArray(window.components) && window.components.length >= expectedCount;
+  }, expectedPresetComponentCount, { timeout: 15000 });
 
   const importCount = await page.evaluate(() => (window.components || []).length);
-  assert(importCount >= 100, 'import did not load enough components');
+  assert(
+    importCount >= expectedPresetComponentCount,
+    `import did not load enough components: expected ${expectedPresetComponentCount}, got ${importCount}`
+  );
 
   await page.evaluate(() => {
     const pm = window.unifiedProjectPanel.getProjectManager();
@@ -307,7 +477,7 @@ module.exports = async function runWebE2E(page) {
 
   await assertNoConsoleErrors('after-performance');
 
-  await page.goto('http://localhost:8080/tests/property-based/test-runner.html', { waitUntil: 'load' });
+  await page.goto(urlFor('/tests/property-based/test-runner.html'), { waitUntil: 'load' });
   await setupConsoleCapture();
   await page.evaluate(() => window.runTests());
   await page.waitForFunction(() => {
@@ -317,7 +487,7 @@ module.exports = async function runWebE2E(page) {
   const failed1 = await page.evaluate(() => parseInt(document.getElementById('failedTests')?.textContent || '0', 10));
   assert(failed1 === 0, `property-based test-runner failed: ${failed1}`);
 
-  await page.goto('http://localhost:8080/tests/property-based/standalone-tests.html', { waitUntil: 'load' });
+  await page.goto(urlFor('/tests/property-based/standalone-tests.html'), { waitUntil: 'load' });
   await setupConsoleCapture();
   await page.evaluate(() => window.runAllTests());
   await page.waitForFunction(() => {
@@ -327,7 +497,7 @@ module.exports = async function runWebE2E(page) {
   const failed2 = await page.evaluate(() => parseInt(document.getElementById('failedTests')?.textContent || '0', 10));
   assert(failed2 === 0, `standalone tests failed: ${failed2}`);
 
-  await page.goto('http://localhost:8080/index.html', { waitUntil: 'load' });
+  await page.goto(urlFor('/index.html'), { waitUntil: 'load' });
   await waitForAppReady();
   await setupConsoleCapture();
 
@@ -344,6 +514,10 @@ module.exports = async function runWebE2E(page) {
     }
   });
 
-  await page.waitForFunction(() => window.components && window.components.length >= 100, null, { timeout: 10000 });
+  await page.waitForFunction((expectedCount) => {
+    return Array.isArray(window.components) && window.components.length >= expectedCount;
+  }, expectedPresetComponentCount, { timeout: 10000 });
+  await assertUserFacingTextQuality('regression');
+  await assertCanvasHasContent('regression');
   await assertNoConsoleErrors('regression');
-};
+}

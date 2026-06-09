@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { PIXELS_PER_MICROMETER, PIXELS_PER_NANOMETER } from '../../core/constants.js';
+import { diffractionGratingDirection } from '../../core/OpticsMath.js';
 
 export class DiffractionGrating extends OpticalComponent {
     static functionDescription = "由多缝干涉形成清晰衍射级次，用于光谱分辨。";
@@ -144,27 +145,21 @@ export class DiffractionGrating extends OpticalComponent {
         const lambda_nm = ray.wavelengthNm;
         const lambda_px = lambda_nm * PIXELS_PER_NANOMETER;
 
-        const normalForAngleCalc = ray.direction.dot(N) < 0 ? N : N.multiply(-1);
-        const cosThetaI = Math.max(0.0, Math.min(1.0, incidentDirection.dot(normalForAngleCalc.multiply(-1.0))));
-        const sinThetaI = Math.sqrt(Math.max(0.0, 1.0 - cosThetaI * cosThetaI));
-        const crossSign = incidentDirection.cross(this.gratingDir);
-        const signedSinThetaI = Math.sign(crossSign) * sinThetaI;
-
         const newRays = [];
         const nextBounces = ray.bouncesSoFar + 1;
         const incidentIntensity = ray.intensity;
 
         for (let m = -this.maxOrder; m <= this.maxOrder; m++) {
-            const sinThetaM_term = m * lambda_px / d_px;
-            const sinThetaM = signedSinThetaI + sinThetaM_term;
+            const diffractedDir = diffractionGratingDirection(
+                incidentDirection,
+                this.gratingDir,
+                N,
+                lambda_px,
+                d_px,
+                m
+            );
 
-            if (Math.abs(sinThetaM) <= 1.0 + 1e-9) {
-                const clampedSinThetaM = Math.max(-1.0, Math.min(1.0, sinThetaM));
-                const cosThetaM = Math.sqrt(1.0 - clampedSinThetaM * clampedSinThetaM);
-
-                let diffractedDir = normalForAngleCalc.multiply(cosThetaM).add(this.gratingDir.multiply(clampedSinThetaM * Math.sign(crossSign)));
-                diffractedDir = diffractedDir.normalize();
-
+            if (diffractedDir) {
                 if (isNaN(diffractedDir.x) || diffractedDir.magnitudeSquared() < 0.5) continue;
 
                 const orderAbs = Math.abs(m);

@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { N_AIR } from '../../core/constants.js';
+import { fiberCouplingFactor } from '../../core/OpticsMath.js';
 
 export class OpticalFiber extends OpticalComponent {
     static functionDescription = "模拟光纤耦合与传输损耗，限制入射角与数值孔径。";
@@ -317,16 +318,13 @@ export class OpticalFiber extends OpticalComponent {
             return null;
         }
 
-        const angleFactor = (minCosFacet < 1.0 - 1e-9)
-            ? Math.max(0, Math.min(1, (cosThetaFacet - minCosFacet) / (1.0 - minCosFacet)))
-            : 1.0;
-
         const coreRadius = this.coreDiameter / 2.0;
-        const positionFactor = coreRadius < 1e-6
-            ? 1.0
-            : Math.max(0, 1.0 - (Math.sqrt(distSqFromCenter) / coreRadius));
-
-        const couplingFactor = Math.max(0, Math.min(1, angleFactor * positionFactor));
+        const couplingFactor = fiberCouplingFactor(
+            cosThetaFacet,
+            minCosFacet,
+            Math.sqrt(distSqFromCenter),
+            coreRadius
+        );
         this.lastCalculatedCouplingFactor = couplingFactor;
 
         return {

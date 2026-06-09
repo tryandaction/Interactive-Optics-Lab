@@ -1,14 +1,16 @@
 {
   "name": "opticslab",
   "version": "1.2.0",
-  "description": "Interactive optical simulation and professional diagram tool with 94+ optical components",
+  "description": "Interactive optics workbench for geometric ray sketches, teaching demos, and research diagram prototypes",
   "main": "index.html",
   "type": "module",
   "scripts": {
     "start": "npx http-server . -p 8080 -o",
     "dev": "npx http-server . -p 8080 -c-1 -o",
-    "test": "npx playwright test",
-    "test:e2e": "npx playwright test tests/e2e/",
+    "test": "npm run lint && npm run test:unit",
+    "test:e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/e2e/run-smoke-e2e.ps1",
+    "test:e2e:core": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/e2e/run-web-e2e.ps1 -Profile core",
+    "test:e2e:full": "powershell -NoProfile -ExecutionPolicy Bypass -File tests/e2e/run-web-e2e.ps1",
     "test:unit": "node --test tests/unit/**/*.test.js",
     "lint": "npx eslint src/"
   },

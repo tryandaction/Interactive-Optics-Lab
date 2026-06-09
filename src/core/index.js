@@ -7,3 +7,4 @@ export { Vector } from './Vector.js';
 export { Ray } from './Ray.js';
 export { GameObject } from './GameObject.js';
 export { OpticalComponent } from './OpticalComponent.js';
+export * from './OpticsMath.js';

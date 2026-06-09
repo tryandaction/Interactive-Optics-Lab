@@ -3,6 +3,8 @@
  * 负责显示和编辑选中组件的属性
  */
 
+import { getComponentReliability, getReliabilityLabel } from '../components/ComponentReliability.js';
+
 /**
  * 属性分组配置
  */
@@ -123,6 +125,29 @@ export class Inspector {
             funcDesc.textContent = component.constructor.functionDescription;
             infoHeader.appendChild(funcDesc);
         }
+
+        const reliability = getComponentReliability(component);
+        const reliabilityBox = document.createElement('div');
+        reliabilityBox.className = `component-reliability reliability-${reliability.level || 'unknown'}`;
+
+        const badge = document.createElement('span');
+        badge.className = 'component-reliability-badge';
+        badge.textContent = getReliabilityLabel(reliability.level);
+        reliabilityBox.appendChild(badge);
+
+        const scope = document.createElement('p');
+        scope.className = 'component-reliability-scope';
+        scope.textContent = reliability.scope;
+        reliabilityBox.appendChild(scope);
+
+        if (reliability.limitations) {
+            const limitations = document.createElement('p');
+            limitations.className = 'component-reliability-limitations';
+            limitations.textContent = reliability.limitations;
+            reliabilityBox.appendChild(limitations);
+        }
+
+        infoHeader.appendChild(reliabilityBox);
 
         // 备注
         const notesContainer = document.createElement('div');

@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="OpticsLab - 交互式光学实验模拟器，支持94+光学元件的实时光线追踪和专业绘图模式">
+    <meta name="description" content="OpticsLab - 科研光路草图与交互式光学验证工作台，支持几何光线追踪、理想薄透镜成像和科研图示原型">
     <meta name="keywords" content="光学模拟,光线追踪,透镜,光学实验,物理教学">
     <meta name="author" content="OpticsLab">
 
     <!-- Open Graph / Social Media -->
     <meta property="og:title" content="OpticsLab - 交互式光学实验室">
-    <meta property="og:description" content="专业的光学实验模拟器，支持实时光线追踪、透镜成像分析和专业绘图导出">
+    <meta property="og:description" content="面向教学、AMO/激光实验草图和科研光路快速验证的交互式光学工作台">
     <meta property="og:type" content="website">
     <meta property="og:image" content="./assets/og-image.png">
 
@@ -64,6 +64,7 @@
                     <hr>
                     <a href="#" id="menu-import-scene">导入文件...</a>
                     <a href="#" id="menu-export-scene">导出文件...</a>
+                    <a href="#" id="menu-export-professional-svg">导出专业 SVG...</a>
                 </div>
             </div>
 
@@ -124,8 +125,8 @@
                 </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-mode-raytrace">模式: 光线追踪</a>
-                    <a href="#" id="menu-mode-lensimaging">模式: 透镜成像</a>
-                    <a href="#" id="menu-mode-diagram">模式: 专业绘图</a>
+                    <a href="#" id="menu-mode-lensimaging">模式: 理想薄透镜成像</a>
+                    <a href="#" id="menu-mode-diagram">模式: 科研图示</a>
                     <hr>
                     <a href="#" id="menu-toggle-arrows">切换动画箭头</a>
                     <a href="#" id="menu-toggle-selected-arrow">切换仅选中箭头</a>
@@ -859,7 +860,7 @@
                     </ul>
                 </li>
                 <li><strong>丰富元件库:</strong> 包含光源、透镜、反射镜、棱镜、光栅、偏振元件、分束器、探测器等多种元件 (详见第 5 节)。</li>
-                <li><strong>实时光线追踪:</strong> 基于物理定律精确可视化光线路径。</li>
+                <li><strong>实时光线追踪:</strong> 基于几何光学模型可视化光线路径；复杂元件的定量精度需结合测试基线判断。</li>
                 <li><strong>元件属性调整:</strong> 选中元件后，在右侧“属性”标签页中实时修改参数。</li>
                 <li><strong>灵活视图控制:</strong>
                     <ul>
@@ -870,8 +871,8 @@
                 </li>
                 <li><strong>多模拟模式:</strong>
                     <ul>
-                        <li>光线追踪: 默认模式，模拟光线传播与物理效应。</li>
-                        <li>透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
+                        <li>光线追踪: 默认模式，交互式观察光线传播与部分物理效应。</li>
+                        <li>理想薄透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
                     </ul>
                 </li>
                 <li><strong>物理效应模拟:</strong> 波长相关颜色、偏振、色散、衍射基础、干涉基础、高斯光束初步模拟。</li>
@@ -916,9 +917,9 @@
             <ul>
                 <li><strong>光线追踪 (Ray Tracing):</strong> (菜单: 模拟 -> 模式: 光线追踪)
                     默认模式。模拟大量独立光线的行为，考虑相位进行相干叠加（在屏幕上）。适合观察反射、折射、TIR、色散、衍射级次、偏振效果和干涉图样。</li>
-                <li><strong>透镜成像 (Lens Imaging):</strong> (菜单: 模拟 -> 模式: 透镜成像)
+                <li><strong>理想薄透镜成像 (Ideal Thin-Lens Imaging):</strong> (菜单: 模拟 -> 模式: 理想薄透镜成像)
                     仅当场景中<strong>恰好包含一个受支持的光源和一个薄透镜</strong>时可用。绘制理想薄透镜成像的三条主光线、物和像，并在画布左上角显示 u, v, M, hₒ, hᵢ
-                    及像的性质。不进行复杂的光线追踪。</li>
+                    及像的性质。不进行复杂透镜系统或厚透镜追迹。</li>
             </ul>
 
             <h4>7. 全局设置与选项 (右侧“设置”标签页)</h4>
@@ -1363,13 +1364,14 @@
 
             window.addEventListener('legacy-globals-ready', loadMain, { once: true });
 
-            // Fallback: load main.js even if module init is delayed
+            // Fallback: load main.js only after the compatibility layer has had enough time
+            // to finish its heavy module graph. main.js also waits for required globals.
             setTimeout(() => {
                 if (!window.__LEGACY_GLOBALS_LOADED__) {
-                    console.warn('legacy-globals not ready, loading main.js anyway');
+                    console.warn('legacy-globals timed out, loading main.js with runtime module checks');
                     loadMain();
                 }
-            }, 2000);
+            }, 10000);
         })();
     </script>
 
