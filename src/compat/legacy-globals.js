@@ -108,6 +108,29 @@ import { ProjectManager } from '../managers/ProjectManager.js';
 import { ActiveSceneManager } from '../managers/ActiveSceneManager.js';
 import { SyncService } from '../managers/SyncService.js';
 import { AutoRecoveryManager } from '../managers/AutoRecoveryManager.js';
+import {
+    OPTICS_DOCUMENT_SCHEMA_VERSION,
+    createOpticsDocument,
+    normalizeOpticsDocument,
+    OpticsDocumentMigrator,
+    OpticsDocumentSerializer,
+    DocumentStore,
+    DocumentFileController,
+    DocumentRecovery,
+    captureRuntimeDocument,
+    documentToLegacySceneData
+} from '../document/index.js';
+import * as BenchInteractions from '../bench/index.js';
+import { ComponentPortRegistry, BeamGraph, BeamGraphBuilder } from '../beam-graph/index.js';
+import {
+    SchematicEditor,
+    SchematicEditorModel,
+    SchematicExporter,
+    SchematicProjector,
+    SchematicWorkspace,
+    renderSchematicSvg,
+    renderSchematicSymbol
+} from '../schematic/index.js';
 
 // 应用
 import { SimulationApp } from '../app/SimulationApp.js';
@@ -268,6 +291,27 @@ if (typeof window !== 'undefined') {
     window.ActiveSceneManager = ActiveSceneManager;
     window.SyncService = SyncService;
     window.AutoRecoveryManager = AutoRecoveryManager;
+    window.OPTICS_DOCUMENT_SCHEMA_VERSION = OPTICS_DOCUMENT_SCHEMA_VERSION;
+    window.createOpticsDocument = createOpticsDocument;
+    window.normalizeOpticsDocument = normalizeOpticsDocument;
+    window.OpticsDocumentMigrator = OpticsDocumentMigrator;
+    window.OpticsDocumentSerializer = OpticsDocumentSerializer;
+    window.DocumentStore = DocumentStore;
+    window.DocumentFileController = DocumentFileController;
+    window.DocumentRecovery = DocumentRecovery;
+    window.captureRuntimeDocument = captureRuntimeDocument;
+    window.documentToLegacySceneData = documentToLegacySceneData;
+    window.BenchInteractions = BenchInteractions;
+    window.ComponentPortRegistry = ComponentPortRegistry;
+    window.BeamGraph = BeamGraph;
+    window.BeamGraphBuilder = BeamGraphBuilder;
+    window.SchematicEditor = SchematicEditor;
+    window.SchematicEditorModel = SchematicEditorModel;
+    window.SchematicExporter = SchematicExporter;
+    window.SchematicProjector = SchematicProjector;
+    window.SchematicWorkspace = SchematicWorkspace;
+    window.renderSchematicSvg = renderSchematicSvg;
+    window.renderSchematicSymbol = renderSchematicSymbol;
 
     // 应用
     window.SimulationApp = SimulationApp;

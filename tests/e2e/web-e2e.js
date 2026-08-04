@@ -122,8 +122,9 @@ export async function runWebE2E(page, options = {}) {
     if (format === 'svg') {
       const svg = bytes.toString('utf8');
       assert(svg.includes('<svg'), 'export svg missing root element');
-      assert(svg.includes('id="diagram"'), 'export svg missing diagram layer');
-      assert(svg.includes('id="components"'), 'export svg missing components layer');
+      assert(svg.includes('id="layer-beams"'), 'export svg missing beam layer');
+      assert(svg.includes('id="layer-components"'), 'export svg missing components layer');
+      assert(svg.includes('vector-effect="non-scaling-stroke"'), 'export svg missing stable line widths');
       assert(!mojibakePattern.test(svg.slice(0, 5000)), 'export svg contains mojibake near header/layers');
       return;
     }
@@ -166,25 +167,12 @@ export async function runWebE2E(page, options = {}) {
 
   const exportFormat = async (format, filename) => {
     dialogMessages.length = 0;
-    await page.evaluate(() => {
-      const integration = window.getDiagramModeIntegration?.();
-      if (integration?.openExportDialog) {
-        integration.openExportDialog();
-        return;
-      }
-      if (typeof window.openExportDialog === 'function') {
-        window.openExportDialog();
-        return;
-      }
-      throw new Error('export dialog not available');
-    });
-
-    await page.waitForSelector('.export-dialog-overlay', { state: 'visible', timeout: 5000 });
-    await page.selectOption('#export-format', format);
+    await page.evaluate(() => window.schematicWorkspace?.switchWorkspace('schematic'));
+    await page.waitForSelector(`#schematic-workspace [data-schematic-export="${format}"]`, { state: 'visible' });
 
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 15000 }),
-      page.click('#export-confirm')
+      page.click(`#schematic-workspace [data-schematic-export="${format}"]`)
     ]);
 
     const savePath = path.join(exportDir, filename);
@@ -212,11 +200,10 @@ export async function runWebE2E(page, options = {}) {
     const svg = fs.readFileSync(savePath, 'utf8');
 
     assert(svg.includes('<svg'), 'menu professional svg export missing svg root');
-    assert(svg.includes('id="diagram-object-rays"'), 'menu professional svg export missing ray layer');
-    assert(svg.includes('id="diagram-object-symbols"'), 'menu professional svg export missing symbol layer');
-    assert(svg.includes('marker-end="url(#ol-diagram-ray-arrow)"'), 'menu professional svg export missing ray arrows');
-    assert(svg.includes('ol-diagram__focal-markers'), 'menu professional svg export missing focal markers');
-    assert(!svg.includes('viewBox="0 0 1920 1080"'), 'menu professional svg export did not auto-fit content bounds');
+    assert(svg.includes('id="layer-beams"'), 'menu professional svg export missing ray layer');
+    assert(svg.includes('id="layer-components"'), 'menu professional svg export missing symbol layer');
+    assert(svg.includes('viewBox="0 0 1600 900"'), 'menu professional svg export page size changed');
+    assert(svg.includes('vector-effect="non-scaling-stroke"'), 'menu professional svg export line widths are not stable');
   };
 
   await page.goto(urlFor('/index.html'), { waitUntil: 'load' });
@@ -382,28 +369,26 @@ export async function runWebE2E(page, options = {}) {
   assert(countAfterCopy > countBeforeCopy, 'copy/paste failed');
 
   await page.waitForFunction(() => window.currentRayPaths && window.currentRayPaths.length > 0, null, { timeout: 5000 });
-  const diagramPayload = await page.evaluate(() => {
+  const schematicPayload = await page.evaluate(() => {
     const sceneData = window.generateSceneDataObject?.();
-    if (!sceneData?.diagram) return null;
+    if (!sceneData?.views?.schematic) return null;
     return {
-      kind: sceneData.diagram.kind,
-      objectCount: sceneData.diagram.objects?.length || 0,
-      symbolCount: sceneData.diagram.objects?.filter(object => object.objectType === 'symbol').length || 0,
-      rayPathCount: sceneData.diagram.objects?.filter(object => object.objectType === 'ray_path').length || 0
+      schemaVersion: sceneData.schemaVersion,
+      componentCount: sceneData.components?.length || 0,
+      beamEdgeCount: sceneData.beamGraph?.edges?.length || 0,
+      placementCount: Object.keys(sceneData.views.schematic.placements || {}).length
     };
   });
-  assert(diagramPayload?.kind === 'OpticsLabDiagram', 'export scene data missing OpticsLabDiagram payload');
-  assert(diagramPayload.symbolCount >= 3, `diagram payload missing symbols: ${JSON.stringify(diagramPayload)}`);
-  assert(diagramPayload.rayPathCount >= 1, `diagram payload missing ray paths: ${JSON.stringify(diagramPayload)}`);
+  assert(schematicPayload?.schemaVersion === '3.0.0', 'export scene data is not OpticsDocument v3');
+  assert(schematicPayload.componentCount >= 3, `v3 document missing components: ${JSON.stringify(schematicPayload)}`);
+  assert(schematicPayload.beamEdgeCount >= 1, `v3 document missing BeamGraph edges: ${JSON.stringify(schematicPayload)}`);
   const professionalSVG = await page.evaluate(() => window.generateProfessionalSVGString?.({ rayGlow: false }) || '');
   assert(professionalSVG.includes('<svg'), 'professional svg export missing svg root');
-  assert(professionalSVG.includes('id="diagram-object-rays"'), 'professional svg export missing ray layer');
-  assert(professionalSVG.includes('id="diagram-object-symbols"'), 'professional svg export missing symbol layer');
-  assert(professionalSVG.includes('ol-diagram__symbol--lasersource'), 'professional svg export missing laser symbol');
-  assert(professionalSVG.includes('marker-end="url(#ol-diagram-ray-arrow)"'), 'professional svg export missing ray arrows');
-  assert(professionalSVG.includes('ol-diagram__optical-axis'), 'professional svg export missing lens optical axis');
-  assert(professionalSVG.includes('ol-diagram__focal-markers'), 'professional svg export missing focal markers');
-  assert(!professionalSVG.includes('viewBox="0 0 1920 1080"'), 'professional svg export did not auto-fit content bounds');
+  assert(professionalSVG.includes('id="layer-beams"'), 'professional svg export missing ray layer');
+  assert(professionalSVG.includes('id="layer-components"'), 'professional svg export missing symbol layer');
+  assert(professionalSVG.includes('data-component-type="LaserSource"'), 'professional svg export missing laser symbol');
+  assert(professionalSVG.includes('vector-effect="non-scaling-stroke"'), 'professional svg line widths are not stable');
+  assert(professionalSVG.includes('viewBox="0 0 1600 900"'), 'professional svg page boundary changed');
   assert(!mojibakePattern.test(professionalSVG.slice(0, 5000)), 'professional svg export contains mojibake near header/layers');
   await exportProfessionalSVGFromMenu();
 
@@ -451,21 +436,91 @@ export async function runWebE2E(page, options = {}) {
     if (sceneId) localStorage.setItem('opticslab_e2e_scene_id', sceneId);
   });
 
-  await page.evaluate(() => {
-    const modeManager = window.getModeManager?.();
-    if (modeManager?.switchMode) {
-      modeManager.switchMode('diagram');
-      return;
-    }
-    const integration = window.getDiagramModeIntegration?.();
-    if (integration?.switchToDiagramMode) {
-      integration.switchToDiagramMode();
-    }
+  await page.evaluate(() => window.schematicWorkspace?.switchWorkspace('schematic'));
+  await page.mouse.move(700, 500);
+  await page.waitForTimeout(100);
+
+  const pathHitPoint = await page.locator('#layer-beams .schematic-path').first().evaluate(path => {
+    const point = path.getPointAtLength(path.getTotalLength() / 2);
+    const screenPoint = point.matrixTransform(path.getScreenCTM());
+    return { x: screenPoint.x, y: screenPoint.y };
   });
+  const pathHitTarget = await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    return {
+      tagName: target?.tagName || '',
+      className: target?.getAttribute?.('class') || '',
+      pathId: target?.closest?.('[data-path-id]')?.getAttribute('data-path-id') || ''
+    };
+  }, pathHitPoint);
+  assert(pathHitTarget.pathId, `schematic path hit target unavailable: ${JSON.stringify({ pathHitPoint, pathHitTarget })}`);
+  await page.mouse.click(pathHitPoint.x, pathHitPoint.y);
+  await page.locator('[data-schematic-action="path-dashed"]').waitFor({ state: 'visible' });
+  await page.locator('[data-schematic-action="path-dashed"]').click();
+  await page.locator('[data-schematic-action="path-round-trip"]').click();
+  await page.locator('#layer-components [data-component-id]').first().click({ force: true });
+  await page.locator('[data-label-axis="x"]').fill('24');
+  await page.locator('[data-label-axis="y"]').fill('-36');
+  await page.locator('[data-label-axis="y"]').press('Tab');
+  await page.locator('[data-annotation-text]').fill('E2E optical note');
+  await page.locator('[data-schematic-action="add-annotation"]').click();
+
+  const schematicEditState = await page.evaluate(() => {
+    const editor = window.schematicWorkspace?.editor;
+    const document = editor?.getDocument();
+    const selectedComponentId = [...(editor?.model?.selectedIds || [])][0];
+    return document ? {
+      path: document.views.schematic.paths.find(item => item.locked),
+      placement: document.views.schematic.placements[selectedComponentId],
+      annotation: document.annotations.find(item => item.text === 'E2E optical note')
+    } : null;
+  });
+  assert(schematicEditState?.path?.style === 'dashed', 'schematic path style edit failed');
+  assert(schematicEditState?.path?.roundTrip === true, 'schematic round-trip edit failed');
+  assert(schematicEditState?.placement?.labelOffset?.x === 24, 'schematic label X edit failed');
+  assert(schematicEditState?.placement?.labelOffset?.y === -36, 'schematic label Y edit failed');
+  assert(schematicEditState?.annotation?.view === 'schematic', 'schematic annotation edit failed');
 
   await exportFormat('png', 'diagram-export.png');
   await exportFormat('svg', 'diagram-export.svg');
   await exportFormat('pdf', 'diagram-export.pdf');
+  await page.waitForTimeout(3300);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: path.join(process.env.PW_OUTPUT_DIR, 'schematic-desktop.png'), fullPage: true });
+  const desktopLayout = await page.evaluate(() => {
+    const toolbar = document.querySelector('.schematic-toolbar')?.getBoundingClientRect();
+    const pageBox = document.querySelector('.schematic-page')?.getBoundingClientRect();
+    return toolbar && pageBox ? {
+      toolbarBottom: toolbar.bottom,
+      pageTop: pageBox.top,
+      pageWidth: pageBox.width,
+      pageHeight: pageBox.height
+    } : null;
+  });
+  assert(desktopLayout, 'desktop schematic layout unavailable');
+  assert(desktopLayout.toolbarBottom <= desktopLayout.pageTop, 'desktop schematic toolbar overlaps page');
+  assert(Math.abs(desktopLayout.pageWidth / desktopLayout.pageHeight - 16 / 9) < 0.03, 'desktop page ratio changed');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: path.join(process.env.PW_OUTPUT_DIR, 'schematic-mobile.png'), fullPage: true });
+  const mobileLayout = await page.evaluate(() => {
+    const toolbar = document.querySelector('.schematic-toolbar')?.getBoundingClientRect();
+    const pageBox = document.querySelector('.schematic-page')?.getBoundingClientRect();
+    const activeTab = document.querySelector('.workspace-tab.active')?.getBoundingClientRect();
+    return toolbar && pageBox && activeTab ? {
+      toolbarBottom: toolbar.bottom,
+      pageTop: pageBox.top,
+      pageWidth: pageBox.width,
+      pageHeight: pageBox.height,
+      activeTabVisible: activeTab.left >= 0 && activeTab.right <= window.innerWidth
+    } : null;
+  });
+  assert(mobileLayout, 'mobile schematic layout unavailable');
+  assert(mobileLayout.toolbarBottom <= mobileLayout.pageTop, 'mobile schematic toolbar overlaps page');
+  assert(mobileLayout.pageWidth > 250, 'mobile schematic page is too narrow');
+  assert(mobileLayout.activeTabVisible, 'mobile workspace switcher is clipped');
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   const center = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   await page.mouse.move(center.x, center.y);

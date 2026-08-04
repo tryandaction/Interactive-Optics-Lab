@@ -17,8 +17,23 @@ export class ProjectManager {
     static RECENT_PROJECTS_KEY = 'opticslab_recent_projects';
     static MAX_RECENT_PROJECTS = 5;
     static PROJECT_CONFIG_FILE = '.opticslab.json';
-    static SCENE_EXTENSION = '.scene.json';
+    static SCENE_EXTENSION = '.opticslab.json';
+    static LEGACY_SCENE_EXTENSION = '.scene.json';
     static USER_SETTINGS_KEY = 'opticslab_user_settings';
+
+    static isSceneFileName(fileName) {
+        return fileName !== ProjectManager.PROJECT_CONFIG_FILE
+            && (fileName.endsWith(ProjectManager.SCENE_EXTENSION)
+                || fileName.endsWith(ProjectManager.LEGACY_SCENE_EXTENSION));
+    }
+
+    static getSceneNameFromFile(fileName) {
+        if (!ProjectManager.isSceneFileName(fileName)) return null;
+        const extension = fileName.endsWith(ProjectManager.LEGACY_SCENE_EXTENSION)
+            ? ProjectManager.LEGACY_SCENE_EXTENSION
+            : ProjectManager.SCENE_EXTENSION;
+        return fileName.slice(0, -extension.length);
+    }
 
     constructor() {
         this.currentProject = null;
@@ -413,8 +428,8 @@ export class ProjectManager {
                     }
                     const nextPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
                     await walk(entry.handle, nextPath);
-                } else if (entry.kind === 'file' && entry.name.endsWith(ProjectManager.SCENE_EXTENSION)) {
-                    const sceneName = entry.name.replace(ProjectManager.SCENE_EXTENSION, '');
+                } else if (entry.kind === 'file' && ProjectManager.isSceneFileName(entry.name)) {
+                    const sceneName = ProjectManager.getSceneNameFromFile(entry.name);
                     const dirPath = relativePath;
                     const key = dirPath ? `${dirPath}/${entry.name}` : entry.name;
                     const existing = existingSceneMap.get(key);
@@ -1011,28 +1026,10 @@ export class ProjectManager {
         const now = new Date().toISOString();
         const dirPath = this._normalizeDirPath(options.directoryPath || '');
 
-        const clonedData = sceneData
-            ? JSON.parse(JSON.stringify(sceneData))
-            : {};
-
-        if (!clonedData.version) {
-            clonedData.version = Serializer.CURRENT_VERSION;
-        }
-
-        if (!Array.isArray(clonedData.components)) {
-            clonedData.components = [];
-        }
-
-        if (!clonedData.settings) {
-            clonedData.settings = {};
-        }
-
-        if (!clonedData.metadata || typeof clonedData.metadata !== 'object') {
-            clonedData.metadata = {};
-        }
-
-        clonedData.name = uniqueName;
-        clonedData.metadata.name = uniqueName;
+        const clonedData = Serializer.deserialize(
+            sceneData || Serializer.createEmptyScene(uniqueName)
+        );
+        clonedData.metadata.title = uniqueName;
         clonedData.metadata.updatedAt = now;
         if (!clonedData.metadata.createdAt) {
             clonedData.metadata.createdAt = now;
@@ -1128,21 +1125,7 @@ export class ProjectManager {
         if (this.currentProject.storageMode === 'localStorage') {
             const rawData = LocalStorageAdapter.getScene(this.currentProject.id, sceneId);
             if (rawData) {
-                // localStorage 中的数据已经是 JSON 对象，不需要 parse
-                // 但需要确保格式一致
-                if (Serializer.needsMigration(rawData)) {
-                    sceneData = Serializer.migrate(rawData);
-                } else {
-                    sceneData = rawData;
-                }
-                // 确保 components 被正确反序列化
-                if (sceneData.components && Array.isArray(sceneData.components)) {
-                    sceneData.components = Serializer.deserializeComponents(sceneData.components);
-                }
-                // 确保 settings 被正确反序列化
-                if (sceneData.settings) {
-                    sceneData.settings = Serializer.deserializeSettings(sceneData.settings);
-                }
+                sceneData = Serializer.deserialize(rawData);
             }
         } else if (this.directoryHandle) {
             const dirHandle = await this._getDirectoryHandleForPath(scene.dirPath, false);
@@ -1157,21 +1140,6 @@ export class ProjectManager {
 
         if (!sceneData) {
             throw new Error('无法加载场景数据');
-        }
-
-        // 确保 sceneData 有正确的结构
-        if (!sceneData.components) {
-            sceneData.components = [];
-        }
-        if (!sceneData.settings) {
-            sceneData.settings = Serializer.deserializeSettings({});
-        }
-        if (!sceneData.metadata) {
-            sceneData.metadata = {
-                name: scene.name,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
         }
 
         this.currentScene = {
@@ -1234,30 +1202,18 @@ export class ProjectManager {
             throw new Error('没有打开的场景');
         }
 
-        // 序列化组件数据
-        let serializedComponents = [];
-        if (Array.isArray(components)) {
-            serializedComponents = components.map(comp => {
-                // 如果组件有 toJSON 方法，使用它
-                if (comp && typeof comp.toJSON === 'function') {
-                    return comp.toJSON();
-                }
-                // 否则直接使用（可能已经是序列化的数据）
-                return comp;
-            }).filter(c => c !== null);
-        }
-
-        const sceneData = {
-            version: Serializer.CURRENT_VERSION,
-            name: this.currentScene.name,
-            components: serializedComponents,
+        const sceneData = Serializer.captureDocument({
+            existingDocument: this.currentScene.data,
+            components,
+            currentMode: settings?.mode || 'ray_trace',
             settings: Serializer.serializeSettings(settings || {}),
             metadata: {
-                ...(this.currentScene.data?.metadata || {}),
-                name: this.currentScene.name,
-                updatedAt: new Date().toISOString()
-            }
-        };
+                id: this.currentScene.data?.metadata?.id,
+                title: this.currentScene.name
+            },
+            beamGraph: this.currentScene.data?.beamGraph
+        });
+        sceneData.metadata.updatedAt = new Date().toISOString();
 
         if (this.currentProject.storageMode === 'localStorage') {
             LocalStorageAdapter.saveScene(
@@ -1662,7 +1618,7 @@ git push origin main`;
                     const nextPath = currentPath ? `${currentPath}/${child.name}` : child.name;
                     const dirNode = buildDirectoryNode(child, nextPath, false);
                     children.push(dirNode);
-                } else if (child.kind === 'file' && child.name.endsWith(ProjectManager.SCENE_EXTENSION)) {
+                } else if (child.kind === 'file' && ProjectManager.isSceneFileName(child.name)) {
                     const relPath = currentPath ? `${currentPath}/${child.name}` : child.name;
                     const scene = sceneMap.get(relPath);
                     if (scene) {

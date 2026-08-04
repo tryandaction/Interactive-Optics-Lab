@@ -1,0 +1,218 @@
+#schematic-workspace {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-rows: 44px minmax(0, 1fr);
+    background: #dfe3e6;
+    color: #20252b;
+}
+
+#schematic-workspace[hidden] {
+    display: none;
+}
+
+.schematic-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-bottom: 1px solid #b9c0c5;
+    background: #f7f8f9;
+    overflow-x: auto;
+}
+
+.schematic-toolbar-group {
+    display: flex;
+    gap: 3px;
+    padding-right: 8px;
+    margin-right: 4px;
+    border-right: 1px solid #d1d6da;
+}
+
+.schematic-toolbar button {
+    flex: 0 0 auto;
+    min-height: 30px;
+    padding: 4px 9px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #30373e;
+    font: 500 12px/1.2 system-ui, sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.schematic-toolbar button:hover {
+    border-color: #b7bec4;
+    background: #ffffff;
+}
+
+.schematic-name-control {
+    align-items: center;
+    color: #4a535b;
+    font: 500 12px/1.2 system-ui, sans-serif;
+}
+
+.schematic-name-control input {
+    width: 140px;
+    height: 28px;
+    padding: 3px 7px;
+    border: 1px solid #b7bec4;
+    border-radius: 3px;
+    background: #ffffff;
+    color: #20252b;
+    font: 13px/1.2 system-ui, sans-serif;
+}
+
+.schematic-name-control input:disabled {
+    background: #eceff1;
+    color: #7a838a;
+}
+
+.schematic-annotation-control input {
+    width: 120px;
+    height: 28px;
+    padding: 3px 7px;
+    border: 1px solid #b7bec4;
+    border-radius: 3px;
+    background: #ffffff;
+    color: #20252b;
+    font: 13px/1.2 system-ui, sans-serif;
+}
+
+.schematic-viewport {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 36px;
+}
+
+.schematic-page {
+    width: min(100%, 1600px);
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #aeb5ba;
+    box-shadow: 0 3px 12px rgba(24, 31, 36, 0.16);
+    touch-action: none;
+}
+
+.schematic-page > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+}
+
+.schematic-component {
+    cursor: move;
+}
+
+.schematic-component.is-selected {
+    filter: drop-shadow(0 0 4px rgba(0, 99, 155, 0.75));
+}
+
+.schematic-path {
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.schematic-path-hit {
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.schematic-path.is-selected {
+    stroke-width: 4;
+    filter: drop-shadow(0 0 2px rgba(0, 99, 155, 0.7));
+}
+
+.schematic-toolbar input[type="number"] {
+    width: 58px;
+    height: 28px;
+    padding: 3px 5px;
+    border: 1px solid #b7bec4;
+    border-radius: 3px;
+}
+
+.workspace-switcher {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border-color, #c8cdd1);
+    border-radius: 6px;
+    background: var(--panel-bg, #f4f5f6);
+}
+
+.workspace-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 4px 11px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color-secondary, #59636d);
+    cursor: pointer;
+    font: 500 13px/1 system-ui, sans-serif;
+}
+
+.workspace-tab:hover {
+    background: var(--hover-bg, #e8ebed);
+}
+
+.workspace-tab.active {
+    background: #176b87;
+    color: #ffffff;
+}
+
+.workspace-tab-icon,
+.workspace-tab-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.workspace-tab-icon svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+body[data-workspace="schematic"] #toolbar {
+    display: none;
+}
+
+body[data-workspace="schematic"] #inspector {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    body[data-workspace="schematic"] #top-menubar > :not(.menubar-spacer):not(#mode-switcher-container) {
+        display: none;
+    }
+
+    body[data-workspace="schematic"] #top-menubar {
+        justify-content: flex-end;
+    }
+
+    .schematic-viewport {
+        padding: 14px;
+    }
+
+    .schematic-page {
+        width: 640px;
+        min-width: 640px;
+    }
+
+    .schematic-toolbar-group {
+        flex: 0 0 auto;
+    }
+
+    .workspace-tab span:last-child {
+        display: none;
+    }
+}

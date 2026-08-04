@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="style.css">
     <!-- Unified Project Panel styles -->
     <link rel="stylesheet" href="src/ui/project-panel.css">
+    <link rel="stylesheet" href="src/schematic/schematic.css">
 </head>
 
 <body> <!-- Visible content of the webpage -->
@@ -83,6 +84,12 @@
                     <a href="#" id="menu-redo" class="disabled-link">重做 (Ctrl+Y)</a>
                     <hr>
                     <a href="#" id="menu-delete-selected">删除选中 (Del/Bksp)</a>
+                    <hr>
+                    <a href="#" id="menu-align-horizontal">水平对齐</a>
+                    <a href="#" id="menu-align-vertical">垂直对齐</a>
+                    <a href="#" id="menu-distribute-horizontal">水平等距分布</a>
+                    <a href="#" id="menu-distribute-vertical">垂直等距分布</a>
+                    <hr>
                     <a href="#" id="menu-clear-all">清空所有元件</a>
                 </div>
             </div>
@@ -646,6 +653,51 @@
         <!-- Center Simulation Area -->
         <div id="simulation-area">
             <canvas id="opticsCanvas" role="application" aria-label="光学模拟画布 - 使用鼠标拖拽组件，滚轮缩放，右键打开菜单"></canvas>
+            <section id="schematic-workspace" aria-label="光路图编辑器" hidden>
+                <div class="schematic-toolbar" role="toolbar" aria-label="光路图排版工具">
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="align-x" title="水平居中对齐">水平对齐</button>
+                        <button type="button" data-schematic-action="align-y" title="垂直居中对齐">垂直对齐</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="distribute-x" title="水平均匀分布">水平分布</button>
+                        <button type="button" data-schematic-action="distribute-y" title="垂直均匀分布">垂直分布</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="group" title="将选中元件组合">组合</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-name-control">
+                        <label for="schematic-component-name">名称</label>
+                        <input id="schematic-component-name" data-schematic-name type="text" disabled aria-label="选中元件名称">
+                        <label for="schematic-label-x">标签 X</label>
+                        <input id="schematic-label-x" data-label-axis="x" type="number" disabled aria-label="标签水平偏移">
+                        <label for="schematic-label-y">Y</label>
+                        <input id="schematic-label-y" data-label-axis="y" type="number" disabled aria-label="标签垂直偏移">
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="delete" title="删除选中元件">删除</button>
+                        <button type="button" data-schematic-action="backward" title="下移一层">后移</button>
+                        <button type="button" data-schematic-action="forward" title="上移一层">前移</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="path-solid" data-path-control disabled>实线</button>
+                        <button type="button" data-schematic-action="path-dashed" data-path-control disabled>虚线</button>
+                        <button type="button" data-schematic-action="path-round-trip" data-path-control disabled>双程</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-annotation-control">
+                        <input data-annotation-text type="text" placeholder="文本标注" aria-label="新建文本标注">
+                        <button type="button" data-schematic-action="add-annotation" title="在页面中心添加文本标注">添加标注</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-export-actions">
+                        <button type="button" data-schematic-export="svg" title="导出可编辑 SVG">SVG</button>
+                        <button type="button" data-schematic-export="png" title="导出高分辨率 PNG">PNG</button>
+                        <button type="button" data-schematic-export="pdf" title="导出 PDF 页面">PDF</button>
+                    </div>
+                </div>
+                <div class="schematic-viewport">
+                    <div class="schematic-page" data-schematic-page></div>
+                </div>
+            </section>
             <!-- Mode Hint (Keep it here) -->
             <div id="mode-hint"></div>
             <!-- Screen reader status region -->
@@ -975,7 +1027,7 @@
 
 
     <!-- Hidden File Input (Keep for import) -->
-    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+    <input type="file" id="import-file-input" accept=".opticslab.json,.json,application/json" style="display: none;">
 
     <!-- Preloaded Audio Elements (Keep as is) -->
     <!-- ... -->
@@ -1299,13 +1351,15 @@
                         if (scene && scene.data) {
                             // scene.data 包含完整的场景数据
                             const sceneData = scene.data;
-                            const loadData = {
-                                components: sceneData.components || [],
-                                settings: sceneData.settings || {},
-                                currentMode: sceneData.settings?.mode || 'ray_trace',
-                                view: sceneData.view,
-                                metadata: sceneData.metadata
-                            };
+                            const loadData = sceneData.schemaVersion
+                                ? sceneData
+                                : {
+                                    components: sceneData.components || [],
+                                    settings: sceneData.settings || {},
+                                    currentMode: sceneData.settings?.mode || 'ray_trace',
+                                    view: sceneData.view,
+                                    metadata: sceneData.metadata
+                                };
                             console.log('[sceneDataLoaded] Loading scene with', loadData.components?.length || 0, 'components');
                             
                             // 加载场景数据到画布，不切换到属性面板（保持在项目面板）

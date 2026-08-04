@@ -65,7 +65,10 @@ let labelDragOffset = null;
 let labelDragStartPos = null;
 let needsRetrace = true; // Flag to recalculate ray paths
 let componentToAdd = null; // Type string of component selected from toolbar
+let placementPreviewState = null;
 let currentRayPaths = []; // Stores the results of the last ray trace (Ray objects)
+let currentBeamGraph = { nodes: [], edges: [] };
+let currentBeamGraphSignature = '';
 let mousePos = null; // Current mouse position in canvas logical coordinates (initialized later)
 let mouseIsDown = false; // Is the primary mouse button currently pressed?
 let eventListenersSetup = false; // Ensure listeners are only added once
@@ -86,6 +89,10 @@ if (typeof window !== 'undefined') {
     Object.defineProperty(window, 'currentRayPaths', {
         get: () => currentRayPaths,
         set: (value) => { currentRayPaths = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'currentBeamGraph', {
+        get: () => currentBeamGraph,
         configurable: true
     });
     Object.defineProperty(window, 'needsRetrace', {
@@ -290,8 +297,8 @@ async function saveCurrentSceneToProject() {
     
     // 检查是否有打开的项目和场景
     if (!window.unifiedProjectPanel) {
-        console.log('[Save] No project panel available, using export as save');
-        await exportSceneAsFile();
+        console.log('[Save] No project panel available, saving document file');
+        await saveCurrentDocumentFile(false);
         return;
     }
     
@@ -301,8 +308,8 @@ async function saveCurrentSceneToProject() {
     
     // 如果没有打开的项目或场景，使用"另存为"功能
     if (!currentProject || !currentScene) {
-        console.log('[Save] No project/scene open, using export as save');
-        await exportSceneAsFile();
+        console.log('[Save] No project/scene open, saving document file');
+        await saveCurrentDocumentFile(false);
         return;
     }
     
@@ -997,7 +1004,8 @@ function drawPlacementPreview(ctx) {
 
     // Create a temporary dummy component at mouse position for drawing its preview
     let previewComp = null;
-    const previewPos = mousePos.clone();
+    const previewPosition = placementPreviewState?.position || mousePos;
+    const previewPos = new Vector(previewPosition.x, previewPosition.y);
     try {
         // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
         // 光源默认朝右（0°）
@@ -1098,6 +1106,13 @@ function drawPlacementPreview(ctx) {
         }
 
         if (previewComp) {
+            if (Number.isFinite(placementPreviewState?.angleDeg)) {
+                const angleRad = placementPreviewState.angleDeg * Math.PI / 180;
+                if ('angleRad' in previewComp) previewComp.angleRad = angleRad;
+                if ('angle' in previewComp) previewComp.angle = angleRad;
+                previewComp.onAngleChanged?.();
+                previewComp._updateGeometry?.();
+            }
             // Use the component's own draw method for the preview
             previewComp.selected = false; // Ensure it's not drawn as selected
             
@@ -1111,6 +1126,18 @@ function drawPlacementPreview(ctx) {
             // 如果没有使用专业图标，使用默认渲染
             if (!drawnWithProfessionalIcon) {
                 previewComp.draw(ctx);
+            }
+
+            if (placementPreviewState?.snappedToBeam) {
+                ctx.save();
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 2 / cameraScale;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.arc(previewPos.x, previewPos.y, 8 / cameraScale, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
             }
         }
     } catch (e) { console.error("Error creating preview component:", e); }
@@ -1149,6 +1176,7 @@ function drawOpticalSystemDiagram(ctx) {
 // --- Ray Tracing Core ---
 // --- PASTE this entire function into main.js, replacing the old traceAllRays ---
 function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveRays = []) {
+    Ray.resetTraceSequence?.();
     traceDebug("[traceAllRays] Starting trace.");
     let completedPaths = []; // Stores Ray objects representing terminated paths
     let activeRays = []; // Queue for tracing
@@ -1164,6 +1192,9 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                     if (Array.isArray(generated)) {
                         generated.forEach(r => {
                             if (r instanceof Ray) {
+                                r.originComponentId = comp.id;
+                                r.branchKind = 'output';
+                                r.visitedComponentIds = [comp.id];
                                 r.animateArrow = true; // Enable animation by default
                                 if (r.shouldTerminate()) { // Check initial termination
                                     if (r.endReason === 'low_intensity') r.animateArrow = false;
@@ -1341,6 +1372,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 continue;
             }
             currentRay.addHistoryPoint(closestHit.point);
+            currentRay.markInteraction?.(hitComponent);
 
             let interactionResult = [];
             try {
@@ -1365,6 +1397,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             // Process successors
             if (Array.isArray(interactionResult)) {
                 let successors = interactionResult.filter(r => r instanceof Ray);
+                Ray.linkSuccessors?.(currentRay, successors, hitComponent);
                 // Determine which successors should have their arrows animated
                 if (successors.length > 0) {
                     const parentWasAnimated = currentRay.animateArrow; // Check parent animation state
@@ -1530,10 +1563,18 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
     traceDebug(`  -> Generated ${fiberOutputRays.length} rays from fiber outputs this frame.`);
     // --- End Fiber Output Generation ---
 
+    const beamGraph = window.BeamGraphBuilder
+        ? window.BeamGraphBuilder.fromTraceRecords(
+            sceneComponents,
+            completedPaths.map(ray => ray.toTraceRecord?.() || ray)
+        ).toJSON()
+        : { nodes: [], edges: [] };
+
     // Return BOTH completed paths from this frame AND newly generated rays
     return {
         completedPaths: completedPaths,
-        generatedRays: fiberOutputRays // These will be activated next frame
+        generatedRays: fiberOutputRays, // These will be activated next frame
+        beamGraph
     };
 } // --- END OF traceAllRays function ---
 
@@ -2055,6 +2096,7 @@ function resetInteractionState(options = {}) {
     }
 
     activeGuides = [];
+    placementPreviewState = null;
     mouseIsDown = false;
 
     if (clearSelection) {
@@ -2197,7 +2239,18 @@ function handleMouseDown(event) {
     // --- 优先处理工具放置：如果选择了工具，直接在点击位置创建元件 ---
     if (componentToAdd) {
         let newComp = null;
-        const compPos = mousePos.clone();
+        placementPreviewState = window.BenchInteractions?.createPlacementPreview?.(
+            componentToAdd,
+            mousePos,
+            currentRayPaths,
+            {
+                threshold: 14 / cameraScale,
+                angleLocked: event.shiftKey,
+                angleIncrementDeg: 15
+            }
+        ) || placementPreviewState;
+        const targetPosition = placementPreviewState?.position || mousePos;
+        const compPos = new Vector(targetPosition.x, targetPosition.y);
         try {
             // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
             // 光源默认朝右（0°）
@@ -2300,6 +2353,16 @@ function handleMouseDown(event) {
         } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
 
         if (newComp) {
+            if (Number.isFinite(placementPreviewState?.angleDeg)) {
+                const angleRad = placementPreviewState.angleDeg * Math.PI / 180;
+                if ('angleRad' in newComp) newComp.angleRad = angleRad;
+                if ('angle' in newComp) newComp.angle = angleRad;
+                newComp.onAngleChanged?.();
+                newComp._updateGeometry?.();
+            }
+            if (placementPreviewState?.beam) {
+                newComp.pendingBeamInsertion = { ...placementPreviewState.beam };
+            }
             const previousSelectionBeforeAdd = [...selectedComponents];
             selectedComponents.forEach(comp => comp.selected = false);
             selectedComponents = [newComp];
@@ -2307,7 +2370,7 @@ function handleMouseDown(event) {
             newComp.selected = true;
             components.push(newComp);
             historyManager.addCommand(new AddComponentCommand(newComp, components));
-            historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents));
+            historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents, components));
             updateUndoRedoUI();
             updateInspector();
             needsRetrace = true;
@@ -2323,6 +2386,7 @@ function handleMouseDown(event) {
             }
         }
         componentToAdd = null;
+        placementPreviewState = null;
         clearToolbarSelection();
         canvas.style.cursor = 'default';
         return; // 工具放置完成，直接返回
@@ -2449,7 +2513,7 @@ function handleMouseDown(event) {
     const previousSelectionIds = previousSelection.map(c => c.id).sort();
     if (JSON.stringify(currentSelectionIds) !== JSON.stringify(previousSelectionIds)) {
         // Selection actually changed, add the command
-        historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents)); // Use the arrays before they were potentially modified further
+        historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents, components)); // Use the arrays before they were potentially modified further
         updateUndoRedoUI(); // Update buttons now that a command is added
         console.log("Selection changed, SelectCommand added.");
     } else {
@@ -2589,6 +2653,20 @@ function handleMouseDown(event) {
 function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
+
+    if (componentToAdd && window.BenchInteractions?.createPlacementPreview) {
+        placementPreviewState = window.BenchInteractions.createPlacementPreview(
+            componentToAdd,
+            currentMousePos,
+            currentRayPaths,
+            {
+                threshold: 14 / cameraScale,
+                angleLocked: event.shiftKey,
+                angleIncrementDeg: 15
+            }
+        );
+        needsRetrace = true;
+    }
 
     // --- Lens Imaging mode: delegate mouse move to LensImaging ---
     if (currentMode === 'lens_imaging') {
@@ -2735,6 +2813,17 @@ function handleMouseMove(event) {
             if (componentBeingHandled && draggingComponents.includes(componentBeingHandled)) { // Ensure it's in the list
                 try {
                     componentBeingHandled.drag(currentMousePos); // Let component handle its specific handle logic
+                    if (ongoingActionState.type === 'rotate' && event.shiftKey && Number.isFinite(componentBeingHandled.angleRad)) {
+                        const lockedDeg = window.BenchInteractions?.lockAngleDeg?.(
+                            componentBeingHandled.angleRad * 180 / Math.PI,
+                            15
+                        );
+                        if (Number.isFinite(lockedDeg)) {
+                            componentBeingHandled.angleRad = lockedDeg * Math.PI / 180;
+                            componentBeingHandled.onAngleChanged?.();
+                            componentBeingHandled._updateGeometry?.();
+                        }
+                    }
                     // No snapping or alignment guides for handle drags currently
                 } catch (e) { console.error(`Error during handle drag for ${componentBeingHandled?.label}:`, e); }
                 needsRetrace = true;
@@ -4251,6 +4340,16 @@ function gameLoop(timestamp) {
         if (traceResult && Array.isArray(traceResult.completedPaths)) {
             currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
             window.currentRayPaths = currentRayPaths;
+            if (traceResult.beamGraph) {
+                currentBeamGraph = traceResult.beamGraph;
+                const nextSignature = JSON.stringify(currentBeamGraph);
+                if (nextSignature !== currentBeamGraphSignature) {
+                    currentBeamGraphSignature = nextSignature;
+                    opticsDocumentStore?.setBeamGraph?.(currentBeamGraph);
+                }
+                document.body.dataset.beamGraphNodes = String(currentBeamGraph.nodes?.length || 0);
+                document.body.dataset.beamGraphEdges = String(currentBeamGraph.edges?.length || 0);
+            }
             if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
                 // Store newly generated rays (fiber outputs) for the *next* frame
                 nextFrameActiveRays.push(...traceResult.generatedRays);
@@ -4911,12 +5010,17 @@ function updateUndoRedoUI() {
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
         : null;
-    const canUndo = interactionManager
-        ? interactionManager.history?.canUndo?.()
-        : historyManager?.canUndo?.();
-    const canRedo = interactionManager
-        ? interactionManager.history?.canRedo?.()
-        : historyManager?.canRedo?.();
+    const schematicHistoryActive = document.body.dataset.workspace === 'schematic';
+    const canUndo = schematicHistoryActive
+        ? opticsDocumentStore?.canUndo?.()
+        : interactionManager
+            ? interactionManager.history?.canUndo?.()
+            : historyManager?.canUndo?.();
+    const canRedo = schematicHistoryActive
+        ? opticsDocumentStore?.canRedo?.()
+        : interactionManager
+            ? interactionManager.history?.canRedo?.()
+            : historyManager?.canRedo?.();
 
     // Update Undo Button and Menu Item
     if (canUndo) {
@@ -4939,6 +5043,13 @@ function updateUndoRedoUI() {
 // --- End of REPLACEMENT for updateUndoRedoUI ---
 
 function performUndo() {
+    if (document.body.dataset.workspace === 'schematic' && opticsDocumentStore?.undo?.()) {
+        const documentData = opticsDocumentStore.getDocument();
+        schematicWorkspace?.refresh(documentData);
+        synchronizeRuntimeComponents(documentData);
+        updateUndoRedoUI();
+        return;
+    }
     const diagramIntegration = window.getDiagramModeIntegration?.();
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
@@ -4959,6 +5070,13 @@ function performUndo() {
 }
 
 function performRedo() {
+    if (document.body.dataset.workspace === 'schematic' && opticsDocumentStore?.redo?.()) {
+        const documentData = opticsDocumentStore.getDocument();
+        schematicWorkspace?.refresh(documentData);
+        synchronizeRuntimeComponents(documentData);
+        updateUndoRedoUI();
+        return;
+    }
     const diagramIntegration = window.getDiagramModeIntegration?.();
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
@@ -4980,96 +5098,137 @@ function performRedo() {
 
 
 
-// --- REPLACEMENT for generateSceneDataObject (Uses toJSON) ---
-function generateSceneDataObject() {
-    const sceneData = {
-        version: "1.1",
-        currentMode: currentMode,
-        view: {
-            cameraScale: cameraScale,
-            cameraOffsetX: cameraOffset?.x ?? 0,
-            cameraOffsetY: cameraOffset?.y ?? 0
+let opticsDocumentStore = null;
+let opticsDocumentFileController = null;
+let opticsDocumentRecovery = null;
+let schematicWorkspace = null;
+
+function synchronizeRuntimeComponents(documentData) {
+    const sharedById = new Map(documentData.components.map(component => [component.id, component]));
+    components = components.filter(component => sharedById.has(component.id));
+    for (const component of components) {
+        const shared = sharedById.get(component.id);
+        if (shared?.name) component.name = shared.name;
+        if (shared?.label) component.label = shared.label;
+    }
+    currentBeamGraph = documentData.beamGraph;
+    currentBeamGraphSignature = JSON.stringify(currentBeamGraph);
+    needsRetrace = true;
+}
+
+function ensureOpticsDocumentServices() {
+    if (!opticsDocumentFileController && typeof DocumentFileController !== 'undefined') {
+        opticsDocumentFileController = new DocumentFileController();
+    }
+    if (!opticsDocumentRecovery && typeof DocumentRecovery !== 'undefined') {
+        opticsDocumentRecovery = new DocumentRecovery();
+    }
+    window.opticsDocumentStore = opticsDocumentStore;
+    window.opticsDocumentFileController = opticsDocumentFileController;
+    window.opticsDocumentRecovery = opticsDocumentRecovery;
+}
+
+function captureCurrentOpticsDocument() {
+    if (typeof Serializer === 'undefined' || typeof Serializer.captureDocument !== 'function') {
+        throw new Error('OpticsDocument v3 serializer is unavailable.');
+    }
+    ensureOpticsDocumentServices();
+    const projectScene = getProjectContext().scene;
+    const existingDocument = opticsDocumentStore?.getDocument?.() || projectScene?.data || null;
+    const documentData = Serializer.captureDocument({
+        existingDocument,
+        components,
+        currentMode,
+        camera: {
+            scale: cameraScale,
+            offsetX: cameraOffset?.x ?? 0,
+            offsetY: cameraOffset?.y ?? 0
         },
         settings: {
             showGrid: !!showGrid,
-            maxRaysPerSource: window.maxRaysPerSource,
-            globalMaxBounces: window.globalMaxBounces,
-            globalMinIntensity: window.globalMinIntensity,
+            maxRays: window.maxRaysPerSource,
+            maxBounces: window.globalMaxBounces,
+            minIntensity: window.globalMinIntensity,
             fastWhiteLightMode: !!window.fastWhiteLightMode,
-            globalShowArrows: !!globalShowArrows,
+            showArrows: !!globalShowArrows,
             onlyShowSelectedSourceArrow: !!onlyShowSelectedSourceArrow,
-            arrowAnimationSpeed: arrowAnimationSpeed
+            arrowSpeed: arrowAnimationSpeed
         },
-        components: []
-    };
-    components.forEach(comp => {
-        try {
-            if (typeof comp.toJSON === 'function') {
-                sceneData.components.push(comp.toJSON()); // Call component's toJSON method
-            } else {
-                console.warn(`Component ${comp?.label} (${comp?.constructor?.name}) is missing toJSON method. Skipping.`);
+        metadata: {
+            id: existingDocument?.metadata?.id,
+            title: projectScene?.name || existingDocument?.metadata?.title || '未命名光学实验'
+        },
+        beamGraph: currentBeamGraph?.edges?.length ? currentBeamGraph : existingDocument?.beamGraph
+    });
+
+    if (opticsDocumentStore) {
+        opticsDocumentStore.replaceDocument(documentData, 'capture bench state', { recordHistory: false });
+    } else if (typeof DocumentStore !== 'undefined') {
+        opticsDocumentStore = new DocumentStore(documentData);
+    }
+    window.opticsDocumentStore = opticsDocumentStore;
+    return opticsDocumentStore?.getDocument?.() || documentData;
+}
+
+// Unified OpticsDocument v3 capture path.
+function generateSceneDataObject() {
+    return captureCurrentOpticsDocument();
+}
+
+function initializeSchematicWorkspace() {
+    if (schematicWorkspace || typeof SchematicWorkspace === 'undefined') return schematicWorkspace;
+    const switcher = document.getElementById('mode-switcher-container');
+    const root = document.getElementById('schematic-workspace');
+    if (!switcher || !root || !canvas) return null;
+
+    schematicWorkspace = new SchematicWorkspace({
+        switcher,
+        benchElement: canvas,
+        root,
+        getDocument: () => captureCurrentOpticsDocument(),
+        onDocumentChange: (nextDocument, reason) => {
+            ensureOpticsDocumentServices();
+            if (opticsDocumentStore) {
+                opticsDocumentStore.replaceDocument(nextDocument, reason || 'edit schematic', {
+                    recordHistory: reason !== 'project schematic'
+                });
+            } else if (typeof DocumentStore !== 'undefined') {
+                opticsDocumentStore = new DocumentStore(nextDocument);
             }
-        } catch (e) {
-            console.error(`Error calling toJSON for component ${comp?.label} (${comp?.id}):`, e);
+            window.opticsDocumentStore = opticsDocumentStore;
+            synchronizeRuntimeComponents(nextDocument);
+            opticsDocumentRecovery?.save?.(nextDocument);
+            document.body.dataset.schematicComponents = String(nextDocument.components.length);
+            document.body.dataset.schematicPaths = String(nextDocument.views.schematic.paths.length);
+            updateUndoRedoUI();
+        },
+        onWorkspaceChange: (workspace) => {
+            opticsDocumentStore?.setWorkspace?.(workspace);
+            if (workspace === 'bench') {
+                needsRetrace = true;
+                resizeCanvas();
+            }
+        },
+        onExport: async (format, documentData) => {
+            try {
+                await SchematicExporter.download(documentData, format);
+                showTemporaryMessage(`${format.toUpperCase()} exported`, 'success');
+            } catch (error) {
+                console.error(`[Schematic] ${format} export failed:`, error);
+                showTemporaryMessage(`${format.toUpperCase()} export failed: ${error.message}`, 'error');
+            }
         }
     });
-    sceneData.diagram = buildDiagramPayloadForExport();
-    console.log("Generated scene data using toJSON. Mode:", currentMode);
-    return sceneData;
-}
-// --- END REPLACEMENT ---
-
-function buildDiagramPayloadForExport() {
-    try {
-        if (typeof window.createSceneToDiagramAdapter !== 'function') {
-            return null;
-        }
-
-        const adapter = window.createSceneToDiagramAdapter({
-            includePageFrame: true,
-            page: {
-                width: canvas?.width || 1920,
-                height: canvas?.height || 1080,
-                margin: 48
-            }
-        });
-
-        return adapter.convert({
-            name: document?.title || 'OpticsLab scene',
-            components,
-            rays: currentRayPaths
-        });
-    } catch (error) {
-        console.warn('[Export] Failed to build diagram payload:', error);
-        return null;
-    }
+    window.schematicWorkspace = schematicWorkspace;
+    return schematicWorkspace;
 }
 
 function generateProfessionalSVGString(options = {}) {
-    const diagram = buildDiagramPayloadForExport();
-    if (!diagram) {
-        throw new Error('Professional diagram payload is not available.');
+    if (typeof SchematicExporter === 'undefined' || typeof SchematicProjector === 'undefined') {
+        throw new Error('OpticsDocument v3 schematic exporter is unavailable.');
     }
-    if (typeof window.createDiagramObjectSVGRenderer !== 'function') {
-        throw new Error('Professional SVG renderer is not available.');
-    }
-
-    const renderer = window.createDiagramObjectSVGRenderer({
-        includeXmlDeclaration: true,
-        includeBackground: true,
-        includePageFrame: true,
-        showLabels: true,
-        showOpticalAxis: true,
-        showFocalMarkers: true,
-        rayGlow: true,
-        showRayArrows: true,
-        autoFit: true,
-        contentPadding: 72,
-        stylePreset: 'paper',
-        ...options
-    });
-
-    return renderer.render(diagram);
+    const documentData = SchematicProjector.project(captureCurrentOpticsDocument());
+    return SchematicExporter.toSvg(documentData, options);
 }
 
 function exportProfessionalSVG() {
@@ -5106,6 +5265,11 @@ function loadSceneFromData(sceneData, options = {}) {
     const { switchToPropertiesTab = true } = options;
     console.log("--- Loading Scene from Data Object ---"); // Log start
     try {
+        let sourceDocument = null;
+        if (sceneData?.schemaVersion || sceneData?.version) {
+            sourceDocument = Serializer.deserialize(sceneData);
+            sceneData = Serializer.toLegacySceneData(sourceDocument);
+        }
         components = [];
         selectedComponent = null;
         selectedComponents = [];
@@ -5300,6 +5464,18 @@ function loadSceneFromData(sceneData, options = {}) {
 
         needsRetrace = true;
         sceneModified = false; // Mark as unmodified after successful load
+        if (sourceDocument && typeof DocumentStore !== 'undefined') {
+            currentBeamGraph = sourceDocument.beamGraph || { nodes: [], edges: [] };
+            currentBeamGraphSignature = JSON.stringify(currentBeamGraph);
+            opticsDocumentStore = new DocumentStore(sourceDocument);
+            window.opticsDocumentStore = opticsDocumentStore;
+        } else {
+            captureCurrentOpticsDocument();
+        }
+        if (schematicWorkspace) {
+            schematicWorkspace.refresh(opticsDocumentStore?.getDocument?.());
+            schematicWorkspace.switchWorkspace(sourceDocument?.metadata?.activeWorkspace || 'bench');
+        }
         
         // 触发场景已保存事件（因为刚加载的场景是未修改状态）
         document.dispatchEvent(new CustomEvent('sceneSaved'));
@@ -5403,7 +5579,7 @@ function triggerFileInputForImport() {
 }
 
 // --- REPLACEMENT for exportScene (Download Only, uses helper) ---
-function exportScene() {
+async function exportScene() {
     console.log("Exporting current scene to file...");
 
     if (!confirm("确定要将【当前画布】上的场景导出为 JSON 文件吗？")) {
@@ -5411,26 +5587,7 @@ function exportScene() {
         return;
     }
 
-    const sceneData = generateSceneDataObject(); // Use helper to get data
-    if (!sceneData) {
-        alert("无法生成场景数据以供导出！"); return;
-    }
-
-    const jsonString = JSON.stringify(sceneData, null, 2); // Pretty print
-
-    // Trigger Download
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const suggestedName = `optics_scene_${new Date().toISOString().slice(0, 10)}.json`;
-    a.download = suggestedName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    console.log("Scene download triggered.");
-    // Note: Exporting does not change sceneModified state
+    await saveCurrentDocumentFile(true);
 }
 // --- END OF REPLACEMENT ---
 
@@ -5439,77 +5596,36 @@ function exportScene() {
  * 使用 File System Access API 让用户选择保存位置和文件名
  * 如果浏览器不支持，则回退到传统下载方式
  */
-async function exportSceneAsFile() {
-    console.log('[ExportAs] Exporting scene as file...');
-    
-    const sceneData = generateSceneDataObject();
-    if (!sceneData) {
-        showTemporaryMessage('无法生成场景数据', 'error');
-        return;
+async function saveCurrentDocumentFile(saveAs = false) {
+    ensureOpticsDocumentServices();
+    if (!opticsDocumentFileController) {
+        throw new Error('文档文件控制器不可用');
     }
-    
-    const jsonString = JSON.stringify(sceneData, null, 2);
-    const suggestedName = `场景_${new Date().toISOString().slice(0, 10)}.scene.json`;
-    
-    // 检查是否支持 File System Access API
-    if ('showSaveFilePicker' in window) {
-        try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: suggestedName,
-                types: [{
-                    description: '光学场景文件',
-                    accept: {
-                        'application/json': ['.scene.json', '.json']
-                    }
-                }]
-            });
-            
-            // 写入文件
-            const writable = await fileHandle.createWritable();
-            await writable.write(jsonString);
-            await writable.close();
-            
-            // 标记为已保存
-            markSceneAsSaved();
-            
-            showTemporaryMessage(`场景已保存为 "${fileHandle.name}"`, 'success');
-            console.log('[ExportAs] Scene saved to:', fileHandle.name);
-            
-        } catch (err) {
-            // 用户取消选择
-            if (err.name === 'AbortError') {
-                console.log('[ExportAs] User cancelled file save');
-                return;
-            }
-            console.error('[ExportAs] Failed to save file:', err);
-            showTemporaryMessage(`保存失败: ${err.message}`, 'error');
-        }
-    } else {
-        // 回退到传统下载方式
-        console.log('[ExportAs] File System Access API not supported, using download');
-        
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        // 标记为已保存
+    const documentData = generateSceneDataObject();
+    try {
+        const result = saveAs
+            ? await opticsDocumentFileController.saveAs(documentData)
+            : await opticsDocumentFileController.save(documentData);
         markSceneAsSaved();
-        
-        showTemporaryMessage('场景已下载', 'success');
-        console.log('[ExportAs] Scene download triggered');
+        opticsDocumentRecovery?.clear?.();
+        showTemporaryMessage(`文档已保存为 "${result.fileName}"`, 'success');
+        return result;
+    } catch (error) {
+        if (error?.name === 'AbortError') return null;
+        console.error('[Document] Save failed:', error);
+        showTemporaryMessage(`保存失败: ${error.message}`, 'error');
+        throw error;
     }
+}
+
+async function exportSceneAsFile() {
+    return saveCurrentDocumentFile(true);
 }
 
 
 // --- REPLACEMENT for importScene (Project-aware) ---
 function deriveImportSceneName(sceneData, fileName) {
-    const nameFromData = sceneData?.name || sceneData?.metadata?.name;
+    const nameFromData = sceneData?.metadata?.title || sceneData?.name || sceneData?.metadata?.name;
     if (nameFromData && String(nameFromData).trim()) {
         return String(nameFromData).trim();
     }
@@ -5629,6 +5745,45 @@ function importScene(file) {
 // --- END OF REPLACEMENT ---
 
 
+function arrangeSelectedBenchComponents(operation, direction) {
+    const requiredCount = operation === 'distribute' ? 3 : 2;
+    if (selectedComponents.length < requiredCount) {
+        showTemporaryMessage?.(`请至少选择 ${requiredCount} 个元件`, 'info');
+        return false;
+    }
+
+    const arranger = operation === 'distribute'
+        ? window.BenchInteractions?.distributePlacements
+        : window.BenchInteractions?.alignPlacements;
+    if (typeof arranger !== 'function') return false;
+
+    const ids = selectedComponents.map(component => component.id);
+    const startPositions = new Map(selectedComponents.map(component => [component.id, component.pos.clone()]));
+    const placements = selectedComponents.map(component => ({
+        id: component.id,
+        x: component.pos.x,
+        y: component.pos.y
+    }));
+    const arranged = arranger(placements, direction);
+    const finalPositions = new Map();
+
+    arranged.forEach(placement => {
+        const component = selectedComponents.find(item => item.id === placement.id);
+        if (!component) return;
+        component.pos.set(placement.x, placement.y);
+        component.onPositionChanged?.();
+        component._updateGeometry?.();
+        finalPositions.set(component.id, component.pos.clone());
+    });
+
+    historyManager.addCommand(new MoveComponentsCommand(ids, startPositions, finalPositions, components));
+    updateUndoRedoUI();
+    updateInspector();
+    markSceneAsModified();
+    needsRetrace = true;
+    return true;
+}
+
 // --- REPLACEMENT for setupEventListeners function (V3 - Complete & Corrected) ---
 function setupEventListeners() {
     // Prevent multiple initializations
@@ -5696,6 +5851,22 @@ function setupEventListeners() {
         e.preventDefault();
         deleteSelectedComponents(); // Call the new function
     });
+    document.getElementById('menu-align-horizontal')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('align', 'centerY');
+    });
+    document.getElementById('menu-align-vertical')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('align', 'centerX');
+    });
+    document.getElementById('menu-distribute-horizontal')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('distribute', 'horizontal');
+    });
+    document.getElementById('menu-distribute-vertical')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('distribute', 'vertical');
+    });
     // --- Inside setupEventListeners, listener for #menu-clear-all ---
     document.getElementById('menu-clear-all')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -5734,11 +5905,16 @@ function setupEventListeners() {
     document.getElementById('menu-toggle-grid')?.addEventListener('click', (e) => { e.preventDefault(); showGrid = !showGrid; const cb = document.getElementById('setting-show-grid'); if (cb) cb.checked = showGrid; saveSettings(); needsRetrace = true; });
 
     // Simulation Menu
-    document.getElementById('menu-mode-raytrace')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'ray_trace') switchMode('ray_trace'); });
-    document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
+    document.getElementById('menu-mode-raytrace')?.addEventListener('click', (e) => { e.preventDefault(); schematicWorkspace?.switchWorkspace('bench'); if (currentMode !== 'ray_trace') switchMode('ray_trace'); });
+    document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); schematicWorkspace?.switchWorkspace('bench'); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
     document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
         e.preventDefault(); 
         resetInteractionState({ clearSelection: true });
+        const workspace = initializeSchematicWorkspace();
+        if (workspace) {
+            workspace.switchWorkspace('schematic');
+            return;
+        }
         // 切换到科研图示模式
         const trySwitch = () => {
             if (typeof window.getModeManager === 'function') {
@@ -7524,7 +7700,7 @@ function initialize() {
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
 
     // --- 初始化模式切换器 + 专业绘图模式集成 ---
-    bootstrapDiagramMode();
+    initializeSchematicWorkspace();
 
     // --- 初始化自动恢复管理器 ---
     _initAutoRecovery();
@@ -7536,6 +7712,9 @@ function initialize() {
     needsRetrace = true;       // Mark for initial ray trace
     lastTimestamp = performance.now(); // Get starting time
     requestAnimationFrame(gameLoop); // Start the main loop
+
+    document.body.dataset.opticslabReady = 'true';
+    document.body.dataset.documentSchemaVersion = '3.0.0';
 
     console.log("初始化完成，主循环已启动。");
 }

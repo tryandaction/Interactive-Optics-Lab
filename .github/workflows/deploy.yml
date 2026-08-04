@@ -21,34 +21,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Validate HTML
-        run: |
-          # Check that index.html exists and is valid
-          test -f index.html || (echo "index.html not found" && exit 1)
-          echo "index.html exists"
+        run: test -f index.html
 
-      - name: Validate JavaScript modules
-        run: |
-          # Check that all critical JS files exist
-          for f in main.js \
-            src/compat/legacy-globals.js \
-            src/diagram/DiagramModeIntegration.js \
-            src/diagram/ProfessionalIconManager.js \
-            src/diagram/ModeManager.js \
-            src/diagram/ExportEngine.js \
-            src/diagram/ProfessionalIconLibrary.js \
-            src/diagram/ProfessionalIconLibraryExtended.js; do
-            test -f "$f" || (echo "Missing: $f" && exit 1)
-            echo "OK: $f"
-          done
+      - name: Check entrypoint syntax
+        run: node --check main.js
 
-      - name: Check for syntax errors in main files
-        run: |
-          node --check main.js || true
-          for f in src/diagram/*.js src/compat/*.js; do
-            node --check "$f" 2>/dev/null || true
-          done
-          echo "Syntax check complete"
+      - name: Run lint and unit tests
+        run: npm test
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate --registry=https://registry.npmjs.org
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser E2E
+        shell: pwsh
+        run: ./tests/e2e/run-web-e2e.ps1 -Profile full
 
   deploy:
     if: github.event_name == 'push'

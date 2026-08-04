@@ -1,5 +1,24 @@
 # Scene to Diagram Adapter
 
+> Compatibility status (OpticsDocument v3): deprecated for active product flows.
+> The bench/schematic workspace, editor, persistence, and exports now use
+> `src/schematic` directly. This adapter remains available only for legacy
+> imports, tests, and third-party callers that still consume `OpticsLabDiagram`.
+
+## Active V3 Flow
+
+```text
+bench physics -> BeamGraph -> SchematicProjector
+                           -> views.schematic (manual layout is preserved)
+                           -> SchematicEditor
+                           -> SchematicExporter (SVG / PNG / PDF)
+```
+
+The authoritative file is `.opticslab.json`. It stores shared components and
+BeamGraph data once, with independent `views.bench` and `views.schematic`
+coordinates. No active save or export path writes the old `sceneData.diagram`
+fork.
+
 ## Purpose
 
 `SceneToDiagramAdapter` separates the optics simulation model from the professional drawing model.
@@ -110,5 +129,10 @@ The browser and Electron entry points now expose:
 - `window.generateProfessionalSVGString(options)`: returns a complete SVG document from the current simulation scene.
 - `window.exportProfessionalSVG()`: downloads the generated SVG.
 - File menu: `Export Professional SVG`.
+- `window.SchematicExporter`: exports the current v3 schematic as SVG, PNG, or PDF.
+- Top-level workspace: `Experiment Bench / Schematic`.
 
-The existing scene JSON export remains backward-compatible and continues to include legacy `components`, plus the new `diagram` payload for professional drawing workflows.
+The scene adapter and `DiagramObjectSVGRenderer` remain compatibility APIs. New
+code must use `OpticsDocument`, `BeamGraph`, `SchematicProjector`, and
+`SchematicExporter`. Removal can proceed after downstream consumers stop using
+the compatibility globals and their dedicated regression tests are retired.
