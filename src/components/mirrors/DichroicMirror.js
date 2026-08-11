@@ -7,6 +7,21 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class DichroicMirror extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const mirror = new DichroicMirror(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.length,
+            data.angleDeg,
+            data.cutoffWavelength,
+            data.transitionWidth,
+            data.reflectShortWave
+        );
+        mirror.id = data.id ?? mirror.id;
+        mirror.label = data.label ?? mirror.label;
+        mirror.notes = data.notes ?? mirror.notes;
+        return mirror;
+    }
+
     static functionDescription = "根据波长选择性反射或透射光线的二向色镜。";
 
     constructor(pos, length = 80, angleDeg = 45, cutoffWavelength = 550, 

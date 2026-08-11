@@ -141,6 +141,13 @@ export class AutoRouter {
     }
 
     /**
+     * 兼容旧接口：findPath
+     */
+    findPath(start, end, obstacles = []) {
+        return this.generatePath(start, end, obstacles);
+    }
+
+    /**
      * 生成直线路径
      * @private
      */

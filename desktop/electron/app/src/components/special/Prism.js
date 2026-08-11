@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { DEFAULT_WAVELENGTH_NM, N_AIR } from '../../core/constants.js';
+import { reflectDirection, snellRefraction } from '../../core/OpticsMath.js';
 
 export class Prism extends OpticalComponent {
     static functionDescription = "棱镜使光发生折射与色散，分解白光为彩色光谱。";
@@ -235,9 +236,7 @@ export class Prism extends OpticalComponent {
             const n1 = ray.mediumRefractiveIndex;
             const reflectedIntensity = ray.intensity;
             if (reflectedIntensity >= ray.minIntensityThreshold) {
-                const reflectionNormalForCalc = surfaceNormal;
-                const cosIForCalc = Math.max(0.0, Math.min(1.0, incidentDirection.dot(reflectionNormalForCalc.multiply(-1.0))));
-                let reflectedDirection = incidentDirection.add(reflectionNormalForCalc.multiply(2 * cosIForCalc)).normalize();
+                const reflectedDirection = reflectDirection(incidentDirection, surfaceNormal);
                 const reflectOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
                 try {
                     if (isNaN(reflectOrigin.x) || isNaN(reflectedDirection.x)) throw new Error("NaN grazing");
@@ -266,31 +265,9 @@ export class Prism extends OpticalComponent {
             }
         }
 
-        const nRatio = n1 / n2;
-        const cosI = Math.max(0.0, Math.min(1.0, incidentDirection.dot(surfaceNormal.multiply(-1.0))));
-        const sinI2 = Math.max(0.0, 1.0 - cosI * cosI);
-        const sinT2 = nRatio * nRatio * sinI2;
-
-        let reflectivity = 0.0;
-        let isTotalInternalReflection = (n1 > n2 + 1e-9) && (sinT2 >= 1.0 - 1e-9);
-
-        if (isTotalInternalReflection) {
-            reflectivity = 1.0;
-        } else if (sinT2 >= 1.0 || sinT2 < 0) {
-            isTotalInternalReflection = true;
-            reflectivity = 1.0;
-        } else {
-            const cosT = Math.sqrt(1.0 - sinT2);
-            const n1_cosI = n1 * cosI;
-            const n2_cosT = n2 * cosT;
-            const n1_cosT = n1 * cosT;
-            const n2_cosI = n2 * cosI;
-            const Rs_den = n1_cosI + n2_cosT;
-            const Rp_den = n1_cosT + n2_cosI;
-            const Rs = (Rs_den < 1e-9) ? 1.0 : ((n1_cosI - n2_cosT) / Rs_den) ** 2;
-            const Rp = (Rp_den < 1e-9) ? 1.0 : ((n1_cosT - n2_cosI) / Rp_den) ** 2;
-            reflectivity = Math.max(0.0, Math.min(1.0, (Rs + Rp) / 2.0));
-        }
+        const refraction = snellRefraction(incidentDirection, surfaceNormal, n1, n2);
+        const reflectivity = refraction.reflectance;
+        const isTotalInternalReflection = refraction.isTotalInternalReflection;
 
         const newRays = [];
         const nextBounces = ray.bouncesSoFar + 1;
@@ -298,9 +275,7 @@ export class Prism extends OpticalComponent {
 
         const reflectedIntensity = incidentIntensity * reflectivity;
         if (reflectedIntensity >= ray.minIntensityThreshold) {
-            const reflectionNormalForCalc = surfaceNormal;
-            const cosIForCalc = Math.max(0.0, Math.min(1.0, incidentDirection.dot(reflectionNormalForCalc.multiply(-1.0))));
-            let reflectedDirection = incidentDirection.add(reflectionNormalForCalc.multiply(2 * cosIForCalc)).normalize();
+            const reflectedDirection = reflectDirection(incidentDirection, surfaceNormal);
             const reflectOrigin = hitPoint.add(reflectedDirection.multiply(1e-6));
             try {
                 if (isNaN(reflectOrigin.x) || isNaN(reflectedDirection.x)) throw new Error("NaN reflected");
@@ -309,11 +284,10 @@ export class Prism extends OpticalComponent {
             } catch (e) { console.error(`Prism (${this.id}) Error reflected ray:`, e); }
         }
 
-        if (!isTotalInternalReflection && sinT2 < 1.0 && sinT2 >= 0) {
+        if (!isTotalInternalReflection && refraction.refractedDirection) {
             const transmittedIntensity = incidentIntensity * (1.0 - reflectivity);
             if (transmittedIntensity >= ray.minIntensityThreshold) {
-                const cosT = Math.sqrt(1.0 - sinT2);
-                let refractedDirection = incidentDirection.multiply(nRatio).add(surfaceNormal.multiply(nRatio * cosI - cosT)).normalize();
+                const refractedDirection = refraction.refractedDirection;
                 const refractOrigin = hitPoint.add(refractedDirection.multiply(1e-6));
                 try {
                     if (isNaN(refractOrigin.x) || isNaN(refractedDirection.x)) throw new Error("NaN refracted");

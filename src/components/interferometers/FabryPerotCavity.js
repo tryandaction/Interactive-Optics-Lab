@@ -7,6 +7,21 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class FabryPerotCavity extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const cavity = new FabryPerotCavity(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.length,
+            data.height,
+            data.angleDeg,
+            data.cavityLength,
+            data.mirrorReflectivity
+        );
+        cavity.id = data.id ?? cavity.id;
+        cavity.label = data.label ?? cavity.label;
+        cavity.notes = data.notes ?? cavity.notes;
+        return cavity;
+    }
+
     static functionDescription = "法布里-珀罗光学谐振腔，具有波长选择性透射。";
 
     constructor(pos, length = 80, height = 40, angleDeg = 0, cavityLength = 10, 

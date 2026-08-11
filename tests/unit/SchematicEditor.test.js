@@ -36,6 +36,26 @@ test('renderSchematicSymbol emits stable semantic SVG with non-scaling strokes',
     assert.match(symbol, /vector-effect="non-scaling-stroke"/);
 });
 
+test('renderSchematicSymbol distinguishes core optical symbols instead of using generic rectangles', () => {
+    const cases = [
+        [{ id: 'convex', type: 'ThinLens', properties: { lensType: 'biconvex' } }, 'lens-convex'],
+        [{ id: 'concave', type: 'ThinLens', properties: { lensType: 'biconcave' } }, 'lens-concave'],
+        [{ id: 'bs', type: 'BeamSplitter' }, 'beam-splitter'],
+        [{ id: 'pbs', type: 'BeamSplitter', properties: { splitterType: 'PBS' } }, 'polarizing-beam-splitter'],
+        [{ id: 'polarizer', type: 'Polarizer' }, 'polarizer'],
+        [{ id: 'prism', type: 'Prism' }, 'prism'],
+        [{ id: 'grating', type: 'DiffractionGrating' }, 'diffraction-grating'],
+        [{ id: 'fiber', type: 'OpticalFiber' }, 'optical-fiber'],
+        [{ id: 'screen', type: 'Screen' }, 'screen']
+    ];
+
+    for (const [component, symbolKind] of cases) {
+        const svg = renderSchematicSymbol(component, { x: 100, y: 100, angleDeg: 0 });
+        assert.match(svg, new RegExp(`data-symbol-kind="${symbolKind}"`));
+        assert.doesNotMatch(svg, /data-symbol-kind="generic"/);
+    }
+});
+
 test('renderSchematicSvg emits editable page layers, labels, dashed and round-trip paths', () => {
     const svg = renderSchematicSvg(makeEditorDocument());
     const interactiveSvg = renderSchematicSvg(makeEditorDocument(), { interactive: true });

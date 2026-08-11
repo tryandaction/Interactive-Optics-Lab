@@ -2,15 +2,31 @@
 <html lang="zh-CN"> <!-- Root element, language set to Chinese -->
 
 <head>
-    <meta charset="UTF-8"> <!-- Character encoding set to UTF-8 -->
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Viewport settings for responsive design -->
-    <title>交互式光学实验室</title> <!-- Title shown in the browser tab -->
+    <meta name="description" content="OpticsLab - 科研光路草图与交互式光学验证工作台，支持几何光线追踪、理想薄透镜成像和科研图示原型">
+    <meta name="keywords" content="光学模拟,光线追踪,透镜,光学实验,物理教学">
+    <meta name="author" content="OpticsLab">
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="OpticsLab - 交互式光学实验室">
+    <meta property="og:description" content="面向教学、AMO/激光实验草图和科研光路快速验证的交互式光学工作台">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="./assets/og-image.png">
+
+    <!-- GitHub OAuth Client ID (public, safe to embed) -->
+    <meta name="github-client-id" content="Ov23liUWmPqfX0ArriHl">
+
+    <title>交互式光学实验室</title>
+
+    <!-- Inline favicon to avoid 404 -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23007acc'/%3E%3C/svg%3E">
 
     <!-- Link to the external CSS file -->
     <link rel="stylesheet" href="style.css">
     <!-- Unified Project Panel styles -->
     <link rel="stylesheet" href="src/ui/project-panel.css">
+    <link rel="stylesheet" href="src/schematic/schematic.css">
 </head>
 
 <body> <!-- Visible content of the webpage -->
@@ -68,6 +84,12 @@
                     <a href="#" id="menu-redo" class="disabled-link">重做 (Ctrl+Y)</a>
                     <hr>
                     <a href="#" id="menu-delete-selected">删除选中 (Del/Bksp)</a>
+                    <hr>
+                    <a href="#" id="menu-align-horizontal">水平对齐</a>
+                    <a href="#" id="menu-align-vertical">垂直对齐</a>
+                    <a href="#" id="menu-distribute-horizontal">水平等距分布</a>
+                    <a href="#" id="menu-distribute-vertical">垂直等距分布</a>
+                    <hr>
                     <a href="#" id="menu-clear-all">清空所有元件</a>
                 </div>
             </div>
@@ -110,8 +132,8 @@
                 </button>
                 <div class="dropdown-content">
                     <a href="#" id="menu-mode-raytrace">模式: 光线追踪</a>
-                    <a href="#" id="menu-mode-lensimaging">模式: 透镜成像</a>
-                    <a href="#" id="menu-mode-diagram">模式: 专业绘图</a>
+                    <a href="#" id="menu-mode-lensimaging">模式: 理想薄透镜成像</a>
+                    <a href="#" id="menu-mode-diagram">模式: 科研图示</a>
                     <hr>
                     <a href="#" id="menu-toggle-arrows">切换动画箭头</a>
                     <a href="#" id="menu-toggle-selected-arrow">切换仅选中箭头</a>
@@ -630,9 +652,56 @@
         <!-- END Left Toolbar -->
         <!-- Center Simulation Area -->
         <div id="simulation-area">
-            <canvas id="opticsCanvas"></canvas>
+            <canvas id="opticsCanvas" role="application" aria-label="光学模拟画布 - 使用鼠标拖拽组件，滚轮缩放，右键打开菜单"></canvas>
+            <section id="schematic-workspace" aria-label="光路图编辑器" hidden>
+                <div class="schematic-toolbar" role="toolbar" aria-label="光路图排版工具">
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="align-x" title="水平居中对齐">水平对齐</button>
+                        <button type="button" data-schematic-action="align-y" title="垂直居中对齐">垂直对齐</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="distribute-x" title="水平均匀分布">水平分布</button>
+                        <button type="button" data-schematic-action="distribute-y" title="垂直均匀分布">垂直分布</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="group" title="将选中元件组合">组合</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-name-control">
+                        <label for="schematic-component-name">名称</label>
+                        <input id="schematic-component-name" data-schematic-name type="text" disabled aria-label="选中元件名称">
+                        <label for="schematic-label-x">标签 X</label>
+                        <input id="schematic-label-x" data-label-axis="x" type="number" disabled aria-label="标签水平偏移">
+                        <label for="schematic-label-y">Y</label>
+                        <input id="schematic-label-y" data-label-axis="y" type="number" disabled aria-label="标签垂直偏移">
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="delete" title="删除选中元件">删除</button>
+                        <button type="button" data-schematic-action="backward" title="下移一层">后移</button>
+                        <button type="button" data-schematic-action="forward" title="上移一层">前移</button>
+                    </div>
+                    <div class="schematic-toolbar-group">
+                        <button type="button" data-schematic-action="path-solid" data-path-control disabled>实线</button>
+                        <button type="button" data-schematic-action="path-dashed" data-path-control disabled>虚线</button>
+                        <button type="button" data-schematic-action="path-round-trip" data-path-control disabled>双程</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-annotation-control">
+                        <input data-annotation-text type="text" placeholder="文本标注" aria-label="新建文本标注">
+                        <button type="button" data-schematic-action="add-annotation" title="在页面中心添加文本标注">添加标注</button>
+                    </div>
+                    <div class="schematic-toolbar-group schematic-export-actions">
+                        <button type="button" data-schematic-export="svg" title="导出可编辑 SVG">SVG</button>
+                        <button type="button" data-schematic-export="png" title="导出高分辨率 PNG">PNG</button>
+                        <button type="button" data-schematic-export="pdf" title="导出 PDF 页面">PDF</button>
+                    </div>
+                </div>
+                <div class="schematic-viewport">
+                    <div class="schematic-page" data-schematic-page></div>
+                </div>
+            </section>
             <!-- Mode Hint (Keep it here) -->
             <div id="mode-hint"></div>
+            <!-- Screen reader status region -->
+            <div id="sr-status" role="status" aria-live="polite" aria-atomic="true" style="position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;"></div>
         </div>
 
         <!-- Right Inspector Panel (with Tabs) -->
@@ -843,7 +912,7 @@
                     </ul>
                 </li>
                 <li><strong>丰富元件库:</strong> 包含光源、透镜、反射镜、棱镜、光栅、偏振元件、分束器、探测器等多种元件 (详见第 5 节)。</li>
-                <li><strong>实时光线追踪:</strong> 基于物理定律精确可视化光线路径。</li>
+                <li><strong>实时光线追踪:</strong> 基于几何光学模型可视化光线路径；复杂元件的定量精度需结合测试基线判断。</li>
                 <li><strong>元件属性调整:</strong> 选中元件后，在右侧“属性”标签页中实时修改参数。</li>
                 <li><strong>灵活视图控制:</strong>
                     <ul>
@@ -854,8 +923,8 @@
                 </li>
                 <li><strong>多模拟模式:</strong>
                     <ul>
-                        <li>光线追踪: 默认模式，模拟光线传播与物理效应。</li>
-                        <li>透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
+                        <li>光线追踪: 默认模式，交互式观察光线传播与部分物理效应。</li>
+                        <li>理想薄透镜成像: 辅助模式，绘制理想薄透镜成像主光路图 (详见第 6 节)。</li>
                     </ul>
                 </li>
                 <li><strong>物理效应模拟:</strong> 波长相关颜色、偏振、色散、衍射基础、干涉基础、高斯光束初步模拟。</li>
@@ -900,9 +969,9 @@
             <ul>
                 <li><strong>光线追踪 (Ray Tracing):</strong> (菜单: 模拟 -> 模式: 光线追踪)
                     默认模式。模拟大量独立光线的行为，考虑相位进行相干叠加（在屏幕上）。适合观察反射、折射、TIR、色散、衍射级次、偏振效果和干涉图样。</li>
-                <li><strong>透镜成像 (Lens Imaging):</strong> (菜单: 模拟 -> 模式: 透镜成像)
+                <li><strong>理想薄透镜成像 (Ideal Thin-Lens Imaging):</strong> (菜单: 模拟 -> 模式: 理想薄透镜成像)
                     仅当场景中<strong>恰好包含一个受支持的光源和一个薄透镜</strong>时可用。绘制理想薄透镜成像的三条主光线、物和像，并在画布左上角显示 u, v, M, hₒ, hᵢ
-                    及像的性质。不进行复杂的光线追踪。</li>
+                    及像的性质。不进行复杂透镜系统或厚透镜追迹。</li>
             </ul>
 
             <h4>7. 全局设置与选项 (右侧“设置”标签页)</h4>
@@ -939,7 +1008,7 @@
 
             <h4>10. 未来展望</h4>
             <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、更丰富的可视化选项等。</p>
-            
+
             </div> <!-- End guide-content -->
         </div>
     </div>
@@ -958,7 +1027,7 @@
 
 
     <!-- Hidden File Input (Keep for import) -->
-    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+    <input type="file" id="import-file-input" accept=".opticslab.json,.json,application/json" style="display: none;">
 
     <!-- Preloaded Audio Elements (Keep as is) -->
     <!-- ... -->
@@ -968,7 +1037,7 @@
         注意：如果控制台出现 installHook.js 相关错误，这是浏览器扩展引起的，
         不是本项目的代码问题，可以安全忽略。
     -->
-    
+
     <!-- 错误处理 -->
     <script>
         // 捕获模块加载错误
@@ -977,20 +1046,47 @@
                 console.error('❌ 脚本加载错误:', e.filename, e.message);
             }
         }, true);
-        
+
         // 捕获未处理的 Promise 拒绝
         window.addEventListener('unhandledrejection', (e) => {
             console.error('❌ Promise 拒绝:', e.reason);
         });
     </script>
-    
+
+    <!-- jsPDF (PDF 导出) -->
+    <script src="src/libs/jspdf.umd.min.js"></script>
+
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
     <script type="module" src="src/compat/legacy-globals.js" onerror="console.error('❌ 无法加载 legacy-globals.js')"></script>
-    
+
+    <!-- License System -->
+    <script type="module">
+        import { LicenseValidator } from './src/license/LicenseValidator.js';
+        import { LicenseUI } from './src/license/LicenseUI.js';
+
+        // Export to global scope for main.js
+        window.LicenseValidator = LicenseValidator;
+        window.LicenseUI = LicenseUI;
+
+        console.log('✓ License system loaded');
+    </script>
+
+    <!-- Cloud Storage System -->
+    <script type="module">
+        import { GitHubAuth } from './src/cloud/GitHubAuth.js';
+        import { GistSceneStorage } from './src/cloud/GistSceneStorage.js';
+
+        // Export to global scope for main.js
+        window.GitHubAuth = GitHubAuth;
+        window.GistSceneStorage = GistSceneStorage;
+
+        console.log('✓ Cloud storage system loaded');
+    </script>
+
     <!-- 统一项目管理模块 -->
     <script type="module">
         import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';
-        
+
         /**
          * SceneStatusDisplay - 场景状态显示管理器
          * 负责在顶部菜单栏显示当前打开的场景路径和修改状态
@@ -1004,29 +1100,29 @@
                 this.sceneNameEl = document.getElementById('scene-name');
                 this.modifiedDot = document.getElementById('scene-modified-dot');
                 this.saveHint = document.getElementById('scene-save-hint');
-                
+
                 // 状态
                 this.currentProject = null;
                 this.currentScene = null;
                 this.isModified = false;
-                
+
                 this.bindEvents();
                 console.log('[SceneStatusDisplay] Initialized');
             }
-            
+
             bindEvents() {
                 // 监听全局场景修改事件
                 document.addEventListener('sceneModified', () => {
                     console.log('[SceneStatusDisplay] sceneModified event received');
                     this.setModified(true);
                 });
-                
+
                 // 监听全局场景保存事件
                 document.addEventListener('sceneSaved', () => {
                     console.log('[SceneStatusDisplay] sceneSaved event received');
                     this.setModified(false);
                 });
-                
+
                 // 点击路径显示区域时，如果有未保存的更改，高亮提示
                 if (this.container) {
                     this.container.addEventListener('click', () => {
@@ -1036,7 +1132,7 @@
                     });
                 }
             }
-            
+
             /**
              * 更新显示内容
              * @param {Object|null} project - 当前项目
@@ -1044,12 +1140,12 @@
              */
             updateDisplay(project, scene) {
                 console.log('[SceneStatusDisplay] updateDisplay:', { project: project?.name, scene: scene?.name });
-                
+
                 this.currentProject = project;
                 this.currentScene = scene;
-                
+
                 if (!this.container) return;
-                
+
                 // 没有打开的场景
                 if (!scene) {
                     if (this.projectNameEl) {
@@ -1058,15 +1154,15 @@
                     }
                     if (this.pathSepEl) this.pathSepEl.style.display = 'none';
                     if (this.sceneNameEl) this.sceneNameEl.textContent = '未打开场景';
-                    
+
                     this.container.classList.remove('has-scene');
                     this.container.title = '当前没有打开的场景\n点击项目面板中的场景来打开';
                     this.setModified(false);
                     return;
                 }
-                
+
                 this.container.classList.add('has-scene');
-                
+
                 // 显示项目名称
                 if (project && this.projectNameEl) {
                     this.projectNameEl.textContent = project.name;
@@ -1079,16 +1175,16 @@
                     }
                     if (this.pathSepEl) this.pathSepEl.style.display = 'none';
                 }
-                
+
                 // 显示场景名称
                 if (this.sceneNameEl) {
                     this.sceneNameEl.textContent = scene.name;
                 }
-                
+
                 // 更新 title 显示完整路径
                 this.updateTooltip();
             }
-            
+
             /**
              * 设置修改状态
              * @param {boolean} modified - 是否已修改
@@ -1097,59 +1193,59 @@
                 // 强制更新，不检查是否相同（确保状态始终正确）
                 this.isModified = modified;
                 console.log('[SceneStatusDisplay] setModified:', modified);
-                
+
                 this.isModified = modified;
                 console.log('[SceneStatusDisplay] setModified:', modified);
-                
+
                 if (!this.container) return;
-                
+
                 // 更新修改指示器
                 if (this.modifiedDot) {
                     this.modifiedDot.style.display = modified ? 'inline' : 'none';
                 }
-                
+
                 // 更新保存提示
                 if (this.saveHint) {
                     this.saveHint.style.display = modified ? 'inline' : 'none';
                 }
-                
+
                 // 更新容器样式
                 if (modified) {
                     this.container.classList.add('is-modified');
                 } else {
                     this.container.classList.remove('is-modified');
                 }
-                
+
                 // 更新 tooltip
                 this.updateTooltip();
-                
+
                 // 更新窗口标题
                 this.updateWindowTitle();
             }
-            
+
             /**
              * 更新 tooltip
              */
             updateTooltip() {
                 if (!this.container || !this.currentScene) return;
-                
+
                 const fullPath = this.currentProject 
                     ? `${this.currentProject.name}/${this.currentScene.name}` 
                     : this.currentScene.name;
-                    
+
                 const statusText = this.isModified 
                     ? '(有未保存的更改，按 Ctrl+S 保存)' 
                     : '(已保存)';
-                    
+
                 this.container.title = `当前场景: ${fullPath}\n${statusText}`;
             }
-            
+
             /**
              * 更新窗口标题
              */
             updateWindowTitle() {
                 const modifiedIndicator = this.isModified ? '● ' : '';
-                
+
                 if (this.currentScene && this.currentProject) {
                     document.title = `${modifiedIndicator}${this.currentScene.name} - ${this.currentProject.name} - 光学实验室`;
                 } else if (this.currentScene) {
@@ -1158,26 +1254,26 @@
                     document.title = '交互式光学实验室';
                 }
             }
-            
+
             /**
              * 高亮保存提示（动画效果）
              */
             highlightSaveHint() {
                 if (!this.saveHint || !this.modifiedDot) return;
-                
+
                 // 重置动画
                 this.saveHint.style.animation = 'none';
                 this.modifiedDot.style.animation = 'none';
-                
+
                 // 触发重排
                 this.saveHint.offsetHeight;
                 this.modifiedDot.offsetHeight;
-                
+
                 // 应用动画
                 this.saveHint.style.animation = 'pulse-hint 0.3s ease-in-out 3';
                 this.modifiedDot.style.animation = 'pulse-dot 0.5s ease-in-out 3';
             }
-            
+
             /**
              * 获取当前场景信息
              */
@@ -1189,37 +1285,37 @@
                 };
             }
         }
-        
+
         // 全局场景状态显示实例
         let sceneStatusDisplay = null;
-        
+
         // 初始化函数
         function initProjectPanel() {
             console.log('[Init] Starting UnifiedProjectPanel initialization...');
             try {
                 window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
                 console.log('[Init] UnifiedProjectPanel initialized successfully');
-                
+
                 // 初始化场景状态显示
                 sceneStatusDisplay = new SceneStatusDisplay();
                 window.sceneStatusDisplay = sceneStatusDisplay;
-                
+
                 // 监听项目管理器事件
                 const projectManager = window.unifiedProjectPanel.getProjectManager();
-                
+
                 // 项目变更时更新显示
                 projectManager.on('projectChanged', (project) => {
                     console.log('[Init] projectChanged event:', project?.name);
                     sceneStatusDisplay.updateDisplay(project, projectManager.getCurrentScene());
                 });
-                
+
                 // 场景加载时更新显示
                 projectManager.on('sceneLoaded', (scene) => {
                     console.log('[Init] sceneLoaded event:', scene?.name);
                     sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
                     sceneStatusDisplay.setModified(false);
                 });
-                
+
                 // 场景保存时更新状态
                 projectManager.on('sceneSaved', (scene) => {
                     console.log('[Init] sceneSaved event:', scene?.name);
@@ -1227,46 +1323,48 @@
                     // 触发全局事件，通知 main.js
                     document.dispatchEvent(new CustomEvent('sceneSaved'));
                 });
-                
+
                 // 场景修改时更新状态
                 projectManager.on('sceneModified', (scene) => {
                     console.log('[Init] sceneModified event:', scene?.name);
                     sceneStatusDisplay.setModified(true);
                 });
-                
+
                 // 场景重命名时更新显示
                 projectManager.on('sceneRenamed', (scene) => {
                     console.log('[Init] sceneRenamed event:', scene?.name);
                     sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
                 });
-                
+
             } catch (error) {
                 console.error('[Init] Failed to initialize UnifiedProjectPanel:', error);
             }
-            
+
             // 监听场景数据加载事件（从项目面板加载场景到画布）
             document.addEventListener('sceneDataLoaded', (e) => {
                 const { scene } = e.detail;
                 console.log('[sceneDataLoaded] Received scene data:', scene?.name);
-                
+
                 // 等待 loadSceneFromData 函数可用
                 const tryLoadScene = () => {
                     if (typeof loadSceneFromData === 'function') {
                         if (scene && scene.data) {
                             // scene.data 包含完整的场景数据
                             const sceneData = scene.data;
-                            const loadData = {
-                                components: sceneData.components || [],
-                                settings: sceneData.settings || {},
-                                currentMode: sceneData.settings?.mode || 'ray_trace',
-                                view: sceneData.view,
-                                metadata: sceneData.metadata
-                            };
+                            const loadData = sceneData.schemaVersion
+                                ? sceneData
+                                : {
+                                    components: sceneData.components || [],
+                                    settings: sceneData.settings || {},
+                                    currentMode: sceneData.settings?.mode || 'ray_trace',
+                                    view: sceneData.view,
+                                    metadata: sceneData.metadata
+                                };
                             console.log('[sceneDataLoaded] Loading scene with', loadData.components?.length || 0, 'components');
-                            
+
                             // 加载场景数据到画布，不切换到属性面板（保持在项目面板）
                             const success = loadSceneFromData(loadData, { switchToPropertiesTab: false });
-                            
+
                             if (success) {
                                 console.log('[sceneDataLoaded] Scene loaded successfully');
                                 // 更新场景状态显示
@@ -1289,7 +1387,7 @@
                 tryLoadScene();
             });
         }
-        
+
         // 检查 DOM 是否已经加载完成
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initProjectPanel);
@@ -1298,7 +1396,7 @@
             initProjectPanel();
         }
     </script>
-    
+
     <!-- 应用代码 -->
     <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
     <script>
@@ -1320,13 +1418,14 @@
 
             window.addEventListener('legacy-globals-ready', loadMain, { once: true });
 
-            // Fallback: load main.js even if module init is delayed
+            // Fallback: load main.js only after the compatibility layer has had enough time
+            // to finish its heavy module graph. main.js also waits for required globals.
             setTimeout(() => {
                 if (!window.__LEGACY_GLOBALS_LOADED__) {
-                    console.warn('legacy-globals not ready, loading main.js anyway');
+                    console.warn('legacy-globals timed out, loading main.js with runtime module checks');
                     loadMain();
                 }
-            }, 2000);
+            }, 10000);
         })();
     </script>
 

@@ -137,8 +137,8 @@ export class PowerMeter extends OpticalComponent {
         
         if (distFromCenter > this.diameter / 2) return [];
         
-        let normal = this.perpDirection.multiply(-1);
-        if (denom > 0) normal = normal.multiply(-1);
+        let normal = this.perpDirection.clone();
+        if (rayDirection.dot(normal) > 0) normal = normal.multiply(-1);
         
         return [{
             distance: t,

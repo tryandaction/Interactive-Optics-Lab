@@ -303,42 +303,9 @@ export class AtomicCell extends OpticalComponent {
     }
 
     interact(ray, intersectionInfo, RayClass) {
-        const hitPoint = intersectionInfo.point;
-        const incidentDirection = ray.direction;
-        
-        // Calculate path length through cell
-        // Find exit point
-        const testOrigin = hitPoint.add(incidentDirection.multiply(1));
-        const exitIntersections = this.intersect(testOrigin, incidentDirection);
-        
-        let pathLength = this.width; // Default
-        if (exitIntersections.length > 0) {
-            pathLength = exitIntersections[0].distance + 1;
-        }
-        
-        // Calculate transmission using Beer-Lambert law
-        const transmission = this.getTransmission(ray.wavelengthNm, pathLength);
-        const transmittedIntensity = ray.intensity * transmission;
-        
-        // Exit point
-        const exitPoint = hitPoint.add(incidentDirection.multiply(pathLength));
-        const newOrigin = exitPoint.add(incidentDirection.multiply(1e-6));
-        
-        let transmittedRay = null;
-        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
-            try {
-                transmittedRay = new RayClass(
-                    newOrigin, incidentDirection, ray.wavelengthNm,
-                    transmittedIntensity, ray.phase, ray.bouncesSoFar + 1,
-                    ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle,
-                    ray.ignoreDecay, ray.history.concat([hitPoint.clone(), newOrigin.clone()]),
-                    ray.beamDiameter
-                );
-            } catch (e) { console.error(`Error creating transmitted Ray in AtomicCell:`, e); }
-        }
-
-        ray.terminate('absorbed_atomic_cell');
-        return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
+        // Atomic propagation is not validated; keep this component schematic-only.
+        ray.terminate('visual_only_atomic_cell');
+        return [];
     }
 
     getProperties() {

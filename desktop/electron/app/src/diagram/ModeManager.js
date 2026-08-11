@@ -1,6 +1,6 @@
 /**
  * ModeManager.js - 模式管理器
- * 管理模拟模式和专业绘图模式之间的切换
+ * 管理模拟模式和科研图示模式之间的切换
  * 
  * Requirements: 1.1, 1.2, 1.5, 1.6, 1.7, 1.10, 1.11
  */
@@ -88,7 +88,7 @@ export class ModeManager {
     }
 
     /**
-     * 检查是否为绘图模式
+     * 检查是否为科研图示模式
      * @returns {boolean}
      */
     isDiagramMode() {

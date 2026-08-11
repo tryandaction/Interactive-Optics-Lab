@@ -1008,7 +1008,7 @@
 
             <h4>10. 未来展望</h4>
             <p>交互式光学实验室将持续开发，未来可能加入：更精确的物理模型（高斯光束传输、衍射细节、像差）、更多元件、多选与成组、单位系统、更丰富的可视化选项等。</p>
-            
+
             </div> <!-- End guide-content -->
         </div>
     </div>
@@ -1037,7 +1037,7 @@
         注意：如果控制台出现 installHook.js 相关错误，这是浏览器扩展引起的，
         不是本项目的代码问题，可以安全忽略。
     -->
-    
+
     <!-- 错误处理 -->
     <script>
         // 捕获模块加载错误
@@ -1046,16 +1046,16 @@
                 console.error('❌ 脚本加载错误:', e.filename, e.message);
             }
         }, true);
-        
+
         // 捕获未处理的 Promise 拒绝
         window.addEventListener('unhandledrejection', (e) => {
             console.error('❌ Promise 拒绝:', e.reason);
         });
     </script>
-    
+
     <!-- jsPDF (PDF 导出) -->
     <script src="src/libs/jspdf.umd.min.js"></script>
-    
+
     <!-- 模块化代码 - 兼容层（导出所有类到全局） -->
     <script type="module" src="src/compat/legacy-globals.js" onerror="console.error('❌ 无法加载 legacy-globals.js')"></script>
 
@@ -1086,7 +1086,7 @@
     <!-- 统一项目管理模块 -->
     <script type="module">
         import { UnifiedProjectPanel } from './src/ui/UnifiedProjectPanel.js';
-        
+
         /**
          * SceneStatusDisplay - 场景状态显示管理器
          * 负责在顶部菜单栏显示当前打开的场景路径和修改状态
@@ -1100,29 +1100,29 @@
                 this.sceneNameEl = document.getElementById('scene-name');
                 this.modifiedDot = document.getElementById('scene-modified-dot');
                 this.saveHint = document.getElementById('scene-save-hint');
-                
+
                 // 状态
                 this.currentProject = null;
                 this.currentScene = null;
                 this.isModified = false;
-                
+
                 this.bindEvents();
                 console.log('[SceneStatusDisplay] Initialized');
             }
-            
+
             bindEvents() {
                 // 监听全局场景修改事件
                 document.addEventListener('sceneModified', () => {
                     console.log('[SceneStatusDisplay] sceneModified event received');
                     this.setModified(true);
                 });
-                
+
                 // 监听全局场景保存事件
                 document.addEventListener('sceneSaved', () => {
                     console.log('[SceneStatusDisplay] sceneSaved event received');
                     this.setModified(false);
                 });
-                
+
                 // 点击路径显示区域时，如果有未保存的更改，高亮提示
                 if (this.container) {
                     this.container.addEventListener('click', () => {
@@ -1132,7 +1132,7 @@
                     });
                 }
             }
-            
+
             /**
              * 更新显示内容
              * @param {Object|null} project - 当前项目
@@ -1140,12 +1140,12 @@
              */
             updateDisplay(project, scene) {
                 console.log('[SceneStatusDisplay] updateDisplay:', { project: project?.name, scene: scene?.name });
-                
+
                 this.currentProject = project;
                 this.currentScene = scene;
-                
+
                 if (!this.container) return;
-                
+
                 // 没有打开的场景
                 if (!scene) {
                     if (this.projectNameEl) {
@@ -1154,15 +1154,15 @@
                     }
                     if (this.pathSepEl) this.pathSepEl.style.display = 'none';
                     if (this.sceneNameEl) this.sceneNameEl.textContent = '未打开场景';
-                    
+
                     this.container.classList.remove('has-scene');
                     this.container.title = '当前没有打开的场景\n点击项目面板中的场景来打开';
                     this.setModified(false);
                     return;
                 }
-                
+
                 this.container.classList.add('has-scene');
-                
+
                 // 显示项目名称
                 if (project && this.projectNameEl) {
                     this.projectNameEl.textContent = project.name;
@@ -1175,16 +1175,16 @@
                     }
                     if (this.pathSepEl) this.pathSepEl.style.display = 'none';
                 }
-                
+
                 // 显示场景名称
                 if (this.sceneNameEl) {
                     this.sceneNameEl.textContent = scene.name;
                 }
-                
+
                 // 更新 title 显示完整路径
                 this.updateTooltip();
             }
-            
+
             /**
              * 设置修改状态
              * @param {boolean} modified - 是否已修改
@@ -1193,59 +1193,59 @@
                 // 强制更新，不检查是否相同（确保状态始终正确）
                 this.isModified = modified;
                 console.log('[SceneStatusDisplay] setModified:', modified);
-                
+
                 this.isModified = modified;
                 console.log('[SceneStatusDisplay] setModified:', modified);
-                
+
                 if (!this.container) return;
-                
+
                 // 更新修改指示器
                 if (this.modifiedDot) {
                     this.modifiedDot.style.display = modified ? 'inline' : 'none';
                 }
-                
+
                 // 更新保存提示
                 if (this.saveHint) {
                     this.saveHint.style.display = modified ? 'inline' : 'none';
                 }
-                
+
                 // 更新容器样式
                 if (modified) {
                     this.container.classList.add('is-modified');
                 } else {
                     this.container.classList.remove('is-modified');
                 }
-                
+
                 // 更新 tooltip
                 this.updateTooltip();
-                
+
                 // 更新窗口标题
                 this.updateWindowTitle();
             }
-            
+
             /**
              * 更新 tooltip
              */
             updateTooltip() {
                 if (!this.container || !this.currentScene) return;
-                
+
                 const fullPath = this.currentProject 
                     ? `${this.currentProject.name}/${this.currentScene.name}` 
                     : this.currentScene.name;
-                    
+
                 const statusText = this.isModified 
                     ? '(有未保存的更改，按 Ctrl+S 保存)' 
                     : '(已保存)';
-                    
+
                 this.container.title = `当前场景: ${fullPath}\n${statusText}`;
             }
-            
+
             /**
              * 更新窗口标题
              */
             updateWindowTitle() {
                 const modifiedIndicator = this.isModified ? '● ' : '';
-                
+
                 if (this.currentScene && this.currentProject) {
                     document.title = `${modifiedIndicator}${this.currentScene.name} - ${this.currentProject.name} - 光学实验室`;
                 } else if (this.currentScene) {
@@ -1254,26 +1254,26 @@
                     document.title = '交互式光学实验室';
                 }
             }
-            
+
             /**
              * 高亮保存提示（动画效果）
              */
             highlightSaveHint() {
                 if (!this.saveHint || !this.modifiedDot) return;
-                
+
                 // 重置动画
                 this.saveHint.style.animation = 'none';
                 this.modifiedDot.style.animation = 'none';
-                
+
                 // 触发重排
                 this.saveHint.offsetHeight;
                 this.modifiedDot.offsetHeight;
-                
+
                 // 应用动画
                 this.saveHint.style.animation = 'pulse-hint 0.3s ease-in-out 3';
                 this.modifiedDot.style.animation = 'pulse-dot 0.5s ease-in-out 3';
             }
-            
+
             /**
              * 获取当前场景信息
              */
@@ -1285,37 +1285,37 @@
                 };
             }
         }
-        
+
         // 全局场景状态显示实例
         let sceneStatusDisplay = null;
-        
+
         // 初始化函数
         function initProjectPanel() {
             console.log('[Init] Starting UnifiedProjectPanel initialization...');
             try {
                 window.unifiedProjectPanel = new UnifiedProjectPanel('#unified-project-tab');
                 console.log('[Init] UnifiedProjectPanel initialized successfully');
-                
+
                 // 初始化场景状态显示
                 sceneStatusDisplay = new SceneStatusDisplay();
                 window.sceneStatusDisplay = sceneStatusDisplay;
-                
+
                 // 监听项目管理器事件
                 const projectManager = window.unifiedProjectPanel.getProjectManager();
-                
+
                 // 项目变更时更新显示
                 projectManager.on('projectChanged', (project) => {
                     console.log('[Init] projectChanged event:', project?.name);
                     sceneStatusDisplay.updateDisplay(project, projectManager.getCurrentScene());
                 });
-                
+
                 // 场景加载时更新显示
                 projectManager.on('sceneLoaded', (scene) => {
                     console.log('[Init] sceneLoaded event:', scene?.name);
                     sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
                     sceneStatusDisplay.setModified(false);
                 });
-                
+
                 // 场景保存时更新状态
                 projectManager.on('sceneSaved', (scene) => {
                     console.log('[Init] sceneSaved event:', scene?.name);
@@ -1323,28 +1323,28 @@
                     // 触发全局事件，通知 main.js
                     document.dispatchEvent(new CustomEvent('sceneSaved'));
                 });
-                
+
                 // 场景修改时更新状态
                 projectManager.on('sceneModified', (scene) => {
                     console.log('[Init] sceneModified event:', scene?.name);
                     sceneStatusDisplay.setModified(true);
                 });
-                
+
                 // 场景重命名时更新显示
                 projectManager.on('sceneRenamed', (scene) => {
                     console.log('[Init] sceneRenamed event:', scene?.name);
                     sceneStatusDisplay.updateDisplay(projectManager.getCurrentProject(), scene);
                 });
-                
+
             } catch (error) {
                 console.error('[Init] Failed to initialize UnifiedProjectPanel:', error);
             }
-            
+
             // 监听场景数据加载事件（从项目面板加载场景到画布）
             document.addEventListener('sceneDataLoaded', (e) => {
                 const { scene } = e.detail;
                 console.log('[sceneDataLoaded] Received scene data:', scene?.name);
-                
+
                 // 等待 loadSceneFromData 函数可用
                 const tryLoadScene = () => {
                     if (typeof loadSceneFromData === 'function') {
@@ -1361,10 +1361,10 @@
                                     metadata: sceneData.metadata
                                 };
                             console.log('[sceneDataLoaded] Loading scene with', loadData.components?.length || 0, 'components');
-                            
+
                             // 加载场景数据到画布，不切换到属性面板（保持在项目面板）
                             const success = loadSceneFromData(loadData, { switchToPropertiesTab: false });
-                            
+
                             if (success) {
                                 console.log('[sceneDataLoaded] Scene loaded successfully');
                                 // 更新场景状态显示
@@ -1387,7 +1387,7 @@
                 tryLoadScene();
             });
         }
-        
+
         // 检查 DOM 是否已经加载完成
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initProjectPanel);
@@ -1396,7 +1396,7 @@
             initProjectPanel();
         }
     </script>
-    
+
     <!-- 应用代码 -->
     <script src="interactionEnhancer.js"></script> <!-- 交互增强模块 -->
     <script>

@@ -1,9 +1,16 @@
 /**
  * DiagramModeIntegration.js - 专业绘图模式集成
  * 将所有diagram模块与主应用连接
- * 
+ *
  * Requirements: 1.2, 1.4, 1.7, 1.8, 1.9, 2.7, 3.10
  */
+
+// XSS防护工具函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 import { getModeManager, APP_MODES } from './ModeManager.js';
 import { createModeSwitcher } from './ModeSwitcher.js';
@@ -43,10 +50,10 @@ export class DiagramModeIntegration {
     constructor(options = {}) {
         /** @type {Object} 配置选项 */
         this.options = options;
-        
+
         /** @type {boolean} 是否已初始化 */
         this.initialized = false;
-        
+
         /** @type {Object} 模块引用 */
         this.modules = {
             modeManager: null,
@@ -76,13 +83,13 @@ export class DiagramModeIntegration {
             themeManager: null,
             pluginManager: null
         };
-        
+
         /** @type {HTMLElement|null} */
         this.toolbarContainer = null;
-        
+
         /** @type {HTMLElement|null} */
         this.panelContainer = null;
-        
+
         /** @type {Array<Function>} 清理函数 */
         this.cleanupFunctions = [];
 
@@ -91,7 +98,7 @@ export class DiagramModeIntegration {
 
         /** @type {boolean} 本次进入绘图模式是否已恢复状态 */
         this._diagramStateRestored = false;
-        
+
         /** @type {DiagnosticSystem} 诊断系统 */
         this.diagnosticSystem = getDiagnosticSystem();
     }
@@ -112,13 +119,13 @@ export class DiagramModeIntegration {
 
         // 初始化所有模块
         this._initializeModules(appContext);
-        
+
         // 设置模式切换监听
         this._setupModeChangeListener();
-        
+
         // 创建UI组件
         this._createUIComponents();
-        
+
         // 注入样式
         this._injectStyles();
 
@@ -127,7 +134,7 @@ export class DiagramModeIntegration {
             window.registerDiagramPlugin = (plugin) => this.registerToolbarPlugin(plugin);
             window.unregisterDiagramPlugin = (pluginId) => this.unregisterToolbarPlugin(pluginId);
         }
-        
+
         this.initialized = true;
         console.log('DiagramModeIntegration: Initialization complete');
         this.diagnosticSystem.log('info', 'DiagramModeIntegration initialization complete');
@@ -180,24 +187,24 @@ export class DiagramModeIntegration {
         this.modules.parameterDisplayManager = getParameterDisplayManager();
         this.modules.templateManager = getTemplateManager();
         this.modules.batchExportManager = getBatchExportManager();
-        
+
         // 初始化专业绘图模式新模块
         this.modules.professionalIconManager = getProfessionalIconManager();
         this.modules.connectionPointManager = getConnectionPointManager();
         this.modules.rayLinkManager = getRayLinkManager();
         this.modules.professionalLabelManager = getProfessionalLabelManager();
         this.modules.technicalNotesArea = getTechnicalNotesArea();
-        
+
         // 初始化图标浏览器（带回调）
         this.modules.iconBrowserPanel = getIconBrowserPanel({
             onIconSelect: (iconType) => this._handleIconSelect(iconType),
             onIconDragStart: (iconType, e) => this._handleIconDragStart(iconType, e)
         });
-        
+
         // 初始化交互管理器
         this.modules.interactionManager = getInteractionManager();
         this._setupInteractionEvents();
-        
+
         // 初始化自定义连接点编辑器
         this.modules.customConnectionPointEditor = getCustomConnectionPointEditor({
             onPointAdded: (point, component) => {
@@ -213,7 +220,7 @@ export class DiagramModeIntegration {
                 this._triggerRedraw();
             }
         });
-        
+
         // 初始化模板系统
         this.modules.templateManager = getAdvancedTemplateManager();
         this.modules.templateBrowser = new TemplateBrowser({
@@ -221,7 +228,7 @@ export class DiagramModeIntegration {
             onSelect: (template) => console.log('Template selected:', template.name),
             onApply: (template) => this._applyTemplate(template)
         });
-        
+
         // 初始化小地图
         this.modules.minimap = getMinimap({
             position: 'bottom-right',
@@ -243,7 +250,7 @@ export class DiagramModeIntegration {
 
         // 初始化插件管理器
         this.modules.pluginManager = getPluginManager();
-        
+
         // 注册专业SVG图标
         registerProfessionalIcons();
         registerExtendedIcons();
@@ -258,10 +265,10 @@ export class DiagramModeIntegration {
             if (phase === 'after') {
                 // 更新UI可见性
                 this._updateUIVisibility(newMode);
-                
+
                 // 更新左侧栏图标
                 this._updateToolbarIcons(newMode);
-                
+
                 // 触发自定义事件
                 if (typeof document !== 'undefined') {
                     document.dispatchEvent(new CustomEvent('diagram-mode-change', {
@@ -270,10 +277,10 @@ export class DiagramModeIntegration {
                 }
             }
         });
-        
+
         this.cleanupFunctions.push(unsubscribe);
     }
-    
+
     /**
      * 更新左侧工具栏图标
      * 在绘图模式下使用专业图标，在模拟模式下使用原始图标
@@ -281,24 +288,24 @@ export class DiagramModeIntegration {
      */
     _updateToolbarIcons(mode) {
         if (typeof document === 'undefined') return;
-        
+
         const toolbar = document.getElementById('toolbar');
         if (!toolbar) return;
-        
+
         const isDiagramMode = mode === APP_MODES.DIAGRAM;
         const buttons = toolbar.querySelectorAll('button[data-type]');
-        
+
         buttons.forEach(btn => {
             const componentType = btn.dataset.type;
             const iconContainer = btn.querySelector('svg');
-            
+
             if (isDiagramMode) {
                 // 绘图模式：尝试使用专业图标
                 btn.classList.add('professional-icon');
-                
+
                 // 检查是否有专业图标
                 const hasIcon = this.modules.professionalIconManager?.hasIcon(componentType);
-                
+
                 // 创建或更新专业图标预览
                 let preview = btn.querySelector('.professional-icon-preview');
                 if (!preview) {
@@ -308,7 +315,7 @@ export class DiagramModeIntegration {
                     preview.height = 48;
                     btn.insertBefore(preview, btn.firstChild);
                 }
-                
+
                 // 渲染专业图标到canvas
                 if (hasIcon) {
                     const ctx = preview.getContext('2d');
@@ -326,13 +333,13 @@ export class DiagramModeIntegration {
             } else {
                 // 模拟模式：使用原始图标
                 btn.classList.remove('professional-icon');
-                
+
                 const professionalPreview = btn.querySelector('.professional-icon-preview');
                 if (professionalPreview) professionalPreview.style.display = 'none';
                 if (iconContainer) iconContainer.style.display = '';
             }
         });
-        
+
         console.log(`DiagramModeIntegration: Toolbar icons updated for ${isDiagramMode ? 'diagram' : 'simulation'} mode`);
     }
 
@@ -342,10 +349,10 @@ export class DiagramModeIntegration {
      */
     _setupInteractionEvents() {
         if (typeof document === 'undefined') return;
-        
+
         const interactionManager = this.modules.interactionManager;
         if (!interactionManager) return;
-        
+
         // 监听粘贴事件
         const pasteHandler = (e) => {
             const { items, links } = e.detail;
@@ -359,7 +366,7 @@ export class DiagramModeIntegration {
                 };
                 const clonedItems = items.map(item => clone(item));
                 const clonedLinks = (links || []).map(link => clone(link));
-                
+
                 // 添加粘贴的组件到场景
                 if (window.components) {
                     const connectionPointManager = this.modules.connectionPointManager;
@@ -384,7 +391,7 @@ export class DiagramModeIntegration {
                         });
                     });
                 }
-                
+
                 // 记录历史（绘图模式）
                 const interactionManager = this.modules.interactionManager;
                 if (interactionManager) {
@@ -397,13 +404,13 @@ export class DiagramModeIntegration {
                         window.markSceneAsModified?.();
                     }
                 }
-                
+
                 this._triggerRedraw();
             }
         };
         document.addEventListener('diagram-paste', pasteHandler);
         this.cleanupFunctions.push(() => document.removeEventListener('diagram-paste', pasteHandler));
-        
+
         // 监听删除选中事件
         const deleteHandler = (e) => {
             const { items } = e.detail;
@@ -425,7 +432,7 @@ export class DiagramModeIntegration {
                         .filter(link => itemIds.includes(link.sourceComponentId) || itemIds.includes(link.targetComponentId))
                         .map(link => link.serialize())
                     : [];
-                
+
                 // 记录历史（绘图模式）
                 const interactionManager = this.modules.interactionManager;
                 if (interactionManager) {
@@ -439,7 +446,7 @@ export class DiagramModeIntegration {
                         window.markSceneAsModified?.();
                     }
                 }
-                
+
                 window.components = window.components.filter(c =>
                     !itemIds.includes(c.id || c.uuid)
                 );
@@ -457,7 +464,7 @@ export class DiagramModeIntegration {
         };
         document.addEventListener('diagram-delete-selection', deleteHandler);
         this.cleanupFunctions.push(() => document.removeEventListener('diagram-delete-selection', deleteHandler));
-        
+
         // 监听全选事件
         const selectAllHandler = () => {
             if (window.components && interactionManager.selection) {
@@ -468,7 +475,7 @@ export class DiagramModeIntegration {
         };
         document.addEventListener('diagram-select-all', selectAllHandler);
         this.cleanupFunctions.push(() => document.removeEventListener('diagram-select-all', selectAllHandler));
-        
+
         // 监听撤销事件
         const undoHandler = (e) => {
             const action = e.detail;
@@ -476,7 +483,7 @@ export class DiagramModeIntegration {
         };
         document.addEventListener('diagram-undo', undoHandler);
         this.cleanupFunctions.push(() => document.removeEventListener('diagram-undo', undoHandler));
-        
+
         // 监听重做事件
         const redoHandler = (e) => {
             const action = e.detail;
@@ -484,7 +491,7 @@ export class DiagramModeIntegration {
         };
         document.addEventListener('diagram-redo', redoHandler);
         this.cleanupFunctions.push(() => document.removeEventListener('diagram-redo', redoHandler));
-        
+
         console.log('DiagramModeIntegration: Interaction events setup complete');
     }
 
@@ -915,31 +922,31 @@ export class DiagramModeIntegration {
      */
     _applyTemplate(template) {
         if (!template) return;
-        
+
         console.log('DiagramModeIntegration: Applying template', template.name);
-        
+
         // 确认是否清空当前场景
         const hasContent = window.components && window.components.length > 0;
         if (hasContent) {
             const confirmed = confirm(`应用模板"${template.name}"将替换当前场景内容，是否继续？`);
             if (!confirmed) return;
         }
-        
+
         // 清空当前场景
         if (window.components) {
             window.components.length = 0;
         }
-        
+
         // 清空光线链接
         if (this.modules.rayLinkManager) {
             this.modules.rayLinkManager.clear();
         }
-        
+
         // 清空标注
         if (this.modules.professionalLabelManager) {
             this.modules.professionalLabelManager.clear();
         }
-        
+
         // 添加模板组件
         if (template.components && window.components) {
             template.components.forEach(comp => {
@@ -956,7 +963,7 @@ export class DiagramModeIntegration {
                 window.components.push(component);
             });
         }
-        
+
         // 添加光线链接
         if (template.rayLinks && this.modules.rayLinkManager) {
             template.rayLinks.forEach(link => {
@@ -972,7 +979,7 @@ export class DiagramModeIntegration {
                 });
             });
         }
-        
+
         // 添加标注
         if (template.labels && this.modules.professionalLabelManager) {
             template.labels.forEach(label => {
@@ -985,7 +992,7 @@ export class DiagramModeIntegration {
                 });
             });
         }
-        
+
         // 设置技术说明
         if (template.technicalNotes && this.modules.technicalNotesArea) {
             this.modules.technicalNotesArea.clear();
@@ -1000,10 +1007,10 @@ export class DiagramModeIntegration {
             }
             this.modules.technicalNotesArea.visible = true;
         }
-        
+
         // 触发重绘
         this._triggerRedraw();
-        
+
         console.log('DiagramModeIntegration: Template applied successfully');
     }
 
@@ -1012,7 +1019,7 @@ export class DiagramModeIntegration {
      */
     saveAsTemplate(name, description = '') {
         if (!this.modules.templateManager) return null;
-        
+
         const sceneData = {
             components: (window.components || []).map(c => ({
                 id: c.id || c.uuid,
@@ -1027,7 +1034,7 @@ export class DiagramModeIntegration {
             groups: this.modules.interactionManager?.groups.serialize() || [],
             canvasSize: { width: 1200, height: 800 }
         };
-        
+
         return this.modules.templateManager.createTemplateFromScene(name, description, sceneData);
     }
 
@@ -1040,13 +1047,13 @@ export class DiagramModeIntegration {
 
         // 查找HTML中已有的模式切换器容器
         const existingModeSwitcherContainer = document.getElementById('mode-switcher-container');
-        
+
         // 查找或创建工具栏容器（用于绘图模式专属工具）
         this.toolbarContainer = document.querySelector('.diagram-toolbar-container');
         if (!this.toolbarContainer) {
             this.toolbarContainer = document.createElement('div');
             this.toolbarContainer.className = 'diagram-toolbar-container diagram-only';
-            
+
             // 尝试插入到模拟区域顶部
             const simulationArea = document.getElementById('simulation-area');
             const topMenubar = document.getElementById('top-menubar');
@@ -1065,7 +1072,7 @@ export class DiagramModeIntegration {
             switcherContainer.className = 'mode-switcher-container';
             switcherContainer.id = 'mode-switcher-container-diagram';
             this.toolbarContainer.appendChild(switcherContainer);
-            
+
             this.modules.modeSwitcher = createModeSwitcher(switcherContainer, {
                 modeManager: this.modules.modeManager
             });
@@ -1073,6 +1080,14 @@ export class DiagramModeIntegration {
         // 如果HTML中已有容器，ModeSwitcher应该已经由main.js初始化
 
         // 创建绘图模式工具栏
+        if (existingModeSwitcherContainer && !this.modules.modeSwitcher) {
+            this.modules.modeSwitcher = {
+                optional: true,
+                instance: null,
+                reason: 'managed by main mode switcher'
+            };
+        }
+
         this._createDiagramToolbar();
     }
 
@@ -1130,33 +1145,6 @@ export class DiagramModeIntegration {
                     </svg>
                     <span>链接</span>
                 </button>
-                <button class="toolbar-btn" id="btn-auto-link" title="根据光线路径自动生成链接">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <circle cx="12" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M6 8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        <path d="M8 2v3M8 11v3M6.5 4.5h3M6.5 11.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                    </svg>
-                    <span>自动连</span>
-                </button>
-                <button class="toolbar-btn" id="btn-connection-points" title="连接点编辑">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <rect x="3" y="3" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                        <circle cx="3" cy="8" r="2" fill="currentColor"/>
-                        <circle cx="13" cy="8" r="2" fill="currentColor"/>
-                        <circle cx="8" cy="3" r="2" fill="currentColor"/>
-                        <circle cx="8" cy="13" r="2" fill="currentColor"/>
-                    </svg>
-                    <span>连接点</span>
-                </button>
-                <button class="toolbar-btn" id="btn-auto-route" title="自动布线">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <circle cx="3" cy="3" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <circle cx="13" cy="13" r="2" stroke="currentColor" stroke-width="1.5"/>
-                        <path d="M5 3h4v10h4" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    </svg>
-                    <span>布线</span>
-                </button>
                 <button class="toolbar-btn" id="btn-minimap" title="小地图">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
@@ -1190,9 +1178,9 @@ export class DiagramModeIntegration {
             </div>
             <div class="toolbar-group diagram-plugin-group" id="diagram-plugin-group"></div>
         `;
-        
+
         this.toolbarContainer.appendChild(toolbar);
-        
+
         // 绑定按钮事件
         this._bindToolbarEvents(toolbar);
 
@@ -1221,7 +1209,7 @@ export class DiagramModeIntegration {
      */
     _bindToolbarEvents(toolbar) {
         this.diagnosticSystem.log('info', 'Binding toolbar events');
-        
+
         // 导出按钮
         toolbar.querySelector('#btn-export')?.addEventListener('click', () => {
             this.diagnosticSystem.trackEvent('toolbar:export');
@@ -1233,12 +1221,12 @@ export class DiagramModeIntegration {
             const btn = e.currentTarget;
             const isActive = btn.classList.toggle('active');
             this.modules.layoutEngine.setShowGrid(isActive);
-            
+
             // 同步到全局showGrid变量（兼容主渲染循环）
             if (typeof window !== 'undefined') {
                 window.showGrid = isActive;
             }
-            
+
             // 触发重绘
             this._triggerRedraw();
         });
@@ -1257,42 +1245,27 @@ export class DiagramModeIntegration {
         toolbar.querySelector('#btn-style')?.addEventListener('click', () => {
             this._showStylePanel();
         });
-        
+
         // 光线链接按钮
         toolbar.querySelector('#btn-raylink')?.addEventListener('click', (e) => {
             this._toggleRayLinkMode(e.currentTarget);
         });
 
-        // 自动连接按钮
-        toolbar.querySelector('#btn-auto-link')?.addEventListener('click', (e) => {
-            this._showAutoLinkMenu(e.currentTarget);
-        });
-        
         // 图标浏览器按钮
         toolbar.querySelector('#btn-icon-browser')?.addEventListener('click', (e) => {
             this.modules.iconBrowserPanel?.toggle(e.currentTarget);
         });
-        
+
         // 技术说明按钮
         toolbar.querySelector('#btn-notes')?.addEventListener('click', () => {
             this._toggleTechnicalNotes();
         });
-        
+
         // 模板库按钮
         toolbar.querySelector('#btn-template')?.addEventListener('click', () => {
             this.modules.templateBrowser?.toggle();
         });
-        
-        // 连接点编辑按钮
-        toolbar.querySelector('#btn-connection-points')?.addEventListener('click', (e) => {
-            this._openConnectionPointEditor(e.currentTarget);
-        });
-        
-        // 自动布线按钮
-        toolbar.querySelector('#btn-auto-route')?.addEventListener('click', (e) => {
-            this._showAutoRoutingMenu(e.currentTarget);
-        });
-        
+
         // 小地图按钮
         toolbar.querySelector('#btn-minimap')?.addEventListener('click', (e) => {
             this._toggleMinimap(e.currentTarget);
@@ -1367,25 +1340,39 @@ export class DiagramModeIntegration {
      * @private
      */
     _alignSelectedComponents(direction) {
-        // 获取选中的元件
         const selectedComponents = this._getSelectedComponents();
         if (selectedComponents.length < 2) {
             console.warn('DiagramModeIntegration: Need at least 2 components to align');
             return;
         }
 
+        // 记录起始位置（用于撤销）
+        const startPositions = selectedComponents.map(c => ({ id: c.id, x: c.pos.x, y: c.pos.y }));
+
         const aligned = this.modules.layoutEngine.alignComponents(selectedComponents, direction);
-        
+
         // 应用对齐结果
         aligned.forEach((alignedComp, index) => {
             const original = selectedComponents[index];
             if (original.pos) {
                 original.pos.x = alignedComp.pos.x;
                 original.pos.y = alignedComp.pos.y;
+                if (typeof original.onPositionChanged === 'function') { try { original.onPositionChanged(); } catch (_) {} }
+                if (typeof original._updateGeometry === 'function') { try { original._updateGeometry(); } catch (_) {} }
             }
         });
 
-        // 触发重绘
+        // 记录撤销历史
+        const interactionMgr = this.modules.interactionManager;
+        if (interactionMgr && window.ActionType) {
+            const batchActions = selectedComponents.map((c, i) => ({
+                type: window.ActionType.MOVE_COMPONENT,
+                data: { componentId: c.id, position: { x: c.pos.x, y: c.pos.y } },
+                undoData: { position: { x: startPositions[i].x, y: startPositions[i].y } }
+            }));
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        }
+
         this._triggerRedraw();
     }
 
@@ -1400,7 +1387,28 @@ export class DiagramModeIntegration {
             return;
         }
 
+        // 记录起始位置
+        const startPositions = selectedComponents.map(c => ({ id: c.id, x: c.pos.x, y: c.pos.y }));
+
         this.modules.layoutEngine.distributeComponents(selectedComponents, direction);
+
+        // 更新几何
+        selectedComponents.forEach(c => {
+            if (typeof c.onPositionChanged === 'function') { try { c.onPositionChanged(); } catch (_) {} }
+            if (typeof c._updateGeometry === 'function') { try { c._updateGeometry(); } catch (_) {} }
+        });
+
+        // 记录撤销历史
+        const interactionMgr = this.modules.interactionManager;
+        if (interactionMgr && window.ActionType) {
+            const batchActions = selectedComponents.map((c, i) => ({
+                type: window.ActionType.MOVE_COMPONENT,
+                data: { componentId: c.id, position: { x: c.pos.x, y: c.pos.y } },
+                undoData: { position: { x: startPositions[i].x, y: startPositions[i].y } }
+            }));
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        }
+
         this._triggerRedraw();
     }
 
@@ -1425,12 +1433,8 @@ export class DiagramModeIntegration {
      */
     _triggerRedraw() {
         if (typeof window !== 'undefined') {
-            if (window.requestRedraw) {
-                window.requestRedraw();
-            } else if (window.render) {
-                window.render();
-            }
-            
+            // 设置 needsRetrace 触发主渲染循环重绘
+            window.needsRetrace = true;
             document.dispatchEvent(new CustomEvent('diagram-redraw-requested'));
         }
     }
@@ -1442,43 +1446,46 @@ export class DiagramModeIntegration {
     _toggleAnnotationMode() {
         const btn = document.querySelector('#btn-annotation');
         if (!btn) return;
-        
+
         const isActive = btn.classList.toggle('active');
-        
+
         if (isActive) {
+            // 互斥：关闭链接模式
+            this._deactivateRayLinkMode();
+
             // 进入标注模式
             this._annotationModeActive = true;
             document.body.style.cursor = 'crosshair';
-            
+
             // 添加画布点击监听
             this._annotationClickHandler = (e) => {
                 const canvas = document.getElementById('opticsCanvas');
                 if (!canvas) return;
-                
+
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                
+
                 // 创建标注输入框
                 this._showAnnotationInput(x, y, rect);
             };
-            
+
             const canvas = document.getElementById('opticsCanvas');
             if (canvas) {
                 canvas.addEventListener('click', this._annotationClickHandler);
             }
-            
+
             console.log('DiagramModeIntegration: Annotation mode enabled');
         } else {
             // 退出标注模式
             this._annotationModeActive = false;
             document.body.style.cursor = '';
-            
+
             const canvas = document.getElementById('opticsCanvas');
             if (canvas && this._annotationClickHandler) {
                 canvas.removeEventListener('click', this._annotationClickHandler);
             }
-            
+
             console.log('DiagramModeIntegration: Annotation mode disabled');
         }
     }
@@ -1491,7 +1498,13 @@ export class DiagramModeIntegration {
         // 移除已有的输入框
         const existingInput = document.querySelector('.annotation-input-container');
         if (existingInput) existingInput.remove();
-        
+
+        // 将屏幕坐标转换为世界坐标
+        const cameraScale = window.cameraScale || 1;
+        const cameraOffset = window.cameraOffset || { x: 0, y: 0 };
+        const worldX = (x - cameraOffset.x) / cameraScale;
+        const worldY = (y - cameraOffset.y) / cameraScale;
+
         const container = document.createElement('div');
         container.className = 'annotation-input-container';
         container.style.cssText = `
@@ -1505,7 +1518,7 @@ export class DiagramModeIntegration {
             padding: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         `;
-        
+
         container.innerHTML = `
             <input type="text" class="annotation-text-input" placeholder="输入标注文字..." style="
                 width: 200px;
@@ -1517,6 +1530,29 @@ export class DiagramModeIntegration {
                 font-size: 13px;
                 outline: none;
             ">
+            <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+                <select class="annotation-fontsize-select" title="字号" style="
+                    padding: 4px 6px;
+                    border: 1px solid var(--border-color, #444);
+                    border-radius: 4px;
+                    background: var(--input-bg, #343a40);
+                    color: var(--text-color, #fff);
+                    font-size: 12px;
+                    cursor: pointer;
+                ">
+                    <option value="12">12px</option>
+                    <option value="14" selected>14px</option>
+                    <option value="16">16px</option>
+                    <option value="18">18px</option>
+                    <option value="24">24px</option>
+                </select>
+                <div class="annotation-color-picker" style="display: flex; gap: 4px;">
+                    <span class="annotation-color-opt" data-color="#ffffff" title="白色" style="width:18px;height:18px;border-radius:50%;background:#ffffff;border:2px solid #0078d4;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#facc15" title="黄色" style="width:18px;height:18px;border-radius:50%;background:#facc15;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#22d3ee" title="青色" style="width:18px;height:18px;border-radius:50%;background:#22d3ee;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                    <span class="annotation-color-opt" data-color="#4ade80" title="绿色" style="width:18px;height:18px;border-radius:50%;background:#4ade80;border:2px solid transparent;cursor:pointer;display:inline-block;"></span>
+                </div>
+            </div>
             <div style="margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end;">
                 <button class="annotation-cancel-btn" style="
                     padding: 4px 12px;
@@ -1538,21 +1574,35 @@ export class DiagramModeIntegration {
                 ">添加</button>
             </div>
         `;
-        
+
         document.body.appendChild(container);
-        
+
         const input = container.querySelector('.annotation-text-input');
         input.focus();
-        
+
+        // 颜色选择器交互
+        let selectedColor = '#ffffff';
+        container.querySelectorAll('.annotation-color-opt').forEach(opt => {
+            opt.addEventListener('click', () => {
+                selectedColor = opt.dataset.color;
+                container.querySelectorAll('.annotation-color-opt').forEach(o => {
+                    o.style.borderColor = o === opt ? '#0078d4' : 'transparent';
+                });
+            });
+        });
+
         // 确认添加标注
         const confirmAdd = () => {
             const text = input.value.trim();
+            const fontSize = parseInt(container.querySelector('.annotation-fontsize-select')?.value || '14', 10);
             if (text) {
                 if (this.modules.professionalLabelManager) {
                     const createdLabel = this.modules.professionalLabelManager.createLabel({
                         text,
-                        position: { x, y },
-                        targetType: 'free'
+                        position: { x: worldX, y: worldY },
+                        targetType: 'free',
+                        fontSize: fontSize,
+                        color: selectedColor
                     });
                     const interactionManager = this.modules.interactionManager;
                     if (interactionManager) {
@@ -1570,10 +1620,10 @@ export class DiagramModeIntegration {
                 } else if (this.modules.annotationManager) {
                     this.modules.annotationManager.addAnnotation({
                         text,
-                        position: { x, y },
+                        position: { x: worldX, y: worldY },
                         style: {
-                            fontSize: 14,
-                            color: '#ffffff'
+                            fontSize: fontSize,
+                            color: selectedColor
                         }
                     });
                 }
@@ -1581,14 +1631,14 @@ export class DiagramModeIntegration {
             }
             container.remove();
         };
-        
+
         container.querySelector('.annotation-confirm-btn').addEventListener('click', confirmAdd);
         container.querySelector('.annotation-cancel-btn').addEventListener('click', () => container.remove());
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') confirmAdd();
             if (e.key === 'Escape') container.remove();
         });
-        
+
         // 点击外部关闭
         setTimeout(() => {
             document.addEventListener('click', function closeInput(e) {
@@ -1611,7 +1661,7 @@ export class DiagramModeIntegration {
             existingPanel.remove();
             return;
         }
-        
+
         const overlay = document.createElement('div');
         overlay.className = 'style-panel-overlay';
         overlay.style.cssText = `
@@ -1626,7 +1676,7 @@ export class DiagramModeIntegration {
             justify-content: center;
             z-index: 9500;
         `;
-        
+
         const panel = document.createElement('div');
         panel.className = 'style-panel';
         panel.style.cssText = `
@@ -1637,7 +1687,7 @@ export class DiagramModeIntegration {
             max-height: 80vh;
             overflow: auto;
         `;
-        
+
         const rayStyleManager = this.modules.rayStyleManager;
         const rayLinkManager = this.modules.rayLinkManager;
         const labelManager = this.modules.professionalLabelManager;
@@ -1690,7 +1740,7 @@ export class DiagramModeIntegration {
         const componentOpacity = primaryComponentStyle.opacity ?? globalComponentStyle.opacity ?? 1;
         const componentForceIconColor = primaryComponentStyle.forceIconColor === true;
 
-        const connectionPointVisible = connectionPointManager?.visible !== false;
+        const connectionPointVisibilityMode = connectionPointManager?.visibilityMode || 'smart';
         const connectionPointShowLabels = connectionPointManager?.showLabels !== false;
         const connectionPointSnapEnabled = connectionPointManager?.snapEnabled !== false;
         const connectionPointSnapDistance = connectionPointManager?.snapDistance || 20;
@@ -1700,7 +1750,7 @@ export class DiagramModeIntegration {
         const themeOptions = builtinThemes
             .map(theme => `<option value="${theme.id}" ${theme.id === currentThemeId ? 'selected' : ''}>${theme.name}</option>`)
             .join('');
-        
+
         panel.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color, #444);">
                 <h3 style="margin: 0; font-size: 16px; color: var(--text-color, #fff);">样式设置</h3>
@@ -1822,9 +1872,22 @@ export class DiagramModeIntegration {
                 <div style="margin-bottom: 16px;">
                     <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-color, #fff);">连接点设置</h4>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
-                            <input type="checkbox" class="cp-visible" ${connectionPointVisible ? 'checked' : ''}/> 显示连接点
-                        </label>
+                        <div>
+                            <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-color-secondary, #888);">显示模式</label>
+                            <select class="cp-visibility-mode" style="
+                                width: 100%;
+                                padding: 6px 8px;
+                                border: 1px solid var(--border-color, #444);
+                                border-radius: 4px;
+                                background: var(--input-bg, #343a40);
+                                color: var(--text-color, #fff);
+                                font-size: 12px;
+                            ">
+                                <option value="smart" ${connectionPointVisibilityMode === 'smart' ? 'selected' : ''}>智能显示（悬停/选中时）</option>
+                                <option value="always" ${connectionPointVisibilityMode === 'always' ? 'selected' : ''}>始终显示</option>
+                                <option value="hidden" ${connectionPointVisibilityMode === 'hidden' ? 'selected' : ''}>隐藏</option>
+                            </select>
+                        </div>
                         <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-color, #fff);">
                             <input type="checkbox" class="cp-labels" ${connectionPointShowLabels ? 'checked' : ''}/> 显示连接点标签
                         </label>
@@ -1972,16 +2035,16 @@ export class DiagramModeIntegration {
                 ">应用</button>
             </div>
         `;
-        
+
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
-        
+
         // 绑定事件
         panel.querySelector('.style-panel-close').addEventListener('click', () => overlay.remove());
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) overlay.remove();
         });
-        
+
         // 配色方案切换
         panel.querySelector('.color-scheme-select').addEventListener('change', (e) => {
             if (rayStyleManager?.setColorScheme) {
@@ -2001,14 +2064,12 @@ export class DiagramModeIntegration {
             });
         }
 
-        // 连接点设置
-        const cpVisibleInput = panel.querySelector('.cp-visible');
-        if (cpVisibleInput) {
-            cpVisibleInput.addEventListener('change', (e) => {
-                if (connectionPointManager?.setVisible) {
-                    connectionPointManager.setVisible(e.target.checked);
-                } else if (connectionPointManager) {
-                    connectionPointManager.visible = e.target.checked;
+        // 连接点显示模式
+        const cpVisibilitySelect = panel.querySelector('.cp-visibility-mode');
+        if (cpVisibilitySelect) {
+            cpVisibilitySelect.addEventListener('change', (e) => {
+                if (connectionPointManager?.setVisibilityMode) {
+                    connectionPointManager.setVisibilityMode(e.target.value);
                 }
                 this._triggerRedraw();
             });
@@ -2048,14 +2109,14 @@ export class DiagramModeIntegration {
                 }
             });
         }
-        
+
         // 线宽滑块
         const lineWidthSlider = panel.querySelector('.line-width-slider');
         const lineWidthValue = panel.querySelector('.line-width-value');
         lineWidthSlider.addEventListener('input', (e) => {
             lineWidthValue.textContent = `${e.target.value}px`;
         });
-        
+
         // 线条样式按钮
         panel.querySelectorAll('.line-style-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -2069,7 +2130,7 @@ export class DiagramModeIntegration {
                 btn.dataset.active = 'true';
             });
         });
-        
+
         // 应用按钮
         panel.querySelector('.style-panel-apply').addEventListener('click', () => {
             const selectedLineStyleBtn = panel.querySelector('.line-style-btn[data-active="true"]');
@@ -2398,7 +2459,7 @@ export class DiagramModeIntegration {
 
         // 标注文本实时预览（仅选中标注）
         panel.querySelector('.label-text-input')?.addEventListener('input', updateSelectedLabelText);
-        
+
         console.log('DiagramModeIntegration: Style panel opened');
     }
 
@@ -2410,7 +2471,7 @@ export class DiagramModeIntegration {
         if (typeof document === 'undefined') return;
 
         const isDiagramMode = mode === APP_MODES.DIAGRAM;
-        
+
         // 更新diagram-only元素
         document.querySelectorAll('.diagram-only').forEach(el => {
             el.style.display = isDiagramMode ? '' : 'none';
@@ -2428,7 +2489,7 @@ export class DiagramModeIntegration {
      */
     _handleModeChange(oldMode, newMode) {
         console.log(`DiagramModeIntegration: Mode changed from ${oldMode} to ${newMode}`);
-        
+
         if (newMode === APP_MODES.DIAGRAM) {
             // 进入绘图模式前先恢复数据，避免自动生成导致重复
             this._restoreDiagramModeState();
@@ -2554,10 +2615,11 @@ export class DiagramModeIntegration {
             }
         }
 
-        // 启用连接点显示
+        // 启用连接点智能可见性
         if (this.modules.connectionPointManager) {
+            this.modules.connectionPointManager.visible = true;
             if (!this._diagramStateRestored) {
-                this.modules.connectionPointManager.visible = true;
+                this.modules.connectionPointManager.setVisibilityMode?.('smart');
             }
         }
 
@@ -2630,6 +2692,10 @@ export class DiagramModeIntegration {
         // 禁用连接点显示
         if (this.modules.connectionPointManager) {
             this.modules.connectionPointManager.visible = false;
+            this.modules.connectionPointManager.setVisibilityMode?.('hidden');
+            this.modules.connectionPointManager.setHoveredComponent?.(null);
+            this.modules.connectionPointManager.setSelectedComponents?.([]);
+            this.modules.connectionPointManager.setLinkModeActive?.(false);
             if (this.modules.connectionPointManager.setSelectedPoint) {
                 this.modules.connectionPointManager.setSelectedPoint(null);
             } else {
@@ -2669,6 +2735,18 @@ export class DiagramModeIntegration {
             this.modules.minimap.hide();
         }
 
+        // 清除悬停状态
+        if (this.modules.interactionManager) {
+            this.modules.interactionManager.setHoveredItem(null);
+            this.modules.interactionManager._removeContextMenu?.();
+        }
+
+        // 清除缩放指示器
+        if (typeof document !== 'undefined') {
+            const zoomIndicator = document.getElementById('diagram-zoom-indicator');
+            if (zoomIndicator) zoomIndicator.remove();
+        }
+
         // 恢复左侧栏为原始图标
         this._updateToolbarIcons(APP_MODES.SIMULATION);
 
@@ -2684,9 +2762,9 @@ export class DiagramModeIntegration {
      */
     _toggleMinimap(btn) {
         if (!this.modules.minimap) return;
-        
+
         this.modules.minimap.toggle();
-        
+
         if (btn) {
             btn.classList.toggle('active', this.modules.minimap.visible);
         }
@@ -2698,9 +2776,9 @@ export class DiagramModeIntegration {
      */
     updateMinimap(components, links, viewport) {
         if (!this.modules.minimap || !this.modules.minimap.visible) return;
-        
+
         this.modules.minimap.updateSceneBounds(components);
-        
+
         if (viewport) {
             this.modules.minimap.updateViewport(
                 viewport.x, viewport.y,
@@ -2708,7 +2786,7 @@ export class DiagramModeIntegration {
                 viewport.scale || 1
             );
         }
-        
+
         const allLinks = this.modules.rayLinkManager?.getAllLinks() || [];
         this.modules.minimap.render(components, allLinks);
     }
@@ -2719,19 +2797,51 @@ export class DiagramModeIntegration {
      */
     _toggleRayLinkMode(btn) {
         if (!btn) return;
-        
+
         const isActive = btn.classList.toggle('active');
         this._rayLinkModeActive = isActive;
-        
+
         if (isActive) {
+            // 互斥：关闭标注模式
+            this._deactivateAnnotationMode();
+
             document.body.style.cursor = 'crosshair';
-            console.log('DiagramModeIntegration: Ray link mode enabled');
         } else {
             document.body.style.cursor = '';
             if (this.modules.rayLinkManager) {
                 this.modules.rayLinkManager.cancelLinkCreation();
             }
-            console.log('DiagramModeIntegration: Ray link mode disabled');
+        }
+    }
+
+    /**
+     * 关闭标注模式（不触发 toggle）
+     * @private
+     */
+    _deactivateAnnotationMode() {
+        if (!this._annotationModeActive) return;
+        this._annotationModeActive = false;
+        document.body.style.cursor = '';
+        const btn = document.querySelector('#btn-annotation');
+        if (btn) btn.classList.remove('active');
+        const canvas = document.getElementById('opticsCanvas');
+        if (canvas && this._annotationClickHandler) {
+            canvas.removeEventListener('click', this._annotationClickHandler);
+        }
+    }
+
+    /**
+     * 关闭链接模式（不触发 toggle）
+     * @private
+     */
+    _deactivateRayLinkMode() {
+        if (!this._rayLinkModeActive) return;
+        this._rayLinkModeActive = false;
+        document.body.style.cursor = '';
+        const btn = document.querySelector('#btn-raylink');
+        if (btn) btn.classList.remove('active');
+        if (this.modules.rayLinkManager) {
+            this.modules.rayLinkManager.cancelLinkCreation();
         }
     }
 
@@ -2739,215 +2849,9 @@ export class DiagramModeIntegration {
      * 打开连接点编辑器
      * @private
      */
-    _openConnectionPointEditor(anchorElement) {
-        // 获取当前选中的组件
-        const selectedComponents = this._getSelectedComponents();
-        
-        if (selectedComponents.length === 0) {
-            // 如果没有选中组件，提示用户
-            alert('请先选择一个组件来编辑其连接点');
-            return;
-        }
-        
-        if (selectedComponents.length > 1) {
-            alert('请只选择一个组件来编辑连接点');
-            return;
-        }
-        
-        const component = selectedComponents[0];
-        
-        // 打开编辑器
-        if (this.modules.customConnectionPointEditor) {
-            this.modules.customConnectionPointEditor.toggle(component, anchorElement);
-        }
-    }
-
-    /**
-     * 显示自动连接菜单
-     * @private
-     */
-    _showAutoLinkMenu(button) {
-        const existingMenu = document.querySelector('.auto-link-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-            return;
-        }
-
-        const menu = document.createElement('div');
-        menu.className = 'auto-link-menu dropdown-menu';
-        menu.innerHTML = `
-            <div class="menu-section">
-                <div class="menu-label">光线生成</div>
-                <button data-action="append">生成链接（追加）</button>
-                <button data-action="rebuild">生成链接（重建）</button>
-                <button data-action="append-route">生成并自动布线</button>
-            </div>
-            <hr>
-            <div class="menu-section">
-                <div class="menu-hint">基于当前光线路径匹配连接点</div>
-            </div>
-        `;
-
-        const rect = button.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 5}px`;
-        menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '9000';
-
-        document.body.appendChild(menu);
-
-        menu.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            const action = btn.dataset.action;
-            if (action) {
-                this._executeAutoLinkAction(action);
-            }
-            menu.remove();
-        });
-
-        setTimeout(() => {
-            document.addEventListener('click', function closeMenu(e) {
-                if (!menu.contains(e.target) && e.target !== button) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            });
-        }, 0);
-    }
-
-    /**
-     * 执行自动连接操作
-     * @private
-     */
-    _executeAutoLinkAction(action) {
-        const options = {
-            replace: action === 'rebuild',
-            applyAutoRouting: action === 'append-route'
-        };
-        const result = this._generateRayLinksFromSimulation(options);
-        if (!result) return;
-        const message = result.error
-            ? `自动连接失败：${result.error}`
-            : `自动连接完成：新增 ${result.created} 条，跳过 ${result.skipped} 条`;
-        if (typeof window !== 'undefined' && typeof window.showTemporaryMessage === 'function') {
-            window.showTemporaryMessage(message, result.error ? 'error' : 'success');
-        } else {
-            console.log(message);
-        }
-    }
-
-    /**
-     * 显示自动布线菜单
-     * @private
-     */
-    _showAutoRoutingMenu(button) {
-        const existingMenu = document.querySelector('.auto-route-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-            return;
-        }
-        
-        const menu = document.createElement('div');
-        menu.className = 'auto-route-menu dropdown-menu';
-        menu.innerHTML = `
-            <div class="menu-section">
-                <div class="menu-label">布线样式</div>
-                <button data-style="orthogonal">正交布线</button>
-                <button data-style="diagonal">对角线布线</button>
-                <button data-style="direct">直线布线</button>
-                <button data-style="curved">曲线布线</button>
-            </div>
-            <hr>
-            <div class="menu-section">
-                <div class="menu-label">操作</div>
-                <button data-action="apply-all">应用到所有链接</button>
-                <button data-action="apply-selected">应用到选中链接</button>
-                <button data-action="clear-all">清除所有布线</button>
-            </div>
-        `;
-        
-        // 定位菜单
-        const rect = button.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 5}px`;
-        menu.style.left = `${rect.left}px`;
-        menu.style.zIndex = '9000';
-        
-        document.body.appendChild(menu);
-        
-        // 绑定事件
-        menu.addEventListener('click', (e) => {
-            const btn = e.target.closest('button');
-            if (!btn) return;
-            
-            const style = btn.dataset.style;
-            const action = btn.dataset.action;
-            
-            if (style) {
-                this._setAutoRoutingStyle(style);
-            } else if (action) {
-                this._executeAutoRoutingAction(action);
-            }
-            
-            menu.remove();
-        });
-        
-        // 点击外部关闭
-        setTimeout(() => {
-            document.addEventListener('click', function closeMenu(e) {
-                if (!menu.contains(e.target) && e.target !== button) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            });
-        }, 0);
-    }
-
-    /**
-     * 设置自动布线样式
-     * @private
-     */
-    _setAutoRoutingStyle(style) {
-        if (this.modules.rayLinkManager) {
-            this.modules.rayLinkManager.setAutoRoutingStyle(style);
-            console.log(`DiagramModeIntegration: Auto-routing style set to ${style}`);
-        }
-    }
-
-    /**
-     * 执行自动布线操作
-     * @private
-     */
-    _executeAutoRoutingAction(action) {
-        const rayLinkManager = this.modules.rayLinkManager;
-        if (!rayLinkManager) return;
-        
-        const components = window.components || [];
-        
-        switch (action) {
-            case 'apply-all':
-                const countAll = rayLinkManager.applyAutoRoutingToAll(components);
-                console.log(`DiagramModeIntegration: Applied auto-routing to ${countAll} links`);
-                break;
-                
-            case 'apply-selected':
-                if (rayLinkManager.selectedLink) {
-                    rayLinkManager.applyAutoRouting(rayLinkManager.selectedLink.id, components);
-                    console.log('DiagramModeIntegration: Applied auto-routing to selected link');
-                } else {
-                    alert('请先选择一个光线链接');
-                }
-                break;
-                
-            case 'clear-all':
-                rayLinkManager.clearAllAutoRouting();
-                console.log('DiagramModeIntegration: Cleared all auto-routing');
-                break;
-        }
-        
-        this._triggerRedraw();
-    }
+    // [已移除] _openConnectionPointEditor, _showAutoLinkMenu, _executeAutoLinkAction,
+    // _showAutoRoutingMenu, _setAutoRoutingStyle, _executeAutoRoutingAction
+    // 工具栏入口已精简，底层模块保留
 
     /**
      * 从模拟光线路径生成连接
@@ -3077,17 +2981,17 @@ export class DiagramModeIntegration {
      */
     renderProfessionalDiagram(ctx, components, canvasWidth, canvasHeight) {
         if (!this.isDiagramMode()) return;
-        
+
         // 渲染连接点
         if (this.modules.connectionPointManager?.visible) {
             this.modules.connectionPointManager.render(ctx, components);
         }
-        
+
         // 渲染光线链接
         if (this.modules.rayLinkManager) {
             this.modules.rayLinkManager.render(ctx);
         }
-        
+
         // 渲染专业标注
         if (this.modules.professionalLabelManager) {
             this.modules.professionalLabelManager.render(ctx, (targetId, targetType) => {
@@ -3101,12 +3005,12 @@ export class DiagramModeIntegration {
                 return null;
             });
         }
-        
+
         // 渲染技术说明区域
         if (this.modules.technicalNotesArea?.visible && canvasWidth && canvasHeight) {
             this.modules.technicalNotesArea.render(ctx, canvasWidth, canvasHeight);
         }
-        
+
         // 渲染交互元素（选择框、选中高亮等）
         if (this.modules.interactionManager) {
             this.modules.interactionManager.render(ctx);
@@ -3118,12 +3022,12 @@ export class DiagramModeIntegration {
      */
     renderComponentWithProfessionalIcon(ctx, component) {
         if (!this.modules.professionalIconManager) return false;
-        
+
         const componentType = component.type || component.constructor?.name;
         if (!this.modules.professionalIconManager.hasIcon(componentType)) {
             return false;
         }
-        
+
         const pos = component.pos || { x: component.x || 0, y: component.y || 0 };
         const angle = component.angle ?? component.angleRad ?? 0;
         const scale = component.scale || 1;
@@ -3138,11 +3042,16 @@ export class DiagramModeIntegration {
             strokeWidth: componentStyle?.lineWidth,
             opacity: componentStyle?.opacity
         } : { preserveSvgColors: true, opacity: componentStyle?.opacity };
-        
+
+        // 对 ThinLens 传递 focalLength，使图标动态选择凸/凹绘制
+        if (componentType === 'ThinLens') {
+            iconStyle.focalLength = component.focalLength ?? 100;
+        }
+
         this.modules.professionalIconManager.renderIcon(
             ctx, componentType, pos.x, pos.y, angle, scale, iconStyle
         );
-        
+
         return true;
     }
 
@@ -3165,25 +3074,25 @@ export class DiagramModeIntegration {
      */
     _handleIconSelect(iconType) {
         console.log(`DiagramModeIntegration: Icon selected - ${iconType}`);
-        
+
         // 设置全局componentToAdd变量，让主应用处理组件添加
         if (typeof window !== 'undefined') {
             window.componentToAdd = iconType;
-            
+
             // 更新光标
             const canvas = document.getElementById('opticsCanvas');
             if (canvas) {
                 canvas.style.cursor = 'crosshair';
             }
         }
-        
+
         // 触发自定义事件，让主应用处理组件添加
         if (typeof document !== 'undefined') {
             document.dispatchEvent(new CustomEvent('diagram-icon-selected', {
                 detail: { iconType }
             }));
         }
-        
+
         // 关闭图标浏览器
         this.modules.iconBrowserPanel?.close();
     }
@@ -3203,20 +3112,20 @@ export class DiagramModeIntegration {
     _toggleTechnicalNotes() {
         const notesArea = this.modules.technicalNotesArea;
         if (!notesArea) return;
-        
+
         notesArea.visible = !notesArea.visible;
-        
+
         // 更新按钮状态
         const btn = document.querySelector('#btn-notes');
         if (btn) {
             btn.classList.toggle('active', notesArea.visible);
         }
-        
+
         // 如果没有内容，添加示例
         if (notesArea.visible && notesArea.getAllSections().length === 0) {
             this._showTechnicalNotesEditor();
         }
-        
+
         this._triggerRedraw();
     }
 
@@ -3230,7 +3139,7 @@ export class DiagramModeIntegration {
             existingEditor.remove();
             return;
         }
-        
+
         const editor = document.createElement('div');
         editor.className = 'technical-notes-editor';
         editor.style.cssText = `
@@ -3247,7 +3156,7 @@ export class DiagramModeIntegration {
             z-index: 9500;
             overflow: hidden;
         `;
-        
+
         editor.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border-color, #333);">
                 <h3 style="margin: 0; font-size: 14px; color: var(--text-primary, #fff);">技术说明编辑</h3>
@@ -3288,12 +3197,12 @@ export class DiagramModeIntegration {
                 ">应用</button>
             </div>
         `;
-        
+
         document.body.appendChild(editor);
-        
+
         // 渲染现有节
         this._renderNoteSections(editor);
-        
+
         // 绑定事件
         editor.querySelector('.notes-editor-close')?.addEventListener('click', () => editor.remove());
         editor.querySelector('.add-section-btn')?.addEventListener('click', () => {
@@ -3315,14 +3224,14 @@ export class DiagramModeIntegration {
     _renderNoteSections(editor) {
         const list = editor.querySelector('.notes-sections-list');
         if (!list) return;
-        
+
         const sections = this.modules.technicalNotesArea?.getAllSections() || [];
-        
+
         if (sections.length === 0) {
             list.innerHTML = '<p style="color: var(--text-secondary, #888); text-align: center; padding: 20px;">暂无说明节，点击下方按钮添加</p>';
             return;
         }
-        
+
         list.innerHTML = sections.map(section => `
             <div class="note-section-item" data-id="${section.id}" style="
                 padding: 12px;
@@ -3332,7 +3241,7 @@ export class DiagramModeIntegration {
                 background: var(--item-bg, #252526);
             ">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <input type="text" value="${section.title}" class="section-title-input" style="
+                    <input type="text" value="${escapeHtml(section.title)}" class="section-title-input" style="
                         flex: 1;
                         padding: 4px 8px;
                         border: 1px solid transparent;
@@ -3360,7 +3269,7 @@ export class DiagramModeIntegration {
                 <div class="section-items">
                     ${section.items.map((item, idx) => `
                         <div class="section-item" style="display: flex; gap: 8px; margin-bottom: 4px;">
-                            <input type="text" value="${item}" class="item-input" data-index="${idx}" style="
+                            <input type="text" value="${escapeHtml(item)}" class="item-input" data-index="${idx}" style="
                                 flex: 1;
                                 padding: 4px 8px;
                                 border: 1px solid var(--border-color, #444);
@@ -3392,7 +3301,7 @@ export class DiagramModeIntegration {
                 ">+ 添加项目</button>
             </div>
         `).join('');
-        
+
         // 绑定节事件
         this._bindNoteSectionEvents(editor);
     }
@@ -3404,7 +3313,7 @@ export class DiagramModeIntegration {
     _bindNoteSectionEvents(editor) {
         const notesArea = this.modules.technicalNotesArea;
         if (!notesArea) return;
-        
+
         // 标题修改
         editor.querySelectorAll('.section-title-input').forEach(input => {
             input.addEventListener('change', (e) => {
@@ -3413,7 +3322,7 @@ export class DiagramModeIntegration {
                 if (section) section.title = e.target.value;
             });
         });
-        
+
         // 颜色修改
         editor.querySelectorAll('.section-color-input').forEach(input => {
             input.addEventListener('change', (e) => {
@@ -3425,7 +3334,7 @@ export class DiagramModeIntegration {
                 }
             });
         });
-        
+
         // 删除节
         editor.querySelectorAll('.delete-section-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -3434,7 +3343,7 @@ export class DiagramModeIntegration {
                 this._renderNoteSections(editor);
             });
         });
-        
+
         // 项目修改
         editor.querySelectorAll('.item-input').forEach(input => {
             input.addEventListener('change', (e) => {
@@ -3444,7 +3353,7 @@ export class DiagramModeIntegration {
                 if (section) section.updateItem(index, e.target.value);
             });
         });
-        
+
         // 删除项目
         editor.querySelectorAll('.delete-item-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -3457,7 +3366,7 @@ export class DiagramModeIntegration {
                 }
             });
         });
-        
+
         // 添加项目
         editor.querySelectorAll('.add-item-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -3478,13 +3387,13 @@ export class DiagramModeIntegration {
     _addNoteSection(editor) {
         const notesArea = this.modules.technicalNotesArea;
         if (!notesArea) return;
-        
+
         notesArea.addSection({
             title: '新说明节',
             color: '#cc0000',
             items: ['项目1']
         });
-        
+
         this._renderNoteSections(editor);
     }
 
@@ -3498,7 +3407,7 @@ export class DiagramModeIntegration {
             { name: '磁光阱 (MOT)', key: 'mot' },
             { name: 'Mach-Zehnder干涉仪', key: 'mach-zehnder' }
         ];
-        
+
         const selector = document.createElement('div');
         selector.style.cssText = `
             position: absolute;
@@ -3510,7 +3419,7 @@ export class DiagramModeIntegration {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             z-index: 9000;
         `;
-        
+
         selector.innerHTML = templates.map(t => `
             <button class="template-option" data-key="${t.key}" style="
                 display: block;
@@ -3524,26 +3433,26 @@ export class DiagramModeIntegration {
                 font-size: 13px;
             ">${t.name}</button>
         `).join('');
-        
+
         editor.appendChild(selector);
-        
+
         selector.addEventListener('click', (e) => {
             const btn = e.target.closest('.template-option');
             if (btn) {
                 const template = TechnicalNotesArea.createTemplate(btn.dataset.key);
-                
+
                 // 复制模板内容到当前实例
                 const notesArea = this.modules.technicalNotesArea;
                 notesArea.clear();
                 template.getAllSections().forEach(section => {
                     notesArea.sections.set(section.id, section);
                 });
-                
+
                 this._renderNoteSections(editor);
                 selector.remove();
             }
         });
-        
+
         // 点击外部关闭
         setTimeout(() => {
             document.addEventListener('click', function close(e) {
@@ -3796,7 +3705,7 @@ export class DiagramModeIntegration {
         if (this.modules.modeSwitcher) {
             this.modules.modeSwitcher.destroy();
         }
-        
+
         // 销毁交互管理器
         if (this.modules.interactionManager) {
             this.modules.interactionManager.destroy();
@@ -3825,21 +3734,55 @@ export class DiagramModeIntegration {
      * @returns {boolean}
      */
     isDiagramMode() {
-        return this.modules.modeManager?.isDiagramMode() || false;
+        if (this.modules.modeManager?.isDiagramMode) {
+            return this.modules.modeManager.isDiagramMode();
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            return window.getModeManager().isDiagramMode?.() || false;
+        }
+        if (typeof document !== 'undefined' && document.body?.dataset?.appMode) {
+            return document.body.dataset.appMode === APP_MODES.DIAGRAM;
+        }
+        return false;
     }
 
     /**
      * 切换到绘图模式
      */
     switchToDiagramMode() {
-        this.modules.modeManager?.switchMode(APP_MODES.DIAGRAM);
+        if (!this.initialized) {
+            try {
+                this.initialize({
+                    components: window.components || [],
+                    cameraState: {
+                        scale: window.cameraScale || 1,
+                        offset: window.cameraOffset || { x: 0, y: 0 }
+                    }
+                });
+            } catch (error) {
+                console.error('DiagramModeIntegration: Lazy init failed before switching to diagram mode:', error);
+            }
+        }
+        if (this.modules.modeManager?.switchMode) {
+            this.modules.modeManager.switchMode(APP_MODES.DIAGRAM);
+            return;
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            window.getModeManager().switchMode?.(APP_MODES.DIAGRAM);
+        }
     }
 
     /**
      * 切换到模拟模式
      */
     switchToSimulationMode() {
-        this.modules.modeManager?.switchMode(APP_MODES.SIMULATION);
+        if (this.modules.modeManager?.switchMode) {
+            this.modules.modeManager.switchMode(APP_MODES.SIMULATION);
+            return;
+        }
+        if (typeof window !== 'undefined' && typeof window.getModeManager === 'function') {
+            window.getModeManager().switchMode?.(APP_MODES.SIMULATION);
+        }
     }
 
     /**

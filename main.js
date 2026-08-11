@@ -1080,8 +1080,8 @@ function drawPlacementPreview(ctx) {
             
             // 新透镜
             case 'CylindricalLens': previewComp = new CylindricalLens(previewPos, 80, 150, 90); break;
-            case 'AsphericLens': previewComp = new AsphericLens(previewPos, 80, 150, 90); break;
-            case 'GRINLens': previewComp = new GRINLens(previewPos, 60, 40, 90); break;
+            case 'AsphericLens': previewComp = new AsphericLens(previewPos, 80, 150, 0, [0, 0, 0, 0], 90); break;
+            case 'GRINLens': previewComp = new GRINLens(previewPos, 60, 40, 1.6, 0.01, 90); break;
             
             // 新偏振器件
             case 'WollastonPrism': previewComp = new WollastonPrism(previewPos, 60, 40, 0); break;
@@ -2324,8 +2324,8 @@ function handleMouseDown(event) {
                 
                 // 新透镜
                 case 'CylindricalLens': newComp = new CylindricalLens(compPos, 80, 150, 90); break;
-                case 'AsphericLens': newComp = new AsphericLens(compPos, 80, 150, 90); break;
-                case 'GRINLens': newComp = new GRINLens(compPos, 60, 40, 90); break;
+                case 'AsphericLens': newComp = new AsphericLens(compPos, 80, 150, 0, [0, 0, 0, 0], 90); break;
+                case 'GRINLens': newComp = new GRINLens(compPos, 60, 40, 1.6, 0.01, 90); break;
                 
                 // 新偏振器件
                 case 'WollastonPrism': newComp = new WollastonPrism(compPos, 60, 40, 0); break;
@@ -4111,7 +4111,7 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'SphericalMirror': newComp = new SphericalMirror(pos, compData.radiusOfCurvature, compData.centralAngleDeg, angleDeg); break;
                 case 'ParabolicMirror': newComp = new ParabolicMirror(pos, compData.focalLength, compData.diameter, angleDeg); break;
                 case 'Screen': newComp = new Screen(pos, compData.length, angleDeg, compData.numBins); if (compData.hasOwnProperty('showPattern')) newComp.showPattern = compData.showPattern; break;
-                case 'ThinLens': newComp = new ThinLens(pos, compData.diameter, compData.focalLength, angleDeg); if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex); if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB); if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality); if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated); if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens); if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration); if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration); break;
+                case 'ThinLens': newComp = ThinLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'Aperture': newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg); break;
                 case 'Polarizer': newComp = new Polarizer(pos, compData.length, compData.transmissionAxisAngleDeg, angleDeg); break;
                 case 'BeamSplitter': newComp = new BeamSplitter(pos, compData.length, angleDeg, compData.type, compData.splitRatio, compData.pbsUnpolarizedReflectivity); break;
@@ -4119,7 +4119,7 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'Photodiode': newComp = new Photodiode(pos, angleDeg, compData.diameter); break;
                 case 'OpticalFiber': const outputPos = new Vector(compData.outputX ?? pos.x + 100, compData.outputY ?? pos.y); newComp = new OpticalFiber(pos, outputPos, angleDeg, compData.outputAngleDeg, compData.numericalAperture, compData.coreDiameter, compData.fiberIntrinsicEfficiency, compData.transmissionLossDbPerKm, compData.facetLength); break;
                 case 'Prism': newComp = new Prism(pos, compData.baseLength, compData.apexAngleDeg, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB); break;
-                case 'WhiteLightSource': newComp = new WhiteLightSource(pos, angleDeg, compData.baseIntensity, compData.rayCount, compData.spreadDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); break; // Restore Gaussian state
+                case 'WhiteLightSource': newComp = WhiteLightSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'DiffractionGrating': newComp = new DiffractionGrating(pos, compData.length, compData.gratingPeriodInMicrons, angleDeg, compData.maxOrder); break;
                 case 'HalfWavePlate': newComp = new HalfWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
                 case 'QuarterWavePlate': newComp = new QuarterWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
@@ -4127,19 +4127,19 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 
                 // === 新增元件 ===
                 // 新光源
-                case 'PointSource': newComp = new PointSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.enabled); break;
-                case 'LEDSource': newComp = new LEDSource(pos, angleDeg, compData.centerWavelength, compData.fwhm, compData.intensity, compData.rayCount, compData.spreadDeg, compData.enabled); break;
-                case 'PulsedLaserSource': newComp = new PulsedLaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled); break;
+                case 'PointSource': newComp = PointSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'LEDSource': newComp = LEDSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'PulsedLaserSource': newComp = PulsedLaserSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新反射镜
-                case 'DichroicMirror': newComp = new DichroicMirror(pos, compData.length, angleDeg, compData.cutoffWavelength, compData.transitionWidth); break;
-                case 'MetallicMirror': newComp = new MetallicMirror(pos, compData.length, angleDeg, compData.metalType); break;
-                case 'RingMirror': newComp = new RingMirror(pos, compData.outerRadius, compData.innerRadius, angleDeg); break;
+                case 'DichroicMirror': newComp = DichroicMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'MetallicMirror': newComp = MetallicMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'RingMirror': newComp = RingMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新透镜
                 case 'CylindricalLens': newComp = new CylindricalLens(pos, compData.diameter, compData.focalLength, angleDeg, compData.cylinderAxis); break;
-                case 'AsphericLens': newComp = new AsphericLens(pos, compData.diameter, compData.focalLength, angleDeg); break;
-                case 'GRINLens': newComp = new GRINLens(pos, compData.diameter, compData.length, angleDeg); break;
+                case 'AsphericLens': newComp = AsphericLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'GRINLens': newComp = GRINLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新偏振器件
                 case 'WollastonPrism': newComp = new WollastonPrism(pos, compData.width, compData.height, angleDeg, compData.separationAngleDeg); break;
@@ -4153,16 +4153,16 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'PolarizationAnalyzer': newComp = new PolarizationAnalyzer(pos, compData.width, compData.height, angleDeg); break;
                 
                 // 调制器
-                case 'ElectroOpticModulator': newComp = new ElectroOpticModulator(pos, compData.width, compData.height, angleDeg, compData.vPi, compData.appliedVoltage, compData.modulationMode); break;
+                case 'ElectroOpticModulator': newComp = ElectroOpticModulator.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'VariableAttenuator': newComp = new VariableAttenuator(pos, compData.diameter, angleDeg, compData.attenuation); break;
-                case 'OpticalChopper': newComp = new OpticalChopper(pos, compData.diameter, angleDeg, compData.frequency, compData.dutyCycle, compData.bladeCount); break;
+                case 'OpticalChopper': newComp = OpticalChopper.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 原子物理
                 case 'AtomicCell': newComp = new AtomicCell(pos, compData.width, compData.height, angleDeg, compData.atomType, compData.temperature, compData.numberDensity); break;
                 case 'MagneticCoil': newComp = new MagneticCoil(pos, compData.diameter, angleDeg, compData.coilType, compData.fieldStrength); break;
                 
                 // 干涉仪
-                case 'FabryPerotCavity': newComp = new FabryPerotCavity(pos, compData.cavityLength, angleDeg, compData.mirrorReflectivity, compData.finesse); break;
+                case 'FabryPerotCavity': newComp = FabryPerotCavity.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 default: console.warn(`Unknown component type during preset load: ${compType}`);
             }
@@ -5323,18 +5323,7 @@ function loadSceneFromData(sceneData, options = {}) {
                         if (compData.hasOwnProperty('showPattern')) newComp.setProperty('showPattern', compData.showPattern);
                         break;
                     case 'ThinLens':
-                        let fLen = compData.focalLength;
-                        if (fLen === null) fLen = Infinity; // Handle Infinity
-                        newComp = new ThinLens(pos, compData.diameter, fLen, angleDeg);
-                        // Set properties not in constructor
-                        if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex);
-                        if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB);
-                        if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality);
-                        if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated);
-                        if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens);
-                        // if (compData.hasOwnProperty('thickLensThickness')) newComp.setProperty('thickLensThickness', compData.thickLensThickness); // If visual thickness is saved
-                        if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration);
-                        if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration);
+                        newComp = ThinLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg });
                         break;
                     case 'Aperture':
                         newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg);

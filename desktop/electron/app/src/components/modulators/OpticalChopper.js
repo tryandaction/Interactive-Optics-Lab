@@ -7,6 +7,22 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class OpticalChopper extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const chopper = new OpticalChopper(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.diameter,
+            data.angleDeg,
+            data.frequency,
+            data.dutyCycle,
+            data.numSlots,
+            data.currentPhase
+        );
+        chopper.id = data.id ?? chopper.id;
+        chopper.label = data.label ?? chopper.label;
+        chopper.notes = data.notes ?? chopper.notes;
+        return chopper;
+    }
+
     static functionDescription = "周期性阻断光束的光学斩波器。";
 
     constructor(pos, diameter = 50, angleDeg = 0, frequency = 1000, dutyCycle = 0.5, 
@@ -16,7 +32,7 @@ export class OpticalChopper extends OpticalComponent {
         this.frequency = Math.max(1, frequency); // Hz
         this.dutyCycle = Math.max(0.1, Math.min(0.9, dutyCycle)); // Open fraction
         this.numSlots = Math.max(1, Math.min(20, Math.round(numSlots)));
-        this.currentPhase = currentPhase; // Current rotation phase (0-1)
+        this.currentPhase = ((currentPhase ?? 0) % 1 + 1) % 1; // Current rotation phase (0-1)
         this.isOpen = true; // Current state
         
         this._updateState();

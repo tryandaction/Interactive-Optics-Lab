@@ -268,13 +268,16 @@ export class SimulationApp {
         // 背景
         const canvasBg = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#111111';
         const canvasGridColor = getComputedStyle(document.body).getPropertyValue('--canvas-grid').trim() || 'rgba(255, 255, 255, 0.05)';
+        const canvasGridMajorColor = getComputedStyle(document.body).getPropertyValue('--canvas-grid-major').trim() || 'rgba(255, 255, 255, 0.12)';
         
         ctx.fillStyle = canvasBg;
         ctx.fillRect(viewPortMinX, viewPortMinY, viewPortLogicalWidth, viewPortLogicalHeight);
 
         // 网格
         if (this.showGrid) {
-            this.gridRenderer.draw(GRID_SIZE, canvasGridColor, this.showGrid);
+            this.gridRenderer.draw(GRID_SIZE, canvasGridColor, this.showGrid, {
+                majorGridColor: canvasGridMajorColor
+            });
         }
 
         // 光线

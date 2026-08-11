@@ -574,7 +574,7 @@ export class ExportDialog {
                 includeProfessionalLabels: true,
                 useProfessionalIcons: true,
                 exportScope: 'content',
-                contentPadding: 40,
+                contentPadding: 20,
                 fontScale: 1,
                 strokeScale: 1,
                 iconScale: 1

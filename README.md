@@ -1,7 +1,7 @@
 # OpticsLab — 科研光路草图与交互式光学验证工作台
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](package.json)
 
 OpticsLab 当前定位为面向教学、AMO/激光实验草图和科研光路快速验证的 Web 工作台。项目正在救援重构阶段：核心光线追踪、理想薄透镜成像和科研图示能力可用，但专业仿真精度、厚透镜模型和出版级导出仍需要逐项验证与重构。
 

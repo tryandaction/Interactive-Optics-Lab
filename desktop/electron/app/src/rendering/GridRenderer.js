@@ -1,48 +1,57 @@
 /**
- * GridRenderer.js - 网格渲染器
- * 负责绘制背景网格
+ * GridRenderer.js - canvas grid renderer.
  */
+
+import { computeGridRenderStyle, isMajorGridLine } from './GridRenderStyle.js';
 
 export class GridRenderer {
     constructor(ctx) {
         this.ctx = ctx;
     }
 
-    /**
-     * 绘制网格
-     * @param {number} gridSize - 网格间距
-     * @param {string} gridColor - 网格颜色
-     * @param {boolean} showGrid - 是否显示网格
-     */
-    draw(gridSize, gridColor, showGrid = true) {
+    draw(gridSize, gridColor, showGrid = true, options = {}) {
         if (!showGrid) return;
 
         const ctx = this.ctx;
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
         const logicalWidth = ctx.canvas.width / dpr;
         const logicalHeight = ctx.canvas.height / dpr;
+        const style = computeGridRenderStyle({
+            dpr,
+            gridSize,
+            minorColor: gridColor,
+            majorColor: options.majorGridColor,
+            majorEvery: options.majorEvery
+        });
 
-        ctx.strokeStyle = gridColor;
-        ctx.lineWidth = 1 / dpr;
+        this._strokeGridLines(logicalWidth, logicalHeight, style, false);
+        this._strokeGridLines(logicalWidth, logicalHeight, style, true);
+    }
+
+    _strokeGridLines(logicalWidth, logicalHeight, style, major) {
+        const ctx = this.ctx;
+        ctx.strokeStyle = major ? style.majorColor : style.minorColor;
+        ctx.lineWidth = major ? style.majorWidth : style.minorWidth;
         ctx.beginPath();
 
-        // 垂直线
-        for (let x = gridSize; x < logicalWidth; x += gridSize) {
-            ctx.moveTo(x + 0.5 / dpr, 0);
-            ctx.lineTo(x + 0.5 / dpr, logicalHeight);
+        let xIndex = 1;
+        for (let x = style.gridSize; x < logicalWidth; x += style.gridSize, xIndex++) {
+            if (isMajorGridLine(xIndex, style.majorEvery) !== major) continue;
+            ctx.moveTo(x + style.pixelOffset, 0);
+            ctx.lineTo(x + style.pixelOffset, logicalHeight);
         }
 
-        // 水平线
-        for (let y = gridSize; y < logicalHeight; y += gridSize) {
-            ctx.moveTo(0, y + 0.5 / dpr);
-            ctx.lineTo(logicalWidth, y + 0.5 / dpr);
+        let yIndex = 1;
+        for (let y = style.gridSize; y < logicalHeight; y += style.gridSize, yIndex++) {
+            if (isMajorGridLine(yIndex, style.majorEvery) !== major) continue;
+            ctx.moveTo(0, y + style.pixelOffset);
+            ctx.lineTo(logicalWidth, y + style.pixelOffset);
         }
 
         ctx.stroke();
     }
 }
 
-// 兼容旧代码的全局导出
 if (typeof window !== 'undefined') {
     window.GridRenderer = GridRenderer;
 }

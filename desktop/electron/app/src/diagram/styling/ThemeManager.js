@@ -34,6 +34,10 @@ export class Theme {
         this.preview = config.preview || null;
     }
 
+    get colors() {
+        return this.colorScheme;
+    }
+
     /**
      * 应用主题
      */

@@ -73,6 +73,23 @@ test('BeamGraphBuilder preserves frequency, wavelength, polarization, auxiliary 
     assert.equal(graph.nodes.find(node => node.id === auxiliary.to.componentId).reason, 'out_of_bounds');
 });
 
+test('BeamGraphBuilder preserves the physical surface event that ended a ray segment', () => {
+    const ray = new Ray(new Vector(0, 0), new Vector(1, 0), 780, 1);
+    ray.originComponentId = 'laser';
+    ray.addHistoryPoint(new Vector(100, 0));
+    ray.markInteraction(
+        { id: 'aom', constructor: { name: 'AcoustoOpticModulator' } },
+        { surfaceId: 'acoustic_crystal', normal: new Vector(-1, 0), interactionType: 'diffraction' }
+    );
+
+    const graph = BeamGraphBuilder.fromTraceRecords(components, [ray.toTraceRecord()]);
+    const edge = graph.edges[0];
+
+    assert.equal(edge.interactionType, 'diffraction');
+    assert.equal(edge.surfaceId, 'acoustic_crystal');
+    assert.deepEqual(edge.surfaceNormal, { x: -1, y: 0 });
+});
+
 test('BeamGraphBuilder represents return paths as explicit round-trip edges', () => {
     const graph = BeamGraphBuilder.fromTraceRecords(components, [{
         traceId: 'return-1', sourceId: 'laser', originComponentId: 'mirror', hitComponentId: 'waveplate',
@@ -115,10 +132,14 @@ test('RayTracer emits a live BeamGraph for a laser through an AOM', () => {
         const aom = new AcoustoOpticModulator(new Vector(100, 0), 50, 20, 0, 80, 1);
         const result = new RayTracer().traceAllRays([laser, aom], 500, 300);
         const firstOrder = result.beamGraph.edges.find(edge => edge.from.componentId === aom.id);
+        const incident = result.beamGraph.edges.find(edge => edge.to.componentId === aom.id);
 
         assert.equal(firstOrder.from.portId, 'firstOrder');
         assert.equal(firstOrder.frequencyOffsetHz, 80e6);
         assert.match(firstOrder.to.componentId, /^termination:/);
+        assert.equal(incident.interactionType, 'surface_interaction');
+        assert.equal(incident.surfaceNormal.x, -1);
+        assert.ok(Math.abs(incident.surfaceNormal.y) < 1e-12);
     } finally {
         global.window = savedWindow;
     }

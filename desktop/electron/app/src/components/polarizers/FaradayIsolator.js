@@ -5,8 +5,14 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
-import { Ray } from '../../core/Ray.js';
 import { N_AIR } from '../../core/constants.js';
+import {
+    applyJonesMatrix,
+    jonesIntensity,
+    jonesLinear,
+    jonesRotationMatrix,
+    projectJonesLinear
+} from '../../core/OpticsMath.js';
 
 export class FaradayIsolator extends OpticalComponent {
     static functionDescription = "利用法拉第效应实现光的单向传输，保护光源。";
@@ -171,36 +177,30 @@ export class FaradayIsolator extends OpticalComponent {
         const rot_angle = Math.PI / 4;
         const pol45_axis = this.angleRad + Math.PI / 4;
 
-        const c0 = Math.cos(pol0_axis), s0 = Math.sin(pol0_axis);
-        const P0 = [[{re:c0*c0, im:0}, {re:c0*s0, im:0}], [{re:c0*s0, im:0}, {re:s0*s0, im:0}]];
-        
-        const c45 = Math.cos(pol45_axis), s45 = Math.sin(pol45_axis);
-        const P45 = [[{re:c45*c45, im:0}, {re:c45*s45, im:0}], [{re:c45*s45, im:0}, {re:s45*s45, im:0}]];
-
-        const R45 = Ray._rot2(rot_angle);
+        const R45 = jonesRotationMatrix(rot_angle);
 
         if (isEntering) {
             if (isForward) {
-                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = Ray.jonesLinear(pol0_axis); }
-                else { currentJones = Ray._apply2x2(P0, currentJones); }
-                currentJones = Ray._apply2x2(R45, currentJones);
+                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = jonesLinear(pol0_axis); }
+                else { currentJones = projectJonesLinear(currentJones, pol0_axis); }
+                currentJones = applyJonesMatrix(R45, currentJones);
             } else {
-                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = Ray.jonesLinear(pol45_axis); }
-                else { currentJones = Ray._apply2x2(P45, currentJones); }
+                if (!ray.hasJones()) { currentIntensity /= 2; currentJones = jonesLinear(pol45_axis); }
+                else { currentJones = projectJonesLinear(currentJones, pol45_axis); }
             }
         } else {
             if (isForward) {
-                if (ray.hasJones()) { currentJones = Ray._apply2x2(P45, ray.jones); }
+                if (ray.hasJones()) { currentJones = projectJonesLinear(ray.jones, pol45_axis); }
             } else {
                 if (ray.hasJones()) {
-                    currentJones = Ray._apply2x2(R45, ray.jones);
-                    currentJones = Ray._apply2x2(P0, currentJones);
+                    currentJones = applyJonesMatrix(R45, ray.jones);
+                    currentJones = projectJonesLinear(currentJones, pol0_axis);
                 }
             }
         }
 
         const inIntensityJones = ray.hasJones() ? ray.jonesIntensity() : 1.0;
-        const outIntensityJones = (currentJones) ? Ray._cAbs2(currentJones.Ex) + Ray._cAbs2(currentJones.Ey) : 0;
+        const outIntensityJones = currentJones ? jonesIntensity(currentJones) : 0;
         const scale = inIntensityJones > 1e-12 ? (outIntensityJones / inIntensityJones) : 0;
         const finalIntensity = currentIntensity * scale;
 

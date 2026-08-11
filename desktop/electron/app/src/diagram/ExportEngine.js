@@ -9,6 +9,7 @@ import { getSymbolLibrary } from './SymbolLibrary.js';
 import { getProfessionalIconManager } from './ProfessionalIconManager.js';
 import { ProfessionalLabel } from './ProfessionalLabelSystem.js';
 import { getAnnotationManager } from './AnnotationSystem.js';
+import { computeRayRenderStyle } from '../rendering/RayRenderStyle.js';
 
 /**
  * 导出格式枚举
@@ -85,6 +86,9 @@ export class ExportEngine {
         
         /** @type {AnnotationManager} 标注管理器引用 */
         this.annotationManager = options.annotationManager || getAnnotationManager();
+
+        /** @type {CanvasRenderingContext2D|null} 文本测量上下文 */
+        this._measureContext = null;
         
         /** @type {Object} 导出模板 */
         this.templates = this._loadTemplates();
@@ -335,6 +339,7 @@ export class ExportEngine {
         .ray-dashed { stroke-dasharray: 10,5; }
         .ray-dotted { stroke-dasharray: 2,3; }
         .component { stroke-linecap: round; stroke-linejoin: round; }
+        .professional-icon { stroke-linecap: round; stroke-linejoin: round; shape-rendering: geometricPrecision; }
         .annotation { font-family: Arial, sans-serif; }
         .note { font-family: Arial, sans-serif; font-size: ${noteFontSize}px; }
     </style>
@@ -349,22 +354,27 @@ export class ExportEngine {
         const parts = [];
         parts.push(`<g id="rays">`);
         const strokeScale = config.strokeScale || 1;
+        const background = this._getRayRenderBackground(config);
         
         rays.forEach((ray, index) => {
             if (!ray.pathPoints || ray.pathPoints.length < 2) return;
             
             const pathData = this._buildPathData(ray.pathPoints);
             const color = ray.color || config.rayStyle.color;
-            const lineWidth = (ray.lineWidth || config.rayStyle.lineWidth) * strokeScale;
+            const lineWidth = ray.lineWidth || config.rayStyle.lineWidth;
             const lineStyle = ray.lineStyle || config.rayStyle.lineStyle;
+            const renderStyle = computeRayRenderStyle(
+                { ...ray, color, lineWidth },
+                { dpr: 1, background }
+            );
             
             let styleClass = 'ray ray-solid';
             if (lineStyle === 'dashed') styleClass = 'ray ray-dashed';
             else if (lineStyle === 'dotted') styleClass = 'ray ray-dotted';
             
-            parts.push(`<path id="ray-${index}" class="${styleClass}" `);
-            parts.push(`d="${pathData}" `);
-            parts.push(`stroke="${color}" stroke-width="${lineWidth}" fill="none"/>`);
+            const pathAttrs = `class="${styleClass}" d="${pathData}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+            parts.push(`<path id="ray-${index}-glow" ${pathAttrs} stroke="${renderStyle.glowColor}" stroke-width="${renderStyle.glowWidth * strokeScale}"/>`);
+            parts.push(`<path id="ray-${index}-core" ${pathAttrs} stroke="${renderStyle.coreColor}" stroke-width="${renderStyle.coreWidth * strokeScale}"/>`);
         });
         
         parts.push(`</g>`);
@@ -384,6 +394,13 @@ export class ExportEngine {
         }
         
         return pathData;
+    }
+
+    _getRayRenderBackground(config) {
+        const backgroundColor = String(config.backgroundColor || '').trim().toLowerCase();
+        return backgroundColor === '#ffffff' || backgroundColor === '#fff' || backgroundColor === 'white'
+            ? 'light'
+            : 'dark';
     }
 
 
@@ -526,6 +543,13 @@ export class ExportEngine {
             const color = label.style?.color || '#000000';
             const fontWeight = label.style?.bold ? 'bold' : 'normal';
             const fontStyle = label.style?.italic ? 'italic' : 'normal';
+            const backgroundColor = label.style?.backgroundColor || 'transparent';
+            const bbox = this._measureProfessionalLabel(label, fontScale);
+            const pad = 4;
+            const labelCenter = {
+                x: x + bbox.width / 2,
+                y: y - bbox.height / 2
+            };
 
             const targetPos = this._getLabelTargetPosition(label, componentMap, linkMap);
             if (label.leaderLine && targetPos) {
@@ -534,19 +558,27 @@ export class ExportEngine {
                     ? ` stroke-dasharray="${lineStyle.dashPattern.join(',')}"`
                     : '';
                 const leaderWidth = (lineStyle.width || 1) * strokeScale;
-                parts.push(`<line x1="${x}" y1="${y}" x2="${targetPos.x}" y2="${targetPos.y}" stroke="${lineStyle.color || '#666666'}" stroke-width="${leaderWidth}"${dash}/>`);
+                const leaderColor = lineStyle.color || '#666666';
+                parts.push(`<line x1="${labelCenter.x}" y1="${labelCenter.y}" x2="${targetPos.x}" y2="${targetPos.y}" stroke="${leaderColor}" stroke-width="${leaderWidth}"${dash}/>`);
+                parts.push(`<circle cx="${targetPos.x}" cy="${targetPos.y}" r="3" fill="${leaderColor}"/>`);
+            }
+
+            if (backgroundColor && backgroundColor !== 'transparent') {
+                parts.push(`<rect x="${x - pad}" y="${y - bbox.height - pad}" width="${bbox.width + pad * 2}" height="${bbox.height + pad * 2}" fill="${backgroundColor}"/>`);
             }
 
             const segments = label.parseFormattedText();
             const textParts = [];
             textParts.push(`<text x="${x}" y="${y}" font-size="${fontSize}" font-family="${fontFamily}" fill="${color}" font-weight="${fontWeight}" font-style="${fontStyle}" dominant-baseline="alphabetic">`);
             segments.forEach(segment => {
+                const segmentFontWeight = segment.type === 'bold' ? 'bold' : fontWeight;
+                const segmentFontStyle = segment.type === 'italic' ? 'italic' : fontStyle;
                 if (segment.type === 'superscript') {
-                    textParts.push(`<tspan baseline-shift="super" font-size="${fontSize * 0.7}">${this._escapeXML(segment.text)}</tspan>`);
+                    textParts.push(`<tspan baseline-shift="super" font-size="${fontSize * 0.7}" font-weight="${segmentFontWeight}" font-style="${segmentFontStyle}">${this._escapeXML(segment.text)}</tspan>`);
                 } else if (segment.type === 'subscript') {
-                    textParts.push(`<tspan baseline-shift="sub" font-size="${fontSize * 0.7}">${this._escapeXML(segment.text)}</tspan>`);
+                    textParts.push(`<tspan baseline-shift="sub" font-size="${fontSize * 0.7}" font-weight="${segmentFontWeight}" font-style="${segmentFontStyle}">${this._escapeXML(segment.text)}</tspan>`);
                 } else {
-                    textParts.push(`<tspan>${this._escapeXML(segment.text)}</tspan>`);
+                    textParts.push(`<tspan font-weight="${segmentFontWeight}" font-style="${segmentFontStyle}">${this._escapeXML(segment.text)}</tspan>`);
                 }
             });
             textParts.push(`</text>`);
@@ -976,6 +1008,57 @@ export class ExportEngine {
     }
 
     /**
+     * 获取文本测量上下文（用于SVG导出）
+     * @private
+     */
+    _getTextMeasurementContext() {
+        if (this._measureContext) return this._measureContext;
+        if (typeof document === 'undefined') return null;
+        const canvas = document.createElement('canvas');
+        this._measureContext = canvas.getContext('2d');
+        return this._measureContext;
+    }
+
+    /**
+     * 计算专业标注的文本宽高（与Canvas渲染逻辑一致）
+     * @private
+     */
+    _measureProfessionalLabel(label, fontScale) {
+        const segments = label.parseFormattedText();
+        const baseFontSize = (label.style?.fontSize || 14) * (fontScale || 1);
+        const fontFamily = label.style?.fontFamily || 'Arial, sans-serif';
+        const baseBold = !!label.style?.bold;
+        const baseItalic = !!label.style?.italic;
+        const ctx = this._getTextMeasurementContext();
+        let totalWidth = 0;
+
+        segments.forEach(segment => {
+            let fontSize = baseFontSize;
+            if (segment.type === 'superscript' || segment.type === 'subscript') {
+                fontSize = baseFontSize * 0.7;
+            }
+
+            let fontStyle = '';
+            if (baseBold || segment.type === 'bold') fontStyle += 'bold ';
+            if (baseItalic || segment.type === 'italic') fontStyle += 'italic ';
+
+            if (ctx) {
+                ctx.font = `${fontStyle}${fontSize}px ${fontFamily}`;
+                const metrics = ctx.measureText(segment.text || '');
+                let width = metrics.width || 0;
+                if (Number.isFinite(metrics.actualBoundingBoxLeft) && Number.isFinite(metrics.actualBoundingBoxRight)) {
+                    width = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight;
+                }
+                totalWidth += width;
+            } else {
+                totalWidth += (segment.text || '').length * fontSize * 0.6;
+            }
+        });
+
+        return { width: totalWidth, height: baseFontSize };
+    }
+
+    /**
      * 渲染技术说明到SVG
      * @private
      */
@@ -1098,14 +1181,19 @@ export class ExportEngine {
      */
     _renderRaysToCanvas(ctx, rays, config) {
         const strokeScale = config.strokeScale || 1;
+        const background = this._getRayRenderBackground(config);
         rays.forEach(ray => {
             if (!ray.pathPoints || ray.pathPoints.length < 2) return;
             
             ctx.save();
-            ctx.strokeStyle = ray.color || config.rayStyle.color;
-            ctx.lineWidth = (ray.lineWidth || config.rayStyle.lineWidth) * strokeScale;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+            const color = ray.color || config.rayStyle.color;
+            const lineWidth = ray.lineWidth || config.rayStyle.lineWidth;
+            const renderStyle = computeRayRenderStyle(
+                { ...ray, color, lineWidth },
+                { dpr: 1, background }
+            );
             
             // 设置线型
             const lineStyle = ray.lineStyle || config.rayStyle.lineStyle;
@@ -1115,14 +1203,21 @@ export class ExportEngine {
                 ctx.setLineDash([2, 3]);
             }
             
-            ctx.beginPath();
-            ctx.moveTo(ray.pathPoints[0].x, ray.pathPoints[0].y);
-            for (let i = 1; i < ray.pathPoints.length; i++) {
-                ctx.lineTo(ray.pathPoints[i].x, ray.pathPoints[i].y);
-            }
-            ctx.stroke();
+            this._strokeRayPath(ctx, ray.pathPoints, renderStyle.glowColor, renderStyle.glowWidth * strokeScale);
+            this._strokeRayPath(ctx, ray.pathPoints, renderStyle.coreColor, renderStyle.coreWidth * strokeScale);
             ctx.restore();
         });
+    }
+
+    _strokeRayPath(ctx, pathPoints, color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+        for (let i = 1; i < pathPoints.length; i++) {
+            ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+        }
+        ctx.stroke();
     }
 
     /**
@@ -1555,6 +1650,9 @@ export class ExportEngine {
                     const scale = (comp.scale || 1) * iconScale * (config.professionalIconStyle?.scale || 1);
                     width = (icon?.width || 60) * scale;
                     height = (icon?.height || 60) * scale;
+                    const strokeWidth = (componentStyle.strokeWidth ?? icon?.defaultStyle?.strokeWidth ?? config.symbolStyle.lineWidth ?? 0) * strokeScale;
+                    width += strokeWidth;
+                    height += strokeWidth;
                 } else {
                     const symbolStyle = { ...config.symbolStyle, ...componentStyle };
                     const size = (symbolStyle.size || config.symbolStyle.size) * iconScale;

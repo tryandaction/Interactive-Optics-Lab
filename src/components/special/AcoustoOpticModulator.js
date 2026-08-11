@@ -163,7 +163,7 @@ export class AcoustoOpticModulator extends OpticalComponent {
                         if (t1 < closestDist) {
                             closestDist = t1;
                             const intersectionPoint = rayOrigin.add(rayDirection.multiply(t1));
-                            let interactionNormal = edgeNormal.multiply(-1.0);
+                            const interactionNormal = edgeNormal.clone();
                             if (isNaN(intersectionPoint.x) || isNaN(interactionNormal.x)) continue;
                             closestHit = { distance: t1, point: intersectionPoint, normal: interactionNormal, surfaceId: 'aom_input_surface' };
                         }
@@ -193,7 +193,11 @@ export class AcoustoOpticModulator extends OpticalComponent {
                     nextBounces, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle,
                     ray.ignoreDecay, ray.history.concat([originOrder0.clone()])
                 );
-                if (!ray0.terminated) newRays.push(ray0);
+                if (!ray0.terminated) {
+                    ray0.branchKind = 'zeroOrder';
+                    ray0.frequencyOffsetHz = ray.frequencyOffsetHz || 0;
+                    newRays.push(ray0);
+                }
             } catch (e) { console.error(`AOM (${this.id}) Error creating 0th order ray:`, e); }
         }
 
@@ -207,7 +211,11 @@ export class AcoustoOpticModulator extends OpticalComponent {
                     nextBounces, ray.mediumRefractiveIndex, ray.sourceId, ray.polarizationAngle,
                     ray.ignoreDecay, ray.history.concat([originOrder1.clone()])
                 );
-                if (!ray1.terminated) newRays.push(ray1);
+                if (!ray1.terminated) {
+                    ray1.branchKind = 'firstOrder';
+                    ray1.frequencyOffsetHz = (ray.frequencyOffsetHz || 0) + this.rfFrequencyMHz * 1e6;
+                    newRays.push(ray1);
+                }
             } catch (e) { console.error(`AOM (${this.id}) Error creating +1st order ray:`, e); }
         }
 

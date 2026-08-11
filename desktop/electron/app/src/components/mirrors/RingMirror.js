@@ -7,6 +7,19 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class RingMirror extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const mirror = new RingMirror(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.outerRadius,
+            data.innerRadius,
+            data.angleDeg
+        );
+        mirror.id = data.id ?? mirror.id;
+        mirror.label = data.label ?? mirror.label;
+        mirror.notes = data.notes ?? mirror.notes;
+        return mirror;
+    }
+
     static functionDescription = "具有中心孔的环形反射镜，中心透过、外环反射。";
 
     constructor(pos, outerRadius = 50, innerRadius = 20, angleDeg = 0) {

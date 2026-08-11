@@ -7,6 +7,19 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class MetallicMirror extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const mirror = new MetallicMirror(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.length,
+            data.angleDeg,
+            data.metalType
+        );
+        mirror.id = data.id ?? mirror.id;
+        mirror.label = data.label ?? mirror.label;
+        mirror.notes = data.notes ?? mirror.notes;
+        return mirror;
+    }
+
     static functionDescription = "使用金属复折射率计算菲涅尔反射的金属镜。";
 
     // Metal optical constants at ~550nm (n + ik)

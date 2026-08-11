@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { GameObject } from '../../core/GameObject.js';
 import { N_AIR, DEFAULT_WAVELENGTH_NM } from '../../core/constants.js';
+import { normalizeRayCount } from './SourceSampling.js';
 
 export class LaserSource extends GameObject {
     static functionDescription = "发射一束或多束具有特定波长和强度的相干光。";
@@ -18,7 +19,7 @@ export class LaserSource extends GameObject {
         
         this.wavelength = wavelength ?? DEFAULT_WAVELENGTH_NM;
         this.intensity = Math.max(0, intensity ?? 1.0);
-        this.numRays = Math.max(1, numRays ?? 1);
+        this.numRays = normalizeRayCount(numRays, 1);
         this.spreadRad = (spreadDeg ?? 0) * (Math.PI / 180);
         this.enabled = enabled ?? true;
         this.polarizationType = polarizationType ?? 'unpolarized';
@@ -248,7 +249,7 @@ export class LaserSource extends GameObject {
                 this._rayColor = this.calculateRayColor(); 
                 needsRetraceUpdate = true; 
                 break;
-            case 'numRays': this.numRays = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'numRays': this.numRays = normalizeRayCount(value, this.numRays); needsRetraceUpdate = true; break;
             case 'spreadDeg': this.spreadRad = Math.max(0, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
             case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
             case 'gaussianEnabled': this.gaussianEnabled = !!value; needsInspectorRefresh = true; needsRetraceUpdate = true; break;

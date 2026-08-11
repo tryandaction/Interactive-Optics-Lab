@@ -6,8 +6,30 @@
 import { Vector } from '../../core/Vector.js';
 import { GameObject } from '../../core/GameObject.js';
 import { N_AIR, DEFAULT_WAVELENGTH_NM, MIN_RAY_INTENSITY } from '../../core/constants.js';
+import { normalizeRayCount } from './SourceSampling.js';
 
 export class WhiteLightSource extends GameObject {
+    static fromJSON(data = {}) {
+        const source = new WhiteLightSource(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.angleDeg,
+            data.baseIntensity ?? data.intensity,
+            data.rayCount ?? data.numRays,
+            data.spreadDeg,
+            data.enabled,
+            data.polarizationType,
+            data.polarizationAngleDeg,
+            data.ignoreDecay,
+            data.beamDiameter,
+            data.initialBeamWaist
+        );
+        source.id = data.id ?? source.id;
+        source.label = data.label ?? source.label;
+        source.notes = data.notes ?? source.notes;
+        if (Object.prototype.hasOwnProperty.call(data, 'gaussianEnabled')) source.gaussianEnabled = !!data.gaussianEnabled;
+        return source;
+    }
+
     static functionDescription = "发射包含可见光谱的宽带光线，可观察色散。";
 
     constructor(pos, angleDeg = 0, intensity = 75.0, rayCount = 41, spreadDeg = 0, 
@@ -16,7 +38,7 @@ export class WhiteLightSource extends GameObject {
         super(pos, angleDeg, "白光光源");
 
         this.baseIntensity = Math.max(0, intensity);
-        this.rayCount = Math.max(1, rayCount);
+        this.rayCount = normalizeRayCount(rayCount, 41);
         this.spreadRad = spreadDeg * (Math.PI / 180);
         this.enabled = enabled;
 
@@ -256,7 +278,7 @@ export class WhiteLightSource extends GameObject {
         switch (propName) {
             case 'enabled': this.enabled = !!value; needsRetraceUpdate = true; break;
             case 'intensity': this.baseIntensity = Math.max(0, parseFloat(value)); needsRetraceUpdate = true; break;
-            case 'rayCount': this.rayCount = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'rayCount': this.rayCount = normalizeRayCount(value, this.rayCount); needsRetraceUpdate = true; break;
             case 'spreadDeg': this.spreadRad = Math.max(0, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
             case 'ignoreDecay': this.ignoreDecay = !!value; needsRetraceUpdate = true; break;
             case 'gaussianEnabled':

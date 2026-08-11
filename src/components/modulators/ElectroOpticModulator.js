@@ -9,6 +9,24 @@ import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { Ray } from '../../core/Ray.js';
 
 export class ElectroOpticModulator extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const modulator = new ElectroOpticModulator(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.width,
+            data.height,
+            data.angleDeg,
+            data.modulationType,
+            data.halfWaveVoltage
+        );
+        modulator.id = data.id ?? modulator.id;
+        modulator.label = data.label ?? modulator.label;
+        modulator.notes = data.notes ?? modulator.notes;
+        if (Object.prototype.hasOwnProperty.call(data, 'appliedVoltage')) modulator.appliedVoltage = data.appliedVoltage;
+        if (Object.prototype.hasOwnProperty.call(data, 'modulationFrequency')) modulator.modulationFrequency = data.modulationFrequency;
+        if (Object.prototype.hasOwnProperty.call(data, 'quality')) modulator.quality = Math.max(0.1, Math.min(1, data.quality));
+        return modulator;
+    }
+
     static functionDescription = "通过电压控制光相位或强度的电光调制器。";
 
     constructor(pos, width = 60, height = 30, angleDeg = 0, modulationType = 'phase', 

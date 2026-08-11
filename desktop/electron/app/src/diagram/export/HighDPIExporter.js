@@ -8,6 +8,8 @@
 /**
  * 高DPI导出器类
  */
+import { computeRayRenderStyle } from '../../rendering/RayRenderStyle.js';
+
 export class HighDPIExporter {
     constructor(options = {}) {
         this.options = {
@@ -25,27 +27,27 @@ export class HighDPIExporter {
     createHighDPICanvas(width, height, dpi = this.options.targetDPI) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         // Calculate scale factor
         const scaleFactor = dpi / 96;  // 96 DPI is standard screen resolution
-        
+
         // Set canvas size
         canvas.width = width * scaleFactor;
         canvas.height = height * scaleFactor;
-        
+
         // Set display size
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
-        
+
         // Scale context
         ctx.scale(scaleFactor, scaleFactor);
-        
+
         // Enable anti-aliasing
         if (this.options.antialiasing) {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
         }
-        
+
         return { canvas, ctx, scaleFactor };
     }
 
@@ -54,23 +56,23 @@ export class HighDPIExporter {
      */
     renderScene(scene, width, height, renderCallback) {
         const { canvas, ctx, scaleFactor } = this.createHighDPICanvas(width, height);
-        
+
         // Clear canvas
         ctx.clearRect(0, 0, width, height);
-        
+
         // Set background
         if (scene.backgroundColor) {
             ctx.fillStyle = scene.backgroundColor;
             ctx.fillRect(0, 0, width, height);
         }
-        
+
         // Call render callback
         if (renderCallback) {
             renderCallback(ctx, width, height, scaleFactor);
         } else {
             this._defaultRender(ctx, scene, width, height);
         }
-        
+
         return canvas;
     }
 
@@ -84,14 +86,14 @@ export class HighDPIExporter {
                 this._renderComponent(ctx, comp);
             });
         }
-        
+
         // Render rays
         if (scene.rays) {
             scene.rays.forEach(ray => {
                 this._renderRay(ctx, ray);
             });
         }
-        
+
         // Render annotations
         if (scene.annotations) {
             scene.annotations.forEach(annotation => {
@@ -105,25 +107,25 @@ export class HighDPIExporter {
      */
     _renderComponent(ctx, comp) {
         ctx.save();
-        
+
         ctx.translate(comp.pos.x, comp.pos.y);
         ctx.rotate(comp.angle ?? comp.angleRad ?? 0);
-        
+
         // Set style
         ctx.strokeStyle = comp.color || '#4488ff';
         ctx.fillStyle = comp.fillColor || comp.color || '#4488ff';
         ctx.lineWidth = comp.lineWidth || 2;
-        
+
         // Draw shape (simplified)
         const size = 30;
         ctx.beginPath();
         ctx.rect(-size/2, -size/2, size, size);
-        
+
         if (comp.filled) {
             ctx.fill();
         }
         ctx.stroke();
-        
+
         ctx.restore();
     }
 
@@ -132,30 +134,41 @@ export class HighDPIExporter {
      */
     _renderRay(ctx, ray) {
         if (!ray.pathPoints || ray.pathPoints.length < 2) return;
-        
+
         ctx.save();
-        
-        ctx.strokeStyle = ray.color || '#ff0000';
-        ctx.lineWidth = ray.lineWidth || 2;
-        
+
+        const renderStyle = computeRayRenderStyle(
+            { ...ray, color: ray.color || '#ff0000', lineWidth: ray.lineWidth || 2 },
+            { dpr: 1, background: 'light' }
+        );
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
         // Set line style
         if (ray.lineStyle === 'dashed') {
             ctx.setLineDash([10, 5]);
         } else if (ray.lineStyle === 'dotted') {
             ctx.setLineDash([2, 3]);
         }
-        
-        ctx.beginPath();
-        ctx.moveTo(ray.pathPoints[0].x, ray.pathPoints[0].y);
-        
-        for (let i = 1; i < ray.pathPoints.length; i++) {
-            ctx.lineTo(ray.pathPoints[i].x, ray.pathPoints[i].y);
-        }
-        
-        ctx.stroke();
+
+        this._strokeRayPath(ctx, ray.pathPoints, renderStyle.glowColor, renderStyle.glowWidth);
+        this._strokeRayPath(ctx, ray.pathPoints, renderStyle.coreColor, renderStyle.coreWidth);
         ctx.setLineDash([]);
-        
+
         ctx.restore();
+    }
+
+    _strokeRayPath(ctx, pathPoints, color, width) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+
+        for (let i = 1; i < pathPoints.length; i++) {
+            ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+        }
+
+        ctx.stroke();
     }
 
     /**
@@ -163,19 +176,19 @@ export class HighDPIExporter {
      */
     _renderAnnotation(ctx, annotation) {
         if (!annotation.text) return;
-        
+
         ctx.save();
-        
+
         const x = annotation.pos?.x || annotation.position?.x || 0;
         const y = annotation.pos?.y || annotation.position?.y || 0;
-        
+
         ctx.font = `${annotation.fontSize || 14}px ${annotation.fontFamily || 'Arial'}`;
         ctx.fillStyle = annotation.color || '#000000';
         ctx.textAlign = annotation.align || 'left';
         ctx.textBaseline = annotation.baseline || 'top';
-        
+
         ctx.fillText(annotation.text, x, y);
-        
+
         ctx.restore();
     }
 
@@ -184,7 +197,7 @@ export class HighDPIExporter {
      */
     exportToPNG(scene, width, height, renderCallback) {
         const canvas = this.renderScene(scene, width, height, renderCallback);
-        
+
         return new Promise((resolve, reject) => {
             canvas.toBlob(
                 (blob) => {
@@ -205,7 +218,7 @@ export class HighDPIExporter {
      */
     exportToJPEG(scene, width, height, renderCallback) {
         const canvas = this.renderScene(scene, width, height, renderCallback);
-        
+
         return new Promise((resolve, reject) => {
             canvas.toBlob(
                 (blob) => {
@@ -226,7 +239,7 @@ export class HighDPIExporter {
      */
     exportToDataURL(scene, width, height, format = 'png', renderCallback) {
         const canvas = this.renderScene(scene, width, height, renderCallback);
-        
+
         if (format === 'jpeg' || format === 'jpg') {
             return canvas.toDataURL('image/jpeg', this.options.quality);
         } else {
@@ -239,7 +252,7 @@ export class HighDPIExporter {
      */
     async download(scene, width, height, filename, format = 'png', renderCallback) {
         let blob;
-        
+
         if (format === 'jpeg' || format === 'jpg') {
             blob = await this.exportToJPEG(scene, width, height, renderCallback);
             filename = filename.replace(/\.[^.]+$/, '.jpg');
@@ -247,13 +260,13 @@ export class HighDPIExporter {
             blob = await this.exportToPNG(scene, width, height, renderCallback);
             filename = filename.replace(/\.[^.]+$/, '.png');
         }
-        
+
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
         link.click();
-        
+
         URL.revokeObjectURL(url);
     }
 
@@ -262,18 +275,18 @@ export class HighDPIExporter {
      */
     async exportMultipleResolutions(scene, baseWidth, baseHeight, resolutions, renderCallback) {
         const results = [];
-        
+
         for (const res of resolutions) {
             const width = baseWidth * res.scale;
             const height = baseHeight * res.scale;
             const dpi = res.dpi || this.options.targetDPI;
-            
+
             // Temporarily change DPI
             const originalDPI = this.options.targetDPI;
             this.options.targetDPI = dpi;
-            
+
             const blob = await this.exportToPNG(scene, width, height, renderCallback);
-            
+
             results.push({
                 name: res.name,
                 width: width,
@@ -281,11 +294,11 @@ export class HighDPIExporter {
                 dpi: dpi,
                 blob: blob
             });
-            
+
             // Restore DPI
             this.options.targetDPI = originalDPI;
         }
-        
+
         return results;
     }
 
@@ -294,22 +307,22 @@ export class HighDPIExporter {
      */
     optimizeQuality(canvas) {
         const ctx = canvas.getContext('2d');
-        
+
         // Apply sharpening filter (simple implementation)
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        
+
         // Sharpen kernel
         const kernel = [
             0, -1, 0,
             -1, 5, -1,
             0, -1, 0
         ];
-        
+
         const tempData = new Uint8ClampedArray(data);
         const width = canvas.width;
         const height = canvas.height;
-        
+
         for (let y = 1; y < height - 1; y++) {
             for (let x = 1; x < width - 1; x++) {
                 for (let c = 0; c < 3; c++) {  // RGB channels
@@ -326,9 +339,9 @@ export class HighDPIExporter {
                 }
             }
         }
-        
+
         ctx.putImageData(imageData, 0, 0);
-        
+
         return canvas;
     }
 
@@ -339,7 +352,7 @@ export class HighDPIExporter {
         const scaleFactor = this.options.targetDPI / 96;
         const actualWidth = width * scaleFactor;
         const actualHeight = height * scaleFactor;
-        
+
         return {
             displayWidth: width,
             displayHeight: height,
@@ -358,7 +371,7 @@ export class HighDPIExporter {
     _estimateFileSize(width, height) {
         // Rough estimate: PNG is about 3-4 bytes per pixel with compression
         const bytes = width * height * 3.5;
-        
+
         if (bytes < 1024) {
             return bytes.toFixed(0) + ' B';
         } else if (bytes < 1024 * 1024) {

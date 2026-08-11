@@ -60,14 +60,24 @@ import { AtomicCell, MagneticCoil } from '../components/atomic/index.js';
 // 干涉仪
 import { FabryPerotCavity } from '../components/interferometers/index.js';
 
+// 元件可信度基线
+import {
+    RELIABILITY_LEVELS,
+    RELIABILITY_LABELS,
+    COMPONENT_RELIABILITY,
+    getComponentReliability,
+    getReliabilityLabel
+} from '../components/ComponentReliability.js';
+
 // 渲染器
 import { 
     RayRenderer, GridRenderer, ArrowRenderer, 
-    PreviewRenderer, GuideRenderer, GUIDE_CONFIG 
+    PreviewRenderer, GuideRenderer, GUIDE_CONFIG,
+    computeGridRenderStyle, isMajorGridLine
 } from '../rendering/index.js';
 
 // 模拟模块
-import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging } from '../simulation/index.js';
+import { RayTracer, TRACE_CONFIG, GameLoop, LensImaging, getLensImaging, resetLensImaging } from '../simulation/index.js';
 
 // UI 模块
 import { 
@@ -97,6 +107,30 @@ import { LocalStorageAdapter } from '../managers/LocalStorageAdapter.js';
 import { ProjectManager } from '../managers/ProjectManager.js';
 import { ActiveSceneManager } from '../managers/ActiveSceneManager.js';
 import { SyncService } from '../managers/SyncService.js';
+import { AutoRecoveryManager } from '../managers/AutoRecoveryManager.js';
+import {
+    OPTICS_DOCUMENT_SCHEMA_VERSION,
+    createOpticsDocument,
+    normalizeOpticsDocument,
+    OpticsDocumentMigrator,
+    OpticsDocumentSerializer,
+    DocumentStore,
+    DocumentFileController,
+    DocumentRecovery,
+    captureRuntimeDocument,
+    documentToLegacySceneData
+} from '../document/index.js';
+import * as BenchInteractions from '../bench/index.js';
+import { ComponentPortRegistry, BeamGraph, BeamGraphBuilder } from '../beam-graph/index.js';
+import {
+    SchematicEditor,
+    SchematicEditorModel,
+    SchematicExporter,
+    SchematicProjector,
+    SchematicWorkspace,
+    renderSchematicSvg,
+    renderSchematicSymbol
+} from '../schematic/index.js';
 
 // 应用
 import { SimulationApp } from '../app/SimulationApp.js';
@@ -105,8 +139,14 @@ import { SimulationApp } from '../app/SimulationApp.js';
 import { 
     ModeManager, APP_MODES, getModeManager, resetModeManager,
     ModeSwitcher, createModeSwitcher,
+    SceneToDiagramAdapter, createSceneToDiagramAdapter, DIAGRAM_OBJECT_TYPES,
+    DiagramObjectSVGRenderer, createDiagramObjectSVGRenderer,
     DiagramModeIntegration, getDiagramModeIntegration, initializeDiagramMode, resetDiagramModeIntegration,
-    openExportDialog, getExportDialog
+    openExportDialog, getExportDialog,
+    getAdvancedTemplateManager, getAllTemplates, getTemplateById, searchTemplates,
+    getPDFExporter, getDiagramValidator,
+    getProfessionalIconManager, registerProfessionalIcons, registerExtendedIcons, registerAllExtendedIcons,
+    getAutoRouter
 } from '../diagram/index.js';
 
 // 导出到全局
@@ -184,6 +224,13 @@ if (typeof window !== 'undefined') {
     // 干涉仪
     window.FabryPerotCavity = FabryPerotCavity;
 
+    // 元件可信度基线
+    window.RELIABILITY_LEVELS = RELIABILITY_LEVELS;
+    window.RELIABILITY_LABELS = RELIABILITY_LABELS;
+    window.COMPONENT_RELIABILITY = COMPONENT_RELIABILITY;
+    window.getComponentReliability = getComponentReliability;
+    window.getReliabilityLabel = getReliabilityLabel;
+
     // 渲染器
     window.RayRenderer = RayRenderer;
     window.GridRenderer = GridRenderer;
@@ -191,12 +238,16 @@ if (typeof window !== 'undefined') {
     window.PreviewRenderer = PreviewRenderer;
     window.GuideRenderer = GuideRenderer;
     window.GUIDE_CONFIG = GUIDE_CONFIG;
+    window.computeGridRenderStyle = computeGridRenderStyle;
+    window.isMajorGridLine = isMajorGridLine;
 
     // 模拟模块
     window.RayTracer = RayTracer;
     window.TRACE_CONFIG = TRACE_CONFIG;
     window.GameLoop = GameLoop;
     window.LensImaging = LensImaging;
+    window.getLensImaging = getLensImaging;
+    window.resetLensImaging = resetLensImaging;
 
     // UI 模块
     window.EventHandler = EventHandler;
@@ -239,6 +290,28 @@ if (typeof window !== 'undefined') {
     window.ProjectManager = ProjectManager;
     window.ActiveSceneManager = ActiveSceneManager;
     window.SyncService = SyncService;
+    window.AutoRecoveryManager = AutoRecoveryManager;
+    window.OPTICS_DOCUMENT_SCHEMA_VERSION = OPTICS_DOCUMENT_SCHEMA_VERSION;
+    window.createOpticsDocument = createOpticsDocument;
+    window.normalizeOpticsDocument = normalizeOpticsDocument;
+    window.OpticsDocumentMigrator = OpticsDocumentMigrator;
+    window.OpticsDocumentSerializer = OpticsDocumentSerializer;
+    window.DocumentStore = DocumentStore;
+    window.DocumentFileController = DocumentFileController;
+    window.DocumentRecovery = DocumentRecovery;
+    window.captureRuntimeDocument = captureRuntimeDocument;
+    window.documentToLegacySceneData = documentToLegacySceneData;
+    window.BenchInteractions = BenchInteractions;
+    window.ComponentPortRegistry = ComponentPortRegistry;
+    window.BeamGraph = BeamGraph;
+    window.BeamGraphBuilder = BeamGraphBuilder;
+    window.SchematicEditor = SchematicEditor;
+    window.SchematicEditorModel = SchematicEditorModel;
+    window.SchematicExporter = SchematicExporter;
+    window.SchematicProjector = SchematicProjector;
+    window.SchematicWorkspace = SchematicWorkspace;
+    window.renderSchematicSvg = renderSchematicSvg;
+    window.renderSchematicSymbol = renderSchematicSymbol;
 
     // 应用
     window.SimulationApp = SimulationApp;
@@ -250,12 +323,28 @@ if (typeof window !== 'undefined') {
     window.resetModeManager = resetModeManager;
     window.ModeSwitcher = ModeSwitcher;
     window.createModeSwitcher = createModeSwitcher;
+    window.SceneToDiagramAdapter = SceneToDiagramAdapter;
+    window.createSceneToDiagramAdapter = createSceneToDiagramAdapter;
+    window.DIAGRAM_OBJECT_TYPES = DIAGRAM_OBJECT_TYPES;
+    window.DiagramObjectSVGRenderer = DiagramObjectSVGRenderer;
+    window.createDiagramObjectSVGRenderer = createDiagramObjectSVGRenderer;
     window.DiagramModeIntegration = DiagramModeIntegration;
     window.getDiagramModeIntegration = getDiagramModeIntegration;
     window.initializeDiagramMode = initializeDiagramMode;
     window.resetDiagramModeIntegration = resetDiagramModeIntegration;
     window.openExportDialog = openExportDialog;
     window.getExportDialog = getExportDialog;
+    window.getAdvancedTemplateManager = getAdvancedTemplateManager;
+    window.getAllTemplates = getAllTemplates;
+    window.getTemplateById = getTemplateById;
+    window.searchTemplates = searchTemplates;
+    window.getPDFExporter = getPDFExporter;
+    window.getDiagramValidator = getDiagramValidator;
+    window.getProfessionalIconManager = getProfessionalIconManager;
+    window.registerProfessionalIcons = registerProfessionalIcons;
+    window.registerExtendedIcons = registerExtendedIcons;
+    window.registerAllExtendedIcons = registerAllExtendedIcons;
+    window.getAutoRouter = getAutoRouter;
 
     // 设置加载完成标志
     window.__LEGACY_GLOBALS_LOADED__ = true;

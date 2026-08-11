@@ -30,6 +30,77 @@ test('SchematicExporter emits editable v3 SVG layers with stable page dimensions
     assert.match(svg, /vector-effect="non-scaling-stroke"/);
 });
 
+test('SchematicExporter preserves BeamGraph path semantics as structured SVG data attributes', () => {
+    const document = makeDocument(2);
+    Object.assign(document.beamGraph.edges[0], {
+        branchKind: 'firstOrder',
+        auxiliary: true,
+        style: 'dashed',
+        wavelengthNm: 780,
+        polarization: 'circular',
+        intensity: 0.42,
+        frequencyOffsetHz: 80e6,
+        interactionType: 'diffraction',
+        surfaceId: 'acoustic_crystal',
+        surfaceNormal: { x: -1, y: 0 }
+    });
+
+    const projected = SchematicProjector.project(document);
+    const path = projected.views.schematic.paths[0];
+    const svg = SchematicExporter.toSvg(projected);
+
+    assert.equal(path.branchKind, 'firstOrder');
+    assert.equal(path.auxiliary, true);
+    assert.equal(path.wavelengthNm, 780);
+    assert.equal(path.polarization, 'circular');
+    assert.equal(path.intensity, 0.42);
+    assert.equal(path.interactionType, 'diffraction');
+    assert.equal(path.surfaceId, 'acoustic_crystal');
+    assert.deepEqual(path.surfaceNormal, { x: -1, y: 0 });
+    assert.match(svg, /data-branch-kind="firstOrder"/);
+    assert.match(svg, /data-auxiliary="true"/);
+    assert.match(svg, /data-wavelength-nm="780"/);
+    assert.match(svg, /data-polarization="circular"/);
+    assert.match(svg, /data-intensity="0\.42"/);
+    assert.match(svg, /data-frequency-offset-hz="80000000"/);
+    assert.match(svg, /data-interaction-type="diffraction"/);
+    assert.match(svg, /data-surface-id="acoustic_crystal"/);
+    assert.match(svg, /data-surface-normal-x="-1"/);
+    assert.match(svg, /data-surface-normal-y="0"/);
+});
+
+test('SchematicProjector renders BeamGraph termination nodes without creating user components', () => {
+    const document = createOpticsDocument({
+        components: [{ id: 'laser', type: 'LaserSource', name: 'Laser' }],
+        beamGraph: {
+            nodes: [
+                { id: 'laser', type: 'LaserSource' },
+                { id: 'termination:ray-1', type: 'termination', reason: 'out_of_bounds' }
+            ],
+            edges: [{
+                id: 'beam:ray-1',
+                from: { componentId: 'laser', portId: 'output' },
+                to: { componentId: 'termination:ray-1', portId: 'input' },
+                endReason: 'out_of_bounds'
+            }]
+        }
+    });
+
+    const projected = SchematicProjector.project(document);
+    const svg = SchematicExporter.toSvg(projected);
+
+    assert.equal(projected.components.length, 1);
+    assert.deepEqual(projected.views.schematic.terminationNodes, [{
+        id: 'termination:ray-1',
+        reason: 'out_of_bounds'
+    }]);
+    assert.ok(projected.views.schematic.placements['termination:ray-1']);
+    assert.equal(projected.views.schematic.paths[0].to.componentId, 'termination:ray-1');
+    assert.match(svg, /data-component-id="termination:ray-1"/);
+    assert.match(svg, /data-symbol-kind="termination"/);
+    assert.match(svg, />out_of_bounds</);
+});
+
 test('SchematicExporter creates a PDF blob through an injected jsPDF implementation', () => {
     const calls = [];
     class FakePdf {

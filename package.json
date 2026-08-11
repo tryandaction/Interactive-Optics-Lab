@@ -1,6 +1,6 @@
 {
   "name": "opticslab",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Interactive optics workbench for geometric ray sketches, teaching demos, and research diagram prototypes",
   "main": "index.html",
   "type": "module",

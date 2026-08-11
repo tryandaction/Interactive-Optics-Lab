@@ -183,7 +183,8 @@ export class UnifiedHistoryManager {
         this.currentBatch = {
             name,
             actions: [],
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            manual: true
         };
     }
 
@@ -209,6 +210,10 @@ export class UnifiedHistoryManager {
         
         this.currentBatch.actions.push(action);
         
+        if (this.currentBatch.manual) {
+            return;
+        }
+
         // 重置批处理计时器
         if (this.batchTimer) {
             clearTimeout(this.batchTimer);
@@ -228,18 +233,25 @@ export class UnifiedHistoryManager {
             this.currentBatch = null;
             return;
         }
-        
+
+        if (this.batchTimer) {
+            clearTimeout(this.batchTimer);
+            this.batchTimer = null;
+        }
+
+        const batchActions = [...this.currentBatch.actions];
+
         // 创建批处理操作
         const batchAction = {
             type: 'batch',
             name: this.currentBatch.name,
             timestamp: this.currentBatch.timestamp,
-            actions: this.currentBatch.actions,
+            actions: batchActions,
             
             undo: () => {
                 // 反向执行所有撤销
-                for (let i = this.currentBatch.actions.length - 1; i >= 0; i--) {
-                    const action = this.currentBatch.actions[i];
+                for (let i = batchActions.length - 1; i >= 0; i--) {
+                    const action = batchActions[i];
                     if (action.undo) {
                         action.undo();
                     } else if (action.restore) {
@@ -250,7 +262,7 @@ export class UnifiedHistoryManager {
             
             redo: () => {
                 // 正向执行所有重做
-                for (const action of this.currentBatch.actions) {
+                for (const action of batchActions) {
                     if (action.redo) {
                         action.redo();
                     } else if (action.execute) {

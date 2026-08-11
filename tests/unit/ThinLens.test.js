@@ -6,7 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector } from '../../src/core/Vector.js';
-import { ThinLens } from '../../src/components/lenses/ThinLens.js';
+import { deserializeScene, serializeScene } from '../../src/utils/Serialization.js';
+import { LENS_TYPES, ThinLens } from '../../src/components/lenses/ThinLens.js';
 
 test('ThinLens 构造函数', () => {
     const pos = new Vector(100, 100);
@@ -45,6 +46,36 @@ test('ThinLens toJSON', () => {
     assert.equal(json.type, 'ThinLens');
     assert.equal(json.diameter, 80);
     assert.equal(json.focalLength, 150);
+});
+
+test('ThinLens JSON and generic scene serialization preserve custom thick-lens parameters', () => {
+    const lens = new ThinLens(new Vector(120, 80), 64, 180, 30);
+    lens.id = 'thick-lens-1';
+    lens.setProperty('lensType', LENS_TYPES.THICK_CUSTOM);
+    lens.setProperty('thickness', 18);
+    lens.setProperty('frontRadius', 75);
+    lens.setProperty('backRadius', -52);
+    lens.setProperty('baseRefractiveIndex', 1.61);
+    lens.setProperty('dispersionCoeffB', 7800);
+    lens.setProperty('quality', 0.93);
+
+    const restored = ThinLens.fromJSON(JSON.parse(JSON.stringify(lens.toJSON())));
+    const scene = deserializeScene(serializeScene([lens]), { ThinLens });
+    const sceneLens = scene.components[0];
+
+    for (const candidate of [restored, sceneLens]) {
+        assert.equal(candidate.id, 'thick-lens-1');
+        assert.equal(candidate.lensType, LENS_TYPES.THICK_CUSTOM);
+        assert.equal(candidate.thickness, 18);
+        assert.equal(candidate.frontRadius, 75);
+        assert.equal(candidate.backRadius, -52);
+        assert.equal(candidate.baseRefractiveIndex, 1.61);
+        assert.equal(candidate.dispersionCoeffB, 7800);
+        assert.equal(candidate.quality, 0.93);
+        assert.equal(candidate.pos.x, 120);
+        assert.equal(candidate.pos.y, 80);
+        assert.ok(Math.abs(candidate.angleRad * 180 / Math.PI - 30) < 1e-9);
+    }
 });
 
 test('ThinLens setProperty - diameter', () => {

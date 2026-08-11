@@ -61,6 +61,9 @@ export class Ray {
         this.originComponentId = sourceId;
         this.hitComponentId = null;
         this.hitComponentType = null;
+        this.interactionType = null;
+        this.surfaceId = null;
+        this.surfaceNormal = null;
         this.branchKind = sourceId ? 'output' : null;
         this.frequencyOffsetHz = 0;
         this.directionLabel = 'forward';
@@ -336,15 +339,29 @@ export class Ray {
 
     getPathPoints() { return this.history; }
 
-    markInteraction(component) {
+    markInteraction(component, intersectionInfo = null) {
         const componentId = component?.id || component?.uuid || null;
         if (!componentId) return this;
         this.hitComponentId = componentId;
         this.hitComponentType = component?.type || component?.constructor?.name || 'UnknownComponent';
-        if (this.visitedComponentIds.includes(componentId)) {
+        this.interactionType = intersectionInfo?.interactionType || 'surface_interaction';
+        this.surfaceId = intersectionInfo?.surfaceId || null;
+
+        const normal = intersectionInfo?.normal;
+        if (Number.isFinite(normal?.x) && Number.isFinite(normal?.y)) {
+            const magnitude = Math.hypot(normal.x, normal.y);
+            this.surfaceNormal = magnitude > 0
+                ? { x: normal.x / magnitude, y: normal.y / magnitude }
+                : null;
+        } else {
+            this.surfaceNormal = null;
+        }
+
+        const isInternalThickLensSurface = this._thickLensInteriorId === componentId;
+        if (this.visitedComponentIds.includes(componentId) && !isInternalThickLensSurface) {
             this.roundTrip = true;
             this.directionLabel = 'return';
-        } else {
+        } else if (!this.visitedComponentIds.includes(componentId)) {
             this.visitedComponentIds.push(componentId);
         }
         return this;
@@ -357,6 +374,9 @@ export class Ray {
             sourceId: this.sourceId,
             originComponentId: this.originComponentId,
             hitComponentId: this.hitComponentId,
+            interactionType: this.interactionType,
+            surfaceId: this.surfaceId,
+            surfaceNormal: this.surfaceNormal ? { ...this.surfaceNormal } : null,
             branchKind: this.branchKind,
             wavelengthNm: this.wavelengthNm,
             frequencyOffsetHz: this.frequencyOffsetHz,
@@ -387,7 +407,9 @@ export class Ray {
             successor.roundTrip = parentRay.roundTrip === true;
             successor.segmentStartIndex = Math.max(0, successor.history.length - 1);
 
-            if (componentType === 'AcoustoOpticModulator') {
+            if (successor._thickLensBranchKind) {
+                successor.branchKind = successor._thickLensBranchKind;
+            } else if (componentType === 'AcoustoOpticModulator') {
                 const directionDelta = Math.abs(1 - successor.direction.dot(parentRay.direction));
                 successor.branchKind = directionDelta < 1e-8 ? 'zeroOrder' : 'firstOrder';
                 if (successor.branchKind === 'firstOrder') {

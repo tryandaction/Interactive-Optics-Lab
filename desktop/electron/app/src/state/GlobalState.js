@@ -142,6 +142,10 @@ export function resetState() {
     state.sceneModified = false;
     state.arrowAnimationStates = new Map();
     state.dragShadowTrail = [];
+    state.lastRecordedMoveState = null;
+    state.lastRecordedRotateState = null;
+    state.lastRecordedPropertyState = null;
+    state.ongoingActionState = null;
 }
 
 /**

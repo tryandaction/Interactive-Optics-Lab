@@ -62,6 +62,35 @@ test('SchematicProjector incrementally adds nodes while preserving all existing 
     assert.equal(second.views.schematic.paths.length, 4);
 });
 
+test('SchematicProjector preserves manual path geometry while refreshing BeamGraph semantics', () => {
+    const first = SchematicProjector.project(makeDocument());
+    const currentPath = first.views.schematic.paths.find(path => path.id === 'e2');
+    currentPath.style = 'solid';
+    currentPath.points = [{ x: 430, y: 220 }, { x: 520, y: 220 }];
+    currentPath.locked = true;
+
+    Object.assign(first.beamGraph.edges.find(edge => edge.id === 'e2'), {
+        branchKind: 'firstOrder',
+        auxiliary: true,
+        frequencyOffsetHz: 80e6,
+        interactionType: 'diffraction',
+        surfaceId: 'acoustic_crystal',
+        surfaceNormal: { x: -1, y: 0 }
+    });
+
+    const second = SchematicProjector.project(first);
+    const refreshedPath = second.views.schematic.paths.find(path => path.id === 'e2');
+
+    assert.equal(refreshedPath.style, 'solid');
+    assert.deepEqual(refreshedPath.points, currentPath.points);
+    assert.equal(refreshedPath.branchKind, 'firstOrder');
+    assert.equal(refreshedPath.auxiliary, true);
+    assert.equal(refreshedPath.frequencyOffsetHz, 80e6);
+    assert.equal(refreshedPath.interactionType, 'diffraction');
+    assert.equal(refreshedPath.surfaceId, 'acoustic_crystal');
+    assert.deepEqual(refreshedPath.surfaceNormal, { x: -1, y: 0 });
+});
+
 test('SchematicProjector wraps disconnected components into page-bounded columns', () => {
     const components = Array.from({ length: 12 }, (_, index) => ({
         id: `free-${index}`,

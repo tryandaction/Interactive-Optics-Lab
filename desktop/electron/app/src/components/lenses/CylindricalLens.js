@@ -5,6 +5,7 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
+import { paraxialForwardLensDirection } from '../../core/OpticsMath.js';
 
 export class CylindricalLens extends OpticalComponent {
     static functionDescription = "仅在一个方向聚焦的柱面透镜。";
@@ -223,40 +224,19 @@ export class CylindricalLens extends OpticalComponent {
             return transmittedRay && !transmittedRay.terminated ? [transmittedRay] : [];
         }
 
-        // Calculate deviation only in the focusing direction
         const lensCenter = this.pos;
         const axisDir = this.axisDirection;
         const lensPlaneDir = this.lensDir;
         const vecCenterToHit = hitPoint.subtract(lensCenter);
-        
-        // h is the distance from center along the lens plane
         const h = vecCenterToHit.dot(lensPlaneDir);
-        
-        // For cylindrical lens, only apply deviation in the direction perpendicular to cylinder axis
-        // The cylinder axis determines which component of the ray direction is affected
-        
-        // Get incident angle relative to optical axis
-        const axisAngle = axisDir.angle();
-        const incidentWorldAngle = incidentDirection.angle();
-        const incidentAngleRelAxis = Math.atan2(
-            Math.sin(incidentWorldAngle - axisAngle), 
-            Math.cos(incidentWorldAngle - axisAngle)
+
+        const newDirection = paraxialForwardLensDirection(
+            incidentDirection,
+            axisDir,
+            lensPlaneDir,
+            h,
+            F
         );
-
-        // Calculate deviation based on cylinder axis orientation
-        let deviation;
-        if (this.cylinderAxis === 'horizontal') {
-            // Horizontal cylinder axis: focuses in vertical direction
-            // Only the vertical component of h contributes to focusing
-            deviation = -h / F;
-        } else {
-            // Vertical cylinder axis: focuses in horizontal direction
-            deviation = -h / F;
-        }
-
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisAngle + outputAngleRelAxis;
-        const newDirection = Vector.fromAngle(outputWorldAngle);
 
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             ray.terminate('cylindrical_calc_error');

@@ -102,6 +102,13 @@ export class AnnotationManager {
     }
 
     /**
+     * 兼容旧接口：添加标注
+     */
+    addAnnotation(config) {
+        return this.createAnnotation(config);
+    }
+
+    /**
      * 创建文本标注
      */
     createTextAnnotation(text, position, options = {}) {
@@ -214,6 +221,43 @@ export class AnnotationManager {
      */
     getAnnotation(annotationId) {
         return this.annotations.get(annotationId) || null;
+    }
+
+    /**
+     * 更新标注属性（兼容旧接口）
+     */
+    updateAnnotation(annotationId, updates = {}) {
+        const annotation = this.annotations.get(annotationId);
+        if (!annotation) return null;
+
+        if (updates.text !== undefined) annotation.text = updates.text;
+        if (updates.position) {
+            annotation.position = {
+                ...(annotation.position || {}),
+                ...(updates.position || {})
+            };
+        }
+        if (updates.style) {
+            annotation.style = {
+                ...(annotation.style || {}),
+                ...(updates.style || {})
+            };
+        }
+        if (updates.anchorPoint) {
+            annotation.anchorPoint = { ...(updates.anchorPoint || {}) };
+        }
+        if (updates.leaderLine) {
+            annotation.leaderLine = {
+                ...(annotation.leaderLine || {}),
+                ...(updates.leaderLine || {})
+            };
+        }
+        if (updates.visible !== undefined) annotation.visible = updates.visible;
+        if (updates.locked !== undefined) annotation.locked = updates.locked;
+        if (updates.componentId !== undefined) annotation.componentId = updates.componentId;
+        if (updates.groupId !== undefined) annotation.groupId = updates.groupId;
+
+        return annotation;
     }
 
     /**

@@ -6,8 +6,26 @@
 import { Vector } from '../../core/Vector.js';
 import { GameObject } from '../../core/GameObject.js';
 import { N_AIR, DEFAULT_WAVELENGTH_NM } from '../../core/constants.js';
+import { normalizeRayCount } from './SourceSampling.js';
 
 export class LEDSource extends GameObject {
+    static fromJSON(data = {}) {
+        const source = new LEDSource(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.angleDeg,
+            data.centerWavelength,
+            data.fwhm,
+            data.intensity,
+            data.numRays ?? data.rayCount,
+            data.spreadDeg,
+            data.enabled
+        );
+        source.id = data.id ?? source.id;
+        source.label = data.label ?? source.label;
+        source.notes = data.notes ?? source.notes;
+        return source;
+    }
+
     static functionDescription = "发射具有高斯光谱分布的非相干LED光源。";
 
     constructor(pos, angleDeg = 0, centerWavelength = DEFAULT_WAVELENGTH_NM, fwhm = 30, 
@@ -17,7 +35,7 @@ export class LEDSource extends GameObject {
         this.centerWavelength = Math.max(380, Math.min(750, centerWavelength ?? DEFAULT_WAVELENGTH_NM));
         this.fwhm = Math.max(1, Math.min(200, fwhm ?? 30)); // Full Width at Half Maximum in nm
         this.intensity = Math.max(0, intensity ?? 1.0);
-        this.numRays = Math.max(1, numRays ?? 10);
+        this.numRays = normalizeRayCount(numRays, 10);
         this.spreadRad = (spreadDeg ?? 30) * (Math.PI / 180);
         this.enabled = enabled ?? true;
         
@@ -203,7 +221,7 @@ export class LEDSource extends GameObject {
                 this._rayColor = this.calculateRayColor(); 
                 needsRetraceUpdate = true; 
                 break;
-            case 'numRays': this.numRays = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'numRays': this.numRays = normalizeRayCount(value, this.numRays); needsRetraceUpdate = true; break;
             case 'spreadDeg': this.spreadRad = Math.max(0, parseFloat(value)) * Math.PI / 180; needsRetraceUpdate = true; break;
             default: return false;
         }

@@ -5,7 +5,7 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
-import { Ray } from '../../core/Ray.js';
+import { transformJonesByRetarder } from '../../core/OpticsMath.js';
 
 export class WavePlate extends OpticalComponent {
     static functionDescription = "改变光的偏振相位差，实现偏振态转换。";
@@ -131,12 +131,7 @@ export class WavePlate extends OpticalComponent {
 
         const retarderMatrix = this._getJonesMatrix();
         const fastAxis = this.fastAxisRad;
-
-        const Rm = Ray._rot2(-fastAxis);
-        const Rp = Ray._rot2(fastAxis);
-        const v_in_local = Ray._apply2x2(Rm, ray.jones);
-        const v_out_local = Ray._apply2x2(retarderMatrix, v_in_local);
-        const v_out_world = Ray._apply2x2(Rp, v_out_local);
+        const v_out_world = transformJonesByRetarder(ray.jones, retarderMatrix, fastAxis);
         
         const newDirection = ray.direction;
         const newOrigin = intersectionInfo.point.add(newDirection.multiply(1e-6));

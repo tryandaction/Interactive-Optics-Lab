@@ -38,6 +38,51 @@ test('OpticsDocumentSerializer round-trips complete v3 documents deterministical
     assert.deepEqual(restored, document);
 });
 
+test('OpticsDocumentSerializer preserves BeamGraph and schematic path interaction semantics', () => {
+    const semantics = {
+        branchKind: 'firstOrder',
+        auxiliary: true,
+        style: 'dashed',
+        wavelengthNm: 780,
+        frequencyOffsetHz: 80e6,
+        interactionType: 'diffraction',
+        surfaceId: 'acoustic_crystal',
+        surfaceNormal: { x: -1, y: 0 }
+    };
+    const document = createOpticsDocument({
+        components: [
+            { id: 'laser', type: 'LaserSource', name: 'Laser', properties: {}, ports: [] },
+            { id: 'aom', type: 'AcoustoOpticModulator', name: 'AOM', properties: {}, ports: [] }
+        ],
+        beamGraph: {
+            nodes: [{ id: 'laser' }, { id: 'aom' }],
+            edges: [{
+                id: 'beam:ray-1',
+                from: { componentId: 'laser', portId: 'output' },
+                to: { componentId: 'aom', portId: 'input' },
+                ...semantics
+            }]
+        },
+        views: {
+            schematic: {
+                placements: { laser: { x: 100, y: 100 }, aom: { x: 320, y: 100 } },
+                paths: [{
+                    id: 'beam:ray-1',
+                    from: { componentId: 'laser', portId: 'output' },
+                    to: { componentId: 'aom', portId: 'input' },
+                    points: [{ x: 160, y: 100 }, { x: 260, y: 100 }],
+                    ...semantics
+                }]
+            }
+        }
+    });
+
+    const restored = OpticsDocumentSerializer.deserialize(OpticsDocumentSerializer.serialize(document));
+
+    assert.deepEqual(restored.beamGraph.edges[0], document.beamGraph.edges[0]);
+    assert.deepEqual(restored.views.schematic.paths[0], document.views.schematic.paths[0]);
+});
+
 test('migrates legacy 1.1 scene into shared components and independent views', () => {
     const migrated = OpticsDocumentMigrator.migrate({
         version: '1.1',

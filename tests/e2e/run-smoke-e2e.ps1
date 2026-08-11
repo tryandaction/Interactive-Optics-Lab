@@ -143,7 +143,16 @@ async (page) => {
   await addComponent('ThinLens', 0.68, 0.50);
 
   await page.waitForFunction(() => Array.isArray(window.components) && window.components.length >= 3);
+  await page.evaluate(() => {
+    const lens = window.components.find(component => component?.constructor?.name === 'ThinLens');
+    if (!lens || !lens.setProperty('lensType', 'biconvex')) {
+      throw new Error('unable to switch the smoke-test lens to biconvex mode');
+    }
+  });
   await page.waitForFunction(() => Array.isArray(window.currentRayPaths) && window.currentRayPaths.length > 0, null, { timeout: 10000 });
+  await page.waitForFunction(() => window.components.some(component =>
+    component?.constructor?.name === 'ThinLens' && component.isThickLens === true
+  ));
 
   const status = await page.evaluate(() => ({
     components: window.components.length,
@@ -183,6 +192,34 @@ async (page) => {
 }
 '@
     Invoke-RunCode $smoke
+    $advancedLensSmoke = @'
+async (page) => {
+  const rect = await page.locator('#opticsCanvas').boundingBox();
+  if (!rect) throw new Error('canvas missing while validating advanced lens placement');
+
+  const addComponent = async (type, xRatio, yRatio) => {
+    await page.click(`button[data-type="${type}"]`);
+    await page.mouse.click(rect.x + rect.width * xRatio, rect.y + rect.height * yRatio);
+    await page.waitForTimeout(150);
+  };
+
+  await addComponent('AsphericLens', 0.38, 0.72);
+  await addComponent('GRINLens', 0.58, 0.72);
+  await page.waitForFunction(() => Array.isArray(window.components) && window.components.length >= 5);
+  await page.evaluate(() => {
+    const aspheric = window.components.find(component => component?.constructor?.name === 'AsphericLens');
+    if (!aspheric || aspheric.baseRadius !== 150 || aspheric.conicConstant !== 0 || Math.abs(aspheric.angleRad - Math.PI / 2) > 1e-9) {
+      throw new Error('AsphericLens placement defaults are invalid');
+    }
+
+    const grin = window.components.find(component => component?.constructor?.name === 'GRINLens');
+    if (!grin || grin.n0 !== 1.6 || grin.gradientCoeff !== 0.01 || Math.abs(grin.angleRad - Math.PI / 2) > 1e-9) {
+      throw new Error('GRINLens placement defaults are invalid');
+    }
+  });
+}
+'@
+    Invoke-RunCode $advancedLensSmoke
     Invoke-PwCli @("screenshot", "#opticsCanvas", "--filename", $screenshotPath)
 } finally {
     try {

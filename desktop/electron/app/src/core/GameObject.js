@@ -69,7 +69,39 @@ export class GameObject {
     }
 
     getBoundingBox() {
-        const size = 10;
+        // 尝试从端点 p1/p2 计算（线段类组件：镜子、透镜等）
+        if (this.p1 && this.p2 && typeof this.p1.x === 'number') {
+            const minX = Math.min(this.p1.x, this.p2.x);
+            const minY = Math.min(this.p1.y, this.p2.y);
+            const maxX = Math.max(this.p1.x, this.p2.x);
+            const maxY = Math.max(this.p1.y, this.p2.y);
+            const w = Math.max(maxX - minX, 6);
+            const h = Math.max(maxY - minY, 6);
+            return { x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, width: w, height: h };
+        }
+        // 尝试从 width/height 计算（矩形类组件）
+        if (this.width && this.height) {
+            const cos = Math.abs(Math.cos(this.angleRad || 0));
+            const sin = Math.abs(Math.sin(this.angleRad || 0));
+            const rw = this.width * cos + this.height * sin;
+            const rh = this.width * sin + this.height * cos;
+            return { x: this.pos.x - rw / 2, y: this.pos.y - rh / 2, width: rw, height: rh };
+        }
+        // 尝试从 length 计算（线段类组件）
+        if (this.length) {
+            const cos = Math.abs(Math.cos(this.angleRad || 0));
+            const sin = Math.abs(Math.sin(this.angleRad || 0));
+            const w = Math.max(this.length * cos, 6);
+            const h = Math.max(this.length * sin, 6);
+            return { x: this.pos.x - w / 2, y: this.pos.y - h / 2, width: w, height: h };
+        }
+        // 尝试从 radius 计算（圆形类组件）
+        if (this.radius) {
+            const d = this.radius * 2;
+            return { x: this.pos.x - this.radius, y: this.pos.y - this.radius, width: d, height: d };
+        }
+        // 默认回退
+        const size = 40;
         return { x: this.pos.x - size / 2, y: this.pos.y - size / 2, width: size, height: size };
     }
 

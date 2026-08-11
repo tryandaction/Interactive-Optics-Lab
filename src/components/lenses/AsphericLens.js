@@ -9,6 +9,16 @@ import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { paraxialForwardLensDirection } from '../../core/OpticsMath.js';
 
 export class AsphericLens extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const lens = new AsphericLens(new Vector(data.posX ?? 0, data.posY ?? 0), data.diameter, data.baseRadius, data.conicConstant, data.asphericCoeffs, data.angleDeg);
+        lens.id = data.id ?? lens.id;
+        lens.label = data.label ?? lens.label;
+        lens.notes = data.notes ?? lens.notes;
+        if (Object.prototype.hasOwnProperty.call(data, 'quality')) lens.quality = data.quality;
+        if (Object.prototype.hasOwnProperty.call(data, 'baseRefractiveIndex')) lens.baseRefractiveIndex = data.baseRefractiveIndex;
+        return lens;
+    }
+
     static functionDescription = "支持圆锥常数和高阶非球面系数的非球面透镜。";
 
     constructor(pos, diameter = 60, baseRadius = 100, conicConstant = 0, 

@@ -10,7 +10,8 @@ test('acceptance components expose deterministic semantic ports', () => {
         Mirror: ['input', 'reflected'],
         BeamSplitter: ['input', 'transmitted', 'reflected'],
         HalfWavePlate: ['input', 'output'],
-        AtomicCell: ['input', 'output']
+        ThinLens: ['input', 'output', 'transmitted', 'reflected'],
+        AtomicCell: ['input']
     };
 
     Object.entries(expected).forEach(([type, ids]) => {
@@ -20,6 +21,9 @@ test('acceptance components expose deterministic semantic ports', () => {
 
 test('port resolution maps physical branch roles without unstable indices', () => {
     assert.equal(ComponentPortRegistry.resolveOutputPort('BeamSplitter', { branchKind: 'reflected' }).id, 'reflected');
+    assert.equal(ComponentPortRegistry.resolveOutputPort('ThinLens', { branchKind: 'transmitted' }).id, 'transmitted');
+    assert.equal(ComponentPortRegistry.resolveOutputPort('ThinLens', { branchKind: 'reflected' }).id, 'reflected');
     assert.equal(ComponentPortRegistry.resolveOutputPort('AcoustoOpticModulator', { branchKind: 'firstOrder' }).id, 'firstOrder');
     assert.equal(ComponentPortRegistry.resolveInputPort('AtomicCell').id, 'input');
+    assert.equal(ComponentPortRegistry.resolveOutputPort('AtomicCell'), null);
 });

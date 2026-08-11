@@ -100,16 +100,35 @@ export class SimulationToDiagramConverter {
      * 转换单个组件
      */
     convertComponent(simComponent) {
+        const type = simComponent.type;
+        const rawAngle = simComponent.angle ?? simComponent.angleRad ?? 0;
+
+        // 图标在 angle=0 时已经是竖直绘制的，而模拟模式中竖直元件默认 angleRad=π/2
+        // 需要减去 π/2 偏移，使绘图模式方向与模拟模式一致
+        const VERTICAL_ICON_TYPES = [
+            'ThinLens', 'ConvexLens', 'ConcaveLens', 'CylindricalLens',
+            'AsphericLens', 'GRINLens',
+            'Mirror', 'MetallicMirror', 'CurvedMirror',
+            'SphericalMirror', 'ParabolicMirror',
+            'HalfWavePlate', 'QuarterWavePlate', 'WavePlate',
+            'Polarizer', 'Aperture', 'Screen', 'DiffractionGrating',
+            'LineSource',
+            'Photodiode', 'CCDCamera', 'PowerMeter', 'Spectrometer', 'PolarizationAnalyzer'
+        ];
+        const angle = VERTICAL_ICON_TYPES.includes(type)
+            ? rawAngle - Math.PI / 2
+            : rawAngle;
+
         const diagramComponent = {
             id: simComponent.id,
-            type: simComponent.type,
+            type: type,
             pos: { ...simComponent.pos },
-            angle: simComponent.angle ?? simComponent.angleRad ?? 0
+            angle: angle
         };
-        
+
         // 转换属性
         this.convertComponentProperties(simComponent, diagramComponent);
-        
+
         return diagramComponent;
     }
 
@@ -135,6 +154,14 @@ export class SimulationToDiagramConverter {
             if (simComp.diameter) diagramComp.diameter = simComp.diameter;
             if (simComp.refractiveIndex) diagramComp.refractiveIndex = simComp.refractiveIndex;
             if (simComp.axis !== undefined) diagramComp.axis = simComp.axis;
+            // 厚透镜属性
+            if (simComp.lensType) diagramComp.lensType = simComp.lensType;
+            if (simComp.thickness) diagramComp.thickness = simComp.thickness;
+            if (simComp.frontRadius !== undefined) diagramComp.frontRadius = simComp.frontRadius;
+            if (simComp.backRadius !== undefined) diagramComp.backRadius = simComp.backRadius;
+            if (simComp.baseRefractiveIndex) diagramComp.baseRefractiveIndex = simComp.baseRefractiveIndex;
+            if (simComp.dispersionCoeffB !== undefined) diagramComp.dispersionCoeffB = simComp.dispersionCoeffB;
+            if (simComp.quality) diagramComp.quality = simComp.quality;
         }
         
         // 反射镜属性
@@ -174,6 +201,16 @@ export class SimulationToDiagramConverter {
         if (simComp.temperature) diagramComp.temperature = simComp.temperature;
         if (simComp.finesse) diagramComp.finesse = simComp.finesse;
         if (simComp.fsr) diagramComp.fsr = simComp.fsr;
+
+        // 尺寸映射：根据模拟模式的 diameter 计算绘图模式的 scale
+        if (simComp.diameter && simComp.diameter > 0) {
+            // 图标默认高度约 60（透镜）或 50（镜面），用 diameter 映射
+            const defaultIconHeight = type.includes('Lens') ? 60 : 50;
+            const scale = simComp.diameter / defaultIconHeight;
+            if (scale > 0.3 && scale < 5) {
+                diagramComp.scale = scale;
+            }
+        }
     }
 
     /**

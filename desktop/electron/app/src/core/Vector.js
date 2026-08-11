@@ -15,11 +15,8 @@ export class Vector {
     multiply(n) { return new Vector(this.x * n, this.y * n); }
     divide(n) {
         if (n === 0) {
-            console.error("Vector division by zero!");
-            return new Vector(
-                this.x > 0 ? Infinity : (this.x < 0 ? -Infinity : 0),
-                this.y > 0 ? Infinity : (this.y < 0 ? -Infinity : 0)
-            );
+            console.warn("Vector.divide(): division by zero, returning zero vector.");
+            return new Vector(0, 0);
         }
         return new Vector(this.x / n, this.y / n);
     }

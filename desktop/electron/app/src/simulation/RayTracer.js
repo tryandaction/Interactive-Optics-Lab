@@ -6,6 +6,7 @@
 import { Vector } from '../core/Vector.js';
 import { Ray } from '../core/Ray.js';
 import { MAX_RAY_BOUNCES, MIN_RAY_INTENSITY } from '../core/constants.js';
+import { BeamGraphBuilder } from '../beam-graph/BeamGraphBuilder.js';
 
 /**
  * 光线追踪配置
@@ -42,6 +43,7 @@ export class RayTracer {
      * @returns {Object} 追踪结果 { completedPaths, generatedRays }
      */
     traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveRays = []) {
+        Ray.resetTraceSequence();
         this.completedPaths = [];
         this.activeRays = [];
         this.tracedCount = 0;
@@ -60,9 +62,15 @@ export class RayTracer {
         // 3. 生成光纤输出光线
         const fiberOutputRays = this._generateFiberOutputs(sceneComponents);
 
+        const beamGraph = BeamGraphBuilder.fromTraceRecords(
+            sceneComponents,
+            this.completedPaths.map(ray => ray.toTraceRecord())
+        ).toJSON();
+
         return {
             completedPaths: this.completedPaths,
-            generatedRays: fiberOutputRays
+            generatedRays: fiberOutputRays,
+            beamGraph
         };
     }
 
@@ -78,6 +86,9 @@ export class RayTracer {
                     if (Array.isArray(generated)) {
                         generated.forEach(r => {
                             if (r instanceof Ray) {
+                                r.originComponentId = comp.id;
+                                r.branchKind = 'output';
+                                r.visitedComponentIds = [comp.id];
                                 r.animateArrow = true;
                                 if (r.shouldTerminate()) {
                                     if (r.endReason === 'low_intensity') r.animateArrow = false;
@@ -231,6 +242,7 @@ export class RayTracer {
         }
 
         currentRay.addHistoryPoint(closestHit.point);
+        currentRay.markInteraction(hitComponent, closestHit);
 
         try {
             const interactionResult = hitComponent.interact(currentRay, closestHit, Ray);
@@ -276,6 +288,7 @@ export class RayTracer {
      */
     _processSuccessors(interactionResult, parentRay, hitComponent) {
         const successors = interactionResult.filter(r => r instanceof Ray);
+        Ray.linkSuccessors(parentRay, successors, hitComponent);
         
         if (successors.length > 0) {
             const parentWasAnimated = parentRay.animateArrow;

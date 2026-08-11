@@ -3,7 +3,9 @@
  */
 
 export { RayRenderer } from './RayRenderer.js';
+export * from './RayRenderStyle.js';
 export { GridRenderer } from './GridRenderer.js';
+export * from './GridRenderStyle.js';
 export { ArrowRenderer } from './ArrowRenderer.js';
 export { PreviewRenderer } from './PreviewRenderer.js';
 export { GuideRenderer, GUIDE_CONFIG } from './GuideRenderer.js';

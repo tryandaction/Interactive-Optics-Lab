@@ -8,6 +8,15 @@ import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 
 export class GRINLens extends OpticalComponent {
+    static fromJSON(data = {}) {
+        const lens = new GRINLens(new Vector(data.posX ?? 0, data.posY ?? 0), data.diameter, data.length, data.n0, data.gradientCoeff, data.angleDeg);
+        lens.id = data.id ?? lens.id;
+        lens.label = data.label ?? lens.label;
+        lens.notes = data.notes ?? lens.notes;
+        if (Object.prototype.hasOwnProperty.call(data, 'quality')) lens.quality = data.quality;
+        return lens;
+    }
+
     static functionDescription = "具有梯度折射率分布的GRIN透镜。";
 
     constructor(pos, diameter = 50, length = 30, n0 = 1.6, gradientCoeff = 0.01, angleDeg = 0) {
@@ -177,38 +186,40 @@ export class GRINLens extends OpticalComponent {
     }
 
     intersect(rayOrigin, rayDirection) {
-        // Find intersection with entry face of GRIN lens
-        const entryCenter = this.pos.subtract(this.axisDirection.multiply(this.length / 2));
-        const exitCenter = this.pos.add(this.axisDirection.multiply(this.length / 2));
+        // The first physical face depends on travel direction along the local optical axis.
+        const axisComponent = rayDirection.dot(this.axisDirection);
+        if (Math.abs(axisComponent) < 1e-9) return [];
+
+        const travelSign = Math.sign(axisComponent);
+        const entryCenter = this.pos.subtract(this.axisDirection.multiply(travelSign * this.length / 2));
+        const exitCenter = this.pos.add(this.axisDirection.multiply(travelSign * this.length / 2));
         
-        // Check entry face (perpendicular to axis)
-        const denom = rayDirection.dot(this.axisDirection);
-        if (Math.abs(denom) < 1e-9) return []; // Ray parallel to face
-        
-        const t = entryCenter.subtract(rayOrigin).dot(this.axisDirection) / denom;
+        const t = entryCenter.subtract(rayOrigin).dot(this.axisDirection) / axisComponent;
         if (t < 1e-6) return [];
         
         const hitPoint = rayOrigin.add(rayDirection.multiply(t));
         const localHit = hitPoint.subtract(entryCenter);
-        const radialDist = Math.abs(localHit.dot(this.perpDirection));
+        const signedRadialDist = localHit.dot(this.perpDirection);
+        const radialDist = Math.abs(signedRadialDist);
         
         if (radialDist > this.diameter / 2) return [];
         
-        let normal = this.axisDirection.multiply(-1);
-        if (denom > 0) normal = normal.multiply(-1);
+        const normal = this.axisDirection.multiply(-travelSign);
         
         return [{
             distance: t,
             point: hitPoint,
             normal: normal,
-            surfaceId: 'entry',
-            radialDist: radialDist
+            surfaceId: travelSign > 0 ? 'entry' : 'exit',
+            radialDist: signedRadialDist,
+            travelSign,
+            exitCenter
         }];
     }
 
     interact(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const radialDist = intersectionInfo.radialDist || 0;
+        const radialDist = intersectionInfo.radialDist ?? 0;
         const incidentDirection = ray.direction;
         
         // GRIN lens ray tracing using paraxial approximation
@@ -217,10 +228,17 @@ export class GRINLens extends OpticalComponent {
         
         const g = this.gradientCoeff;
         const L = this.length;
+        const travelSign = intersectionInfo.travelSign ?? Math.sign(incidentDirection.dot(this.axisDirection));
+        if (travelSign === 0) {
+            ray.terminate('grin_axis_parallel');
+            return [];
+        }
+        const travelAxis = this.axisDirection.multiply(travelSign);
+        const axisComponent = incidentDirection.dot(travelAxis);
         
         if (g <= 0 || L <= 0) {
             // No gradient - pass through unchanged
-            const transmittedOrigin = hitPoint.add(incidentDirection.multiply(this.length + 1e-6));
+            const transmittedOrigin = hitPoint.add(incidentDirection.multiply(L / Math.max(1e-6, axisComponent) + 1e-6));
             const transmittedIntensity = ray.intensity * this.quality;
             
             if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
@@ -241,9 +259,8 @@ export class GRINLens extends OpticalComponent {
 
         // Calculate initial radial position and slope
         const r0 = radialDist;
-        const axisComponent = incidentDirection.dot(this.axisDirection);
         const perpComponent = incidentDirection.dot(this.perpDirection);
-        const r0_prime = perpComponent / Math.max(0.1, Math.abs(axisComponent)); // Initial radial slope
+        const r0_prime = perpComponent / Math.max(0.1, axisComponent); // Initial radial slope
         
         // Calculate output position and slope using GRIN matrix
         const cosGL = Math.cos(g * L);
@@ -256,13 +273,11 @@ export class GRINLens extends OpticalComponent {
         const r_out_prime = -r0 * g * sinGL + r0_prime * cosGL;
         
         // Calculate exit point and direction
-        const exitCenter = this.pos.add(this.axisDirection.multiply(this.length / 2));
+        const exitCenter = intersectionInfo.exitCenter || this.pos.add(this.axisDirection.multiply(travelSign * this.length / 2));
         const exitPoint = exitCenter.add(this.perpDirection.multiply(r_out));
         
-        // Calculate output direction
-        const outputAngle = Math.atan(r_out_prime);
-        const baseAngle = this.axisDirection.angle();
-        const newDirection = Vector.fromAngle(baseAngle + outputAngle * Math.sign(axisComponent));
+        // Reconstruct the outgoing world direction from the local propagation slope.
+        const newDirection = travelAxis.add(this.perpDirection.multiply(r_out_prime)).normalize();
         
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             ray.terminate('grin_calc_error');

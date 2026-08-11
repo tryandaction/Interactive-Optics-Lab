@@ -223,7 +223,7 @@ export class Spectrometer extends OpticalComponent {
             this.maxIntensity = this.spectrumData[wavelengthBin];
         }
         
-        ray.terminate('absorbed_spectrometer');
+        ray.terminate('visual_only_spectrometer');
         return [];
     }
 

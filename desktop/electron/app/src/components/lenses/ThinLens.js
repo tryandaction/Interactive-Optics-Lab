@@ -5,7 +5,8 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
-import { DEFAULT_WAVELENGTH_NM } from '../../core/constants.js';
+import { DEFAULT_WAVELENGTH_NM, N_AIR } from '../../core/constants.js';
+import { paraxialThinLensDirection, reflectDirection, snellRefraction } from '../../core/OpticsMath.js';
 
 // --- Lens Type Constants ---
 export const LENS_TYPES = {
@@ -41,14 +42,56 @@ export const THICK_LENS_PRESETS = {
     }
 };
 
+const LENS_SHAPE_PROFILES = Object.freeze({
+    [LENS_TYPES.THIN_LENS]: Object.freeze({ kind: 'thin', frontSurface: 'paraxial', backSurface: 'paraxial' }),
+    [LENS_TYPES.THICK_PLANO_CONVEX]: Object.freeze({ kind: 'plano-convex', frontSurface: 'convex', backSurface: 'plane' }),
+    [LENS_TYPES.THICK_PLANO_CONCAVE]: Object.freeze({ kind: 'plano-concave', frontSurface: 'concave', backSurface: 'plane' }),
+    [LENS_TYPES.THICK_BICONVEX]: Object.freeze({ kind: 'biconvex', frontSurface: 'convex', backSurface: 'convex' }),
+    [LENS_TYPES.THICK_BICONCAVE]: Object.freeze({ kind: 'biconcave', frontSurface: 'concave', backSurface: 'concave' }),
+    [LENS_TYPES.THICK_CUSTOM]: Object.freeze({ kind: 'custom', frontSurface: 'custom', backSurface: 'custom' })
+});
+
+function createShapeProfile(lensType) {
+    return { ...(LENS_SHAPE_PROFILES[lensType] || LENS_SHAPE_PROFILES[LENS_TYPES.THIN_LENS]) };
+}
+
 export class ThinLens extends OpticalComponent {
     static functionDescription = "基于薄透镜/厚透镜公式使光线汇聚或发散，可模拟色散，支持多种透镜类型。";
+
+    static fromJSON(data = {}) {
+        const has = key => Object.prototype.hasOwnProperty.call(data, key);
+        const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+        const infinityAware = (key, fallback) => has(key) && data[key] === null ? Infinity : finite(data[key], fallback);
+        const position = new Vector(finite(data.posX, 0), finite(data.posY, 0));
+        const lens = new ThinLens(
+            position,
+            finite(data.diameter, 80),
+            infinityAware('focalLength', 150),
+            finite(data.angleDeg, 90)
+        );
+
+        if (has('lensType')) lens.setProperty('lensType', data.lensType);
+        if (has('thickness')) lens.setProperty('thickness', data.thickness);
+        if (has('frontRadius')) lens.setProperty('frontRadius', infinityAware('frontRadius', lens.frontRadius));
+        if (has('backRadius')) lens.setProperty('backRadius', infinityAware('backRadius', lens.backRadius));
+        if (has('baseRefractiveIndex')) lens.setProperty('baseRefractiveIndex', data.baseRefractiveIndex);
+        if (has('dispersionCoeffB')) lens.setProperty('dispersionCoeffB', data.dispersionCoeffB);
+        if (has('quality')) lens.setProperty('quality', data.quality);
+        if (has('coated')) lens.setProperty('coated', data.coated);
+        if (has('chromaticAberration')) lens.setProperty('chromaticAberration', data.chromaticAberration);
+        if (has('sphericalAberration')) lens.setProperty('sphericalAberration', data.sphericalAberration);
+        if (data.id) lens.id = data.id;
+        if (typeof data.label === 'string') lens.label = data.label;
+        if (data.notes !== undefined) lens.notes = data.notes;
+        return lens;
+    }
 
     constructor(pos, diameter = 80, focalLength = 150, angleDeg = 90) {
         super(pos, angleDeg, "薄透镜");
         this.diameter = Math.max(10, diameter);
 
         this.lensType = LENS_TYPES.THIN_LENS;
+        this.shapeProfile = createShapeProfile(this.lensType);
         this.focalLength = focalLength === 0 ? Infinity : focalLength;
 
         // Thick Lens Parameters
@@ -85,13 +128,17 @@ export class ThinLens extends OpticalComponent {
             ...super.toJSON(),
             diameter: this.diameter,
             lensType: this.lensType,
+            shapeProfile: { ...this.shapeProfile },
             focalLength: this.focalLength,
             thickness: this.thickness,
             frontRadius: this.frontRadius,
             backRadius: this.backRadius,
             baseRefractiveIndex: this.baseRefractiveIndex,
             dispersionCoeffB: this.dispersionCoeffB,
-            quality: this.quality
+            chromaticAberration: this.chromaticAberration,
+            sphericalAberration: this.sphericalAberration,
+            quality: this.quality,
+            coated: this.coated
         };
     }
 
@@ -129,19 +176,22 @@ export class ThinLens extends OpticalComponent {
 
     _updateThickLensGeometry() {
         const axisDir = this.axisDirection;
+        const halfThickness = axisDir.multiply(this.thickness / 2);
+        const frontVertex = this.pos.subtract(halfThickness);
+        const backVertex = this.pos.add(halfThickness);
 
         if (Math.abs(this.frontRadius) === Infinity) {
             this.frontCenter = null;
         } else {
             const frontOffset = axisDir.multiply(this.frontRadius);
-            this.frontCenter = this.pos.add(frontOffset);
+            this.frontCenter = frontVertex.add(frontOffset);
         }
 
         if (Math.abs(this.backRadius) === Infinity) {
             this.backCenter = null;
         } else {
             const backOffset = axisDir.multiply(this.backRadius);
-            this.backCenter = this.pos.add(backOffset);
+            this.backCenter = backVertex.add(backOffset);
         }
 
         this._calculateEffectiveFocalLength();
@@ -300,10 +350,12 @@ export class ThinLens extends OpticalComponent {
         const halfWidth = this.diameter / 2;
         const thickness = this.thickness;
 
-        const frontLeft = center.add(this.lensDir.multiply(-halfWidth));
-        const frontRight = center.add(this.lensDir.multiply(halfWidth));
-        const backLeft = frontLeft.add(perpDir.multiply(thickness));
-        const backRight = frontRight.add(perpDir.multiply(thickness));
+        const frontVertex = center.subtract(perpDir.multiply(thickness / 2));
+        const backVertex = center.add(perpDir.multiply(thickness / 2));
+        const frontLeft = frontVertex.add(this.lensDir.multiply(-halfWidth));
+        const frontRight = frontVertex.add(this.lensDir.multiply(halfWidth));
+        const backLeft = backVertex.add(this.lensDir.multiply(-halfWidth));
+        const backRight = backVertex.add(this.lensDir.multiply(halfWidth));
 
         if (Math.abs(this.frontRadius) === Infinity) {
             ctx.moveTo(frontLeft.x, frontLeft.y);
@@ -383,6 +435,9 @@ export class ThinLens extends OpticalComponent {
     }
 
     intersect(rayOrigin, rayDirection) {
+        if (this.isThickLens) {
+            return this._intersectThickLens(rayOrigin, rayDirection);
+        }
         if (!(this.p1 instanceof Vector) || !(this.p2 instanceof Vector)) return [];
         const v1 = rayOrigin.subtract(this.p1);
         const v2 = this.p2.subtract(this.p1);
@@ -404,41 +459,123 @@ export class ThinLens extends OpticalComponent {
         return [];
     }
 
+    _thickSurfaces() {
+        const halfThickness = this.axisDirection.multiply(this.thickness / 2);
+        return [
+            {
+                id: 'front_surface',
+                vertex: this.pos.subtract(halfThickness),
+                radius: this.frontRadius,
+                center: this.frontCenter,
+                outwardNormal: this.axisDirection.multiply(-1)
+            },
+            {
+                id: 'back_surface',
+                vertex: this.pos.add(halfThickness),
+                radius: this.backRadius,
+                center: this.backCenter,
+                outwardNormal: this.axisDirection.clone()
+            }
+        ];
+    }
+
+    _intersectThickSurface(rayOrigin, rayDirection, surface) {
+        const apertureRadius = this.diameter / 2;
+        const candidates = [];
+        const acceptPoint = (distance, point, outwardNormal) => {
+            if (distance <= 1e-5) return;
+            const height = point.subtract(this.pos).dot(this.lensDir);
+            if (Math.abs(height) > apertureRadius + 1e-6) return;
+            let normal = outwardNormal.normalize();
+            if (rayDirection.dot(normal) > 0) normal = normal.multiply(-1);
+            candidates.push({
+                distance,
+                point,
+                normal,
+                surfaceId: surface.id,
+                interactionType: 'refractive_surface'
+            });
+        };
+
+        if (!Number.isFinite(surface.radius)) {
+            const denominator = rayDirection.dot(this.axisDirection);
+            if (Math.abs(denominator) < 1e-9) return [];
+            const distance = surface.vertex.subtract(rayOrigin).dot(this.axisDirection) / denominator;
+            acceptPoint(distance, rayOrigin.add(rayDirection.multiply(distance)), surface.outwardNormal);
+            return candidates;
+        }
+
+        if (!(surface.center instanceof Vector) || Math.abs(surface.radius) < 1e-9) return [];
+        const centerToOrigin = rayOrigin.subtract(surface.center);
+        const halfB = centerToOrigin.dot(rayDirection);
+        const discriminant = halfB * halfB - (centerToOrigin.magnitudeSquared() - surface.radius * surface.radius);
+        if (discriminant < -1e-9) return [];
+
+        const root = Math.sqrt(Math.max(0, discriminant));
+        for (const distance of [-halfB - root, -halfB + root]) {
+            const point = rayOrigin.add(rayDirection.multiply(distance));
+            const centerOffset = point.subtract(surface.center);
+            // Keep only the spherical cap whose vertex is defined by the signed radius.
+            if (centerOffset.dot(this.axisDirection) * Math.sign(surface.radius) > 1e-6) continue;
+            acceptPoint(distance, point, centerOffset);
+        }
+        return candidates;
+    }
+
+    _intersectThickLens(rayOrigin, rayDirection) {
+        if (!(rayOrigin instanceof Vector) || !(rayDirection instanceof Vector)) return [];
+        return this._thickSurfaces()
+            .flatMap(surface => this._intersectThickSurface(rayOrigin, rayDirection, surface))
+            .sort((left, right) => left.distance - right.distance);
+    }
+
     _interactThickLens(ray, intersectionInfo, RayClass) {
         const hitPoint = intersectionInfo.point;
-        const lensCenter = this.pos;
-        const axisDir = this.axisDirection;
-        const lensPlaneDir = this.lensDir;
-        const vecCenterToHit = hitPoint.subtract(lensCenter);
-        const h = vecCenterToHit.dot(lensPlaneDir);
-
-        const f_eff = this.effectiveFocalLength;
-        const deviation = (Math.abs(f_eff) < 1e-9) ? 0 : -h / f_eff;
-
-        const incidentDirection = ray.direction;
-        const incidentAngleRelAxis = Math.atan2(
-            incidentDirection.dot(axisDir.rotate(Math.PI / 2)),
-            incidentDirection.dot(axisDir)
-        );
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisDir.angle() + outputAngleRelAxis;
-        const newDirection = Vector.fromAngle(outputWorldAngle);
-
-        const transmittedIntensity = ray.intensity * this.quality;
-        if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {
-            const newOrigin = hitPoint.add(newDirection.multiply(1e-6));
-            const transmittedRay = new RayClass(
-                newOrigin, newDirection, ray.wavelengthNm, transmittedIntensity,
-                ray.phase, ray.bouncesSoFar + 1, ray.mediumRefractiveIndex,
-                ray.sourceId, ray.polarizationAngle, ray.ignoreDecay,
-                ray.history.concat([newOrigin.clone()]), ray.beamDiameter
-            );
-            ray.terminate('refracted_thick_lens');
-            return [transmittedRay];
-        } else {
-            ray.terminate('too_dim_thick_lens');
+        if (!hitPoint || isNaN(hitPoint.x) || isNaN(hitPoint.y) ||
+            !ray.direction || isNaN(ray.direction.x) || isNaN(ray.direction.y)) {
+            ray.terminate('invalid_input_thick_lens');
             return [];
         }
+
+        const lensIndex = this.getRefractiveIndex(ray.wavelengthNm);
+        const insideLens = ray._thickLensInteriorId === this.id ||
+            Math.abs(ray.mediumRefractiveIndex - lensIndex) < 1e-6;
+        const exteriorIndex = ray._thickLensExteriorIndex || N_AIR;
+        const n1 = insideLens ? lensIndex : ray.mediumRefractiveIndex;
+        const n2 = insideLens ? exteriorIndex : lensIndex;
+        const refraction = snellRefraction(ray.direction, intersectionInfo.normal, n1, n2);
+        const exitsLens = insideLens && !refraction.isTotalInternalReflection;
+        const result = [];
+        const createSuccessor = (direction, intensity, mediumIndex, branchKind, phase = ray.phase) => {
+            if (!direction || isNaN(direction.x) || direction.magnitudeSquared() < 0.5) return;
+            if (intensity < ray.minIntensityThreshold && !ray.ignoreDecay) return;
+            const origin = hitPoint.add(direction.multiply(1e-5));
+            const successor = new RayClass(
+                origin, direction, ray.wavelengthNm, intensity, phase,
+                ray.bouncesSoFar + 1, mediumIndex, ray.sourceId,
+                ray.polarizationAngle, ray.ignoreDecay,
+                ray.history.concat([origin.clone()]), ray.beamDiameter
+            );
+            successor._thickLensBranchKind = branchKind;
+            if (mediumIndex === lensIndex) {
+                successor._thickLensInteriorId = this.id;
+                successor._thickLensExteriorIndex = insideLens ? exteriorIndex : n1;
+            }
+            result.push(successor);
+        };
+
+        if (!refraction.isTotalInternalReflection && refraction.refractedDirection) {
+            const transmittedIntensity = ray.intensity * (1 - refraction.reflectance) * (exitsLens ? this.quality : 1);
+            createSuccessor(refraction.refractedDirection, transmittedIntensity, n2, 'transmitted');
+        }
+
+        const reflectedDirection = reflectDirection(ray.direction, intersectionInfo.normal);
+        createSuccessor(reflectedDirection, ray.intensity * refraction.reflectance, n1, 'reflected', ray.phase + Math.PI);
+
+        ray.terminate(refraction.isTotalInternalReflection
+            ? 'total_internal_reflection_thick_lens'
+            : exitsLens ? 'refracted_thick_lens_exit' : 'refracted_thick_lens_entry');
+        return result;
     }
 
     interact(ray, intersectionInfo, RayClass) {
@@ -526,15 +663,13 @@ export class ThinLens extends OpticalComponent {
         const vecCenterToHit = hitPoint.subtract(lensCenter);
         const h = vecCenterToHit.dot(lensPlaneDir);
 
-        const axisAngle = axisDir.angle();
-        const incidentWorldAngle = incidentDirection.angle();
-        const incidentAngleRelAxis = Math.atan2(Math.sin(incidentWorldAngle - axisAngle), Math.cos(incidentWorldAngle - axisAngle));
-
-        const deviation = (Math.abs(f_actual) < 1e-9) ? 0 : -h / f_actual;
-        const outputAngleRelAxis = incidentAngleRelAxis + deviation;
-        const outputWorldAngle = axisAngle + outputAngleRelAxis;
-        const normalizedOutputWorldAngle = Math.atan2(Math.sin(outputWorldAngle), Math.cos(outputWorldAngle));
-        const newDirection = Vector.fromAngle(normalizedOutputWorldAngle);
+        const newDirection = paraxialThinLensDirection(
+            incidentDirection,
+            axisDir,
+            lensPlaneDir,
+            h,
+            f_actual
+        );
 
         if (isNaN(newDirection?.x) || newDirection.magnitudeSquared() < 0.5) {
             console.error(`ThinLens (${this.id}): NaN/zero direction calculated. Fallback.`);
@@ -686,8 +821,8 @@ export class ThinLens extends OpticalComponent {
                 label: '焦距 (f)',
                 type: 'number',
                 step: 10,
-                title: '透镜焦距 (f > 0: 凸透镜, f < 0: 凹透镜, Infinity: 平板)',
-                placeholder: 'f>0凸, f<0凹, Infinity'
+                title: '正值=凸透镜(汇聚), 负值=凹透镜(发散), Infinity=平板',
+                placeholder: 'f>0凸, f<0凹'
             };
         }
 
@@ -758,12 +893,20 @@ export class ThinLens extends OpticalComponent {
                 break;
             case 'lensType':
                 if (Object.values(LENS_TYPES).includes(value) && this.lensType !== value) {
+                    const wasThick = this.isThickLens;
                     this.lensType = value;
+                    this.shapeProfile = createShapeProfile(value);
                     if (value !== LENS_TYPES.THIN_LENS && THICK_LENS_PRESETS[value]) {
                         const preset = THICK_LENS_PRESETS[value];
                         this.frontRadius = preset.frontRadius;
                         this.backRadius = preset.backRadius;
                         this.thickness = preset.thickness;
+                    }
+                    // 从厚透镜切回薄透镜时清理缓存
+                    if (wasThick && !this.isThickLens) {
+                        this.frontCenter = null;
+                        this.backCenter = null;
+                        this.effectiveFocalLength = this.focalLength;
                     }
                     needsGeomUpdate = true;
                     needsInspectorRefresh = true;
@@ -777,6 +920,9 @@ export class ThinLens extends OpticalComponent {
                     const newF = (f_val === 0) ? Infinity : f_val;
                     if (newF !== this.focalLength) {
                         this.focalLength = newF;
+                        if (!this.isThickLens) {
+                            this.effectiveFocalLength = newF;
+                        }
                         needsGeomUpdate = true;
                         needsRetraceUpdate = true;
                     }
@@ -831,6 +977,24 @@ export class ThinLens extends OpticalComponent {
                 const q = parseFloat(value);
                 if (!isNaN(q) && q >= 0.1 && q <= 1.0) {
                     this.quality = q;
+                    needsRetraceUpdate = true;
+                }
+                break;
+            case 'coated':
+                this.coated = value === true || value === 'true';
+                needsInspectorRefresh = true;
+                break;
+            case 'chromaticAberration':
+                const chromatic = parseFloat(value);
+                if (!isNaN(chromatic) && chromatic >= 0) {
+                    this.chromaticAberration = chromatic;
+                    needsRetraceUpdate = true;
+                }
+                break;
+            case 'sphericalAberration':
+                const spherical = parseFloat(value);
+                if (!isNaN(spherical) && spherical >= 0) {
+                    this.sphericalAberration = spherical;
                     needsRetraceUpdate = true;
                 }
                 break;

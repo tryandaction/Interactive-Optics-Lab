@@ -66,10 +66,10 @@ export class ModeSwitcher {
             isSimulation
         );
 
-        // 绘图模式按钮
+        // 科研图示模式按钮
         const diagramBtn = this._createModeButton(
             APP_MODES.DIAGRAM,
-            '绘图',
+            '图示',
             this._getDiagramIcon(),
             !isSimulation
         );
@@ -170,7 +170,7 @@ export class ModeSwitcher {
     }
 
     /**
-     * 获取绘图模式图标
+     * 获取科研图示模式图标
      * @private
      */
     _getDiagramIcon() {

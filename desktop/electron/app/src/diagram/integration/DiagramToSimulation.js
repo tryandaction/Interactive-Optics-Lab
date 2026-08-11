@@ -141,22 +141,49 @@ export class DiagramToSimulationConverter {
      */
     convertComponent(diagramComponent) {
         const simType = COMPONENT_TYPE_MAP[diagramComponent.type];
-        
+
         if (!simType) {
             throw new Error(`Unknown component type: ${diagramComponent.type}`);
         }
-        
+
+        const type = diagramComponent.type;
+        const rawAngle = diagramComponent.angle ?? diagramComponent.angleRad ?? 0;
+
+        // 反向偏移：绘图模式图标 angle=0 时竖直，模拟模式竖直元件 angleRad=π/2
+        const VERTICAL_ICON_TYPES = [
+            'ThinLens', 'ConvexLens', 'ConcaveLens', 'CylindricalLens',
+            'AsphericLens', 'GRINLens',
+            'Mirror', 'MetallicMirror', 'CurvedMirror',
+            'SphericalMirror', 'ParabolicMirror',
+            'HalfWavePlate', 'QuarterWavePlate', 'WavePlate',
+            'Polarizer', 'Aperture', 'Screen', 'DiffractionGrating',
+            'LineSource',
+            'Photodiode', 'CCDCamera', 'PowerMeter', 'Spectrometer', 'PolarizationAnalyzer'
+        ];
+        const angle = VERTICAL_ICON_TYPES.includes(type)
+            ? rawAngle + Math.PI / 2
+            : rawAngle;
+
         // 基础属性
         const simComponent = {
             id: diagramComponent.id,
             type: simType,
             pos: { ...diagramComponent.pos },
-            angle: diagramComponent.angle ?? diagramComponent.angleRad ?? 0
+            angle: angle
         };
-        
+
         // 转换特定属性
         this.convertComponentProperties(diagramComponent, simComponent);
-        
+
+        // 反向尺寸映射：从 scale 恢复 diameter
+        if (diagramComponent.scale && diagramComponent.scale !== 1) {
+            const defaultIconHeight = type.includes('Lens') ? 60 : 50;
+            const diameter = diagramComponent.scale * defaultIconHeight;
+            if (diameter > 5 && diameter < 500) {
+                simComponent.diameter = diameter;
+            }
+        }
+
         return simComponent;
     }
 
@@ -187,10 +214,18 @@ export class DiagramToSimulationConverter {
             simComp.focalLength = diagramComp.focalLength || 100;
             simComp.diameter = diagramComp.diameter || 25.4;
             simComp.refractiveIndex = diagramComp.refractiveIndex || 1.5;
-            
+
             if (type === 'CylindricalLens') {
                 simComp.axis = diagramComp.axis || 0;
             }
+            // 厚透镜属性
+            if (diagramComp.lensType) simComp.lensType = diagramComp.lensType;
+            if (diagramComp.thickness) simComp.thickness = diagramComp.thickness;
+            if (diagramComp.frontRadius !== undefined) simComp.frontRadius = diagramComp.frontRadius;
+            if (diagramComp.backRadius !== undefined) simComp.backRadius = diagramComp.backRadius;
+            if (diagramComp.baseRefractiveIndex) simComp.baseRefractiveIndex = diagramComp.baseRefractiveIndex;
+            if (diagramComp.dispersionCoeffB !== undefined) simComp.dispersionCoeffB = diagramComp.dispersionCoeffB;
+            if (diagramComp.quality) simComp.quality = diagramComp.quality;
         }
         
         // 反射镜属性

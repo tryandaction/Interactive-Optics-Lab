@@ -233,7 +233,7 @@ export class CCDCamera extends OpticalComponent {
             this.maxPixelValue = this.pixelData[validY][validX].intensity;
         }
         
-        ray.terminate('absorbed_ccd');
+        ray.terminate('visual_only_ccd_camera');
         return [];
     }
 

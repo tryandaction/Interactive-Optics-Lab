@@ -17,8 +17,23 @@ export class ProjectManager {
     static RECENT_PROJECTS_KEY = 'opticslab_recent_projects';
     static MAX_RECENT_PROJECTS = 5;
     static PROJECT_CONFIG_FILE = '.opticslab.json';
-    static SCENE_EXTENSION = '.scene.json';
+    static SCENE_EXTENSION = '.opticslab.json';
+    static LEGACY_SCENE_EXTENSION = '.scene.json';
     static USER_SETTINGS_KEY = 'opticslab_user_settings';
+
+    static isSceneFileName(fileName) {
+        return fileName !== ProjectManager.PROJECT_CONFIG_FILE
+            && (fileName.endsWith(ProjectManager.SCENE_EXTENSION)
+                || fileName.endsWith(ProjectManager.LEGACY_SCENE_EXTENSION));
+    }
+
+    static getSceneNameFromFile(fileName) {
+        if (!ProjectManager.isSceneFileName(fileName)) return null;
+        const extension = fileName.endsWith(ProjectManager.LEGACY_SCENE_EXTENSION)
+            ? ProjectManager.LEGACY_SCENE_EXTENSION
+            : ProjectManager.SCENE_EXTENSION;
+        return fileName.slice(0, -extension.length);
+    }
 
     constructor() {
         this.currentProject = null;
@@ -222,6 +237,7 @@ export class ProjectManager {
             githubUrl: storageMode === 'github' ? githubUrl : null,
             syncCommandTemplate: syncCommandTemplate || this.getDefaultSyncTemplate(),
             commitHistory: [],
+            directories: [],
             scenes: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -329,6 +345,8 @@ export class ProjectManager {
                     throw new Error('项目不存在');
                 }
                 this.currentProject = project;
+                this._ensureLocalStorageDirectoryState();
+                LocalStorageAdapter.saveProject(this.currentProject);
             } else {
                 // 从文件系统加载
                 const dirHandle = await FileSystemAdapter.selectDirectory({
@@ -410,8 +428,8 @@ export class ProjectManager {
                     }
                     const nextPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
                     await walk(entry.handle, nextPath);
-                } else if (entry.kind === 'file' && entry.name.endsWith(ProjectManager.SCENE_EXTENSION)) {
-                    const sceneName = entry.name.replace(ProjectManager.SCENE_EXTENSION, '');
+                } else if (entry.kind === 'file' && ProjectManager.isSceneFileName(entry.name)) {
+                    const sceneName = ProjectManager.getSceneNameFromFile(entry.name);
                     const dirPath = relativePath;
                     const key = dirPath ? `${dirPath}/${entry.name}` : entry.name;
                     const existing = existingSceneMap.get(key);
@@ -490,12 +508,37 @@ export class ProjectManager {
      * 创建子项目（子文件夹）
      */
     async createSubProject(name, parentPath = '') {
-        if (!this.directoryHandle) {
-            throw new Error('当前项目不支持子项目');
+        if (!this.currentProject) {
+            throw new Error('没有打开的项目');
         }
 
         if (!name || !name.trim()) {
             throw new Error('子项目名称不能为空');
+        }
+
+        const trimmedName = name.trim();
+        const normalizedParent = this._normalizeDirPath(parentPath || '');
+
+        if (this.currentProject.storageMode === 'localStorage') {
+            this._ensureLocalStorageDirectoryState();
+            const dirSet = new Set(this._getLocalStorageDirectories());
+            if (normalizedParent && !dirSet.has(normalizedParent)) {
+                throw new Error('父目录不存在');
+            }
+
+            const newPath = normalizedParent ? `${normalizedParent}/${trimmedName}` : trimmedName;
+            if (dirSet.has(newPath)) {
+                throw new Error('目录已存在');
+            }
+
+            this._ensureLocalStorageDirectoryPath(newPath);
+            LocalStorageAdapter.saveProject(this.currentProject);
+            this.emit('subProjectCreated', { name: trimmedName, path: newPath, parentPath: normalizedParent });
+            return { path: newPath };
+        }
+
+        if (!this.directoryHandle) {
+            throw new Error('当前项目不支持子项目');
         }
 
         const targetDir = await this._getDirectoryHandleForPath(parentPath, false);
@@ -505,10 +548,10 @@ export class ProjectManager {
 
         const subDirHandle = await FileSystemAdapter.createDirectory(
             targetDir,
-            name.trim()
+            trimmedName
         );
 
-        this.emit('subProjectCreated', { name: name.trim(), handle: subDirHandle, parentPath });
+        this.emit('subProjectCreated', { name: trimmedName, handle: subDirHandle, parentPath });
         return subDirHandle;
     }
 
@@ -518,8 +561,8 @@ export class ProjectManager {
      * @param {string} newName
      */
     async renameDirectory(dirPath, newName) {
-        if (!this.directoryHandle) {
-            throw new Error('当前项目不支持目录操作');
+        if (!this.currentProject) {
+            throw new Error('没有打开的项目');
         }
 
         const normalized = this._normalizeDirPath(dirPath);
@@ -531,15 +574,62 @@ export class ProjectManager {
             throw new Error('目录名称不能为空');
         }
 
+        const trimmedName = newName.trim();
         const segments = normalized.split('/');
         const oldName = segments.pop();
         const parentPath = segments.join('/');
+
+        if (this.currentProject.storageMode === 'localStorage') {
+            this._ensureLocalStorageDirectoryState();
+            const dirSet = new Set(this._getLocalStorageDirectories());
+            if (!dirSet.has(normalized)) {
+                throw new Error('目录不存在');
+            }
+            const newPath = parentPath ? `${parentPath}/${trimmedName}` : trimmedName;
+            if (newPath !== normalized && dirSet.has(newPath)) {
+                throw new Error('目标目录已存在');
+            }
+
+            const updatedDirs = [];
+            for (const path of dirSet) {
+                if (path === normalized || path.startsWith(`${normalized}/`)) {
+                    updatedDirs.push(newPath + path.slice(normalized.length));
+                } else {
+                    updatedDirs.push(path);
+                }
+            }
+
+            if (this.currentProject?.scenes) {
+                for (const scene of this.currentProject.scenes) {
+                    if (!scene.dirPath) continue;
+                    if (scene.dirPath === normalized || scene.dirPath.startsWith(`${normalized}/`)) {
+                        scene.dirPath = newPath + scene.dirPath.slice(normalized.length);
+                    }
+                }
+            }
+
+            if (this.currentScene?.dirPath) {
+                if (this.currentScene.dirPath === normalized || this.currentScene.dirPath.startsWith(`${normalized}/`)) {
+                    this.currentScene.dirPath = newPath + this.currentScene.dirPath.slice(normalized.length);
+                }
+            }
+
+            this.currentProject.directories = updatedDirs;
+            this._ensureLocalStorageDirectoryState();
+            LocalStorageAdapter.saveProject(this.currentProject);
+            this.emit('directoryRenamed', { oldPath: normalized, newPath });
+            return;
+        }
+
+        if (!this.directoryHandle) {
+            throw new Error('当前项目不支持目录操作');
+        }
+
         const parentHandle = await this._getDirectoryHandleForPath(parentPath, false);
         if (!parentHandle) {
             throw new Error('父目录不存在');
         }
 
-        const trimmedName = newName.trim();
         await FileSystemAdapter.renameDirectory(parentHandle, oldName, trimmedName);
 
         const newPath = parentPath ? `${parentPath}/${trimmedName}` : trimmedName;
@@ -566,8 +656,8 @@ export class ProjectManager {
      * @param {string} dirPath
      */
     async deleteDirectory(dirPath) {
-        if (!this.directoryHandle) {
-            throw new Error('当前项目不支持目录操作');
+        if (!this.currentProject) {
+            throw new Error('没有打开的项目');
         }
 
         const normalized = this._normalizeDirPath(dirPath);
@@ -578,6 +668,45 @@ export class ProjectManager {
         const segments = normalized.split('/');
         const dirName = segments.pop();
         const parentPath = segments.join('/');
+
+        if (this.currentProject.storageMode === 'localStorage') {
+            this._ensureLocalStorageDirectoryState();
+            const dirSet = new Set(this._getLocalStorageDirectories());
+            if (!dirSet.has(normalized)) {
+                throw new Error('目录不存在');
+            }
+
+            const prefix = `${normalized}/`;
+            const remainingScenes = [];
+            for (const scene of this.currentProject.scenes || []) {
+                const sceneDir = this._normalizeDirPath(scene.dirPath || '');
+                const inDir = sceneDir === normalized || sceneDir.startsWith(prefix);
+                if (inDir) {
+                    LocalStorageAdapter.deleteScene(this.currentProject.id, scene.id);
+                    if (this.currentScene?.id === scene.id) {
+                        const deletedScene = this.currentScene;
+                        this.currentScene = null;
+                        this.emit('sceneDeleted', deletedScene);
+                    }
+                } else {
+                    remainingScenes.push(scene);
+                }
+            }
+
+            this.currentProject.scenes = remainingScenes;
+            this.currentProject.directories = Array.from(dirSet).filter(path => {
+                return path !== normalized && !path.startsWith(prefix);
+            });
+            this._ensureLocalStorageDirectoryState();
+            LocalStorageAdapter.saveProject(this.currentProject);
+            this.emit('directoryDeleted', { path: normalized });
+            return;
+        }
+
+        if (!this.directoryHandle) {
+            throw new Error('当前项目不支持目录操作');
+        }
+
         const parentHandle = await this._getDirectoryHandleForPath(parentPath, false);
         if (!parentHandle) {
             throw new Error('父目录不存在');
@@ -621,6 +750,7 @@ export class ProjectManager {
         }
 
         if (this.currentProject.storageMode === 'localStorage') {
+            this._ensureLocalStorageDirectoryState();
             const conflict = (this.currentProject.scenes || []).some(s => {
                 return s.id !== sceneId &&
                     this._normalizeDirPath(s.dirPath || '') === normalizedTarget &&
@@ -629,11 +759,19 @@ export class ProjectManager {
             if (conflict) {
                 throw new Error('目标目录已存在同名场景');
             }
+            if (normalizedTarget) {
+                const dirSet = new Set(this._getLocalStorageDirectories());
+                if (!dirSet.has(normalizedTarget)) {
+                    throw new Error('目标目录不存在');
+                }
+            }
 
             scene.dirPath = normalizedTarget;
             if (this.currentScene?.id === sceneId) {
                 this.currentScene.dirPath = normalizedTarget;
             }
+            this._ensureLocalStorageDirectoryPath(normalizedTarget);
+            LocalStorageAdapter.saveProject(this.currentProject);
             this.emit('sceneMoved', scene);
             return scene;
         }
@@ -708,6 +846,74 @@ export class ProjectManager {
         if (!scene) return '';
         const dirPath = this._normalizeDirPath(scene.dirPath || '');
         return dirPath ? `${dirPath}/${scene.fileName}` : scene.fileName;
+    }
+
+    _addDirPathWithParents(dirSet, dirPath) {
+        const normalized = this._normalizeDirPath(dirPath);
+        if (!normalized) return;
+
+        const segments = normalized.split('/');
+        let current = '';
+        for (const segment of segments) {
+            current = current ? `${current}/${segment}` : segment;
+            dirSet.add(current);
+        }
+    }
+
+    _getLocalStorageDirectories() {
+        if (!this.currentProject || this.currentProject.storageMode !== 'localStorage') {
+            return [];
+        }
+        const raw = this.currentProject.directories;
+        if (!Array.isArray(raw)) {
+            return [];
+        }
+
+        const result = [];
+        const seen = new Set();
+        for (const entry of raw) {
+            const path = typeof entry === 'string' ? entry : entry?.path;
+            const normalized = this._normalizeDirPath(path || '');
+            if (normalized && !seen.has(normalized)) {
+                seen.add(normalized);
+                result.push(normalized);
+            }
+        }
+        return result;
+    }
+
+    _ensureLocalStorageDirectoryPath(dirPath) {
+        if (!this.currentProject || this.currentProject.storageMode !== 'localStorage') {
+            return;
+        }
+        const dirSet = new Set(this._getLocalStorageDirectories());
+        this._addDirPathWithParents(dirSet, dirPath);
+        this.currentProject.directories = Array.from(dirSet);
+    }
+
+    _ensureLocalStorageDirectoryState() {
+        if (!this.currentProject || this.currentProject.storageMode !== 'localStorage') {
+            return;
+        }
+
+        if (!Array.isArray(this.currentProject.scenes)) {
+            this.currentProject.scenes = [];
+        }
+
+        const dirSet = new Set();
+        for (const path of this._getLocalStorageDirectories()) {
+            this._addDirPathWithParents(dirSet, path);
+        }
+
+        for (const scene of this.currentProject.scenes) {
+            const normalized = this._normalizeDirPath(scene.dirPath || '');
+            scene.dirPath = normalized;
+            if (normalized) {
+                this._addDirPathWithParents(dirSet, normalized);
+            }
+        }
+
+        this.currentProject.directories = Array.from(dirSet);
     }
 
     async _getDirectoryHandleForPath(relativePath, create = false) {
@@ -820,28 +1026,10 @@ export class ProjectManager {
         const now = new Date().toISOString();
         const dirPath = this._normalizeDirPath(options.directoryPath || '');
 
-        const clonedData = sceneData
-            ? JSON.parse(JSON.stringify(sceneData))
-            : {};
-
-        if (!clonedData.version) {
-            clonedData.version = Serializer.CURRENT_VERSION;
-        }
-
-        if (!Array.isArray(clonedData.components)) {
-            clonedData.components = [];
-        }
-
-        if (!clonedData.settings) {
-            clonedData.settings = {};
-        }
-
-        if (!clonedData.metadata || typeof clonedData.metadata !== 'object') {
-            clonedData.metadata = {};
-        }
-
-        clonedData.name = uniqueName;
-        clonedData.metadata.name = uniqueName;
+        const clonedData = Serializer.deserialize(
+            sceneData || Serializer.createEmptyScene(uniqueName)
+        );
+        clonedData.metadata.title = uniqueName;
         clonedData.metadata.updatedAt = now;
         if (!clonedData.metadata.createdAt) {
             clonedData.metadata.createdAt = now;
@@ -857,6 +1045,7 @@ export class ProjectManager {
         };
 
         if (this.currentProject.storageMode === 'localStorage') {
+            this._ensureLocalStorageDirectoryPath(dirPath);
             LocalStorageAdapter.saveScene(this.currentProject.id, scene.id, clonedData);
         } else if (this.directoryHandle) {
             const json = JSON.stringify(clonedData, null, 2);
@@ -936,21 +1125,7 @@ export class ProjectManager {
         if (this.currentProject.storageMode === 'localStorage') {
             const rawData = LocalStorageAdapter.getScene(this.currentProject.id, sceneId);
             if (rawData) {
-                // localStorage 中的数据已经是 JSON 对象，不需要 parse
-                // 但需要确保格式一致
-                if (Serializer.needsMigration(rawData)) {
-                    sceneData = Serializer.migrate(rawData);
-                } else {
-                    sceneData = rawData;
-                }
-                // 确保 components 被正确反序列化
-                if (sceneData.components && Array.isArray(sceneData.components)) {
-                    sceneData.components = Serializer.deserializeComponents(sceneData.components);
-                }
-                // 确保 settings 被正确反序列化
-                if (sceneData.settings) {
-                    sceneData.settings = Serializer.deserializeSettings(sceneData.settings);
-                }
+                sceneData = Serializer.deserialize(rawData);
             }
         } else if (this.directoryHandle) {
             const dirHandle = await this._getDirectoryHandleForPath(scene.dirPath, false);
@@ -965,21 +1140,6 @@ export class ProjectManager {
 
         if (!sceneData) {
             throw new Error('无法加载场景数据');
-        }
-
-        // 确保 sceneData 有正确的结构
-        if (!sceneData.components) {
-            sceneData.components = [];
-        }
-        if (!sceneData.settings) {
-            sceneData.settings = Serializer.deserializeSettings({});
-        }
-        if (!sceneData.metadata) {
-            sceneData.metadata = {
-                name: scene.name,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
         }
 
         this.currentScene = {
@@ -1042,30 +1202,18 @@ export class ProjectManager {
             throw new Error('没有打开的场景');
         }
 
-        // 序列化组件数据
-        let serializedComponents = [];
-        if (Array.isArray(components)) {
-            serializedComponents = components.map(comp => {
-                // 如果组件有 toJSON 方法，使用它
-                if (comp && typeof comp.toJSON === 'function') {
-                    return comp.toJSON();
-                }
-                // 否则直接使用（可能已经是序列化的数据）
-                return comp;
-            }).filter(c => c !== null);
-        }
-
-        const sceneData = {
-            version: Serializer.CURRENT_VERSION,
-            name: this.currentScene.name,
-            components: serializedComponents,
+        const sceneData = Serializer.captureDocument({
+            existingDocument: this.currentScene.data,
+            components,
+            currentMode: settings?.mode || 'ray_trace',
             settings: Serializer.serializeSettings(settings || {}),
             metadata: {
-                ...(this.currentScene.data?.metadata || {}),
-                name: this.currentScene.name,
-                updatedAt: new Date().toISOString()
-            }
-        };
+                id: this.currentScene.data?.metadata?.id,
+                title: this.currentScene.name
+            },
+            beamGraph: this.currentScene.data?.beamGraph
+        });
+        sceneData.metadata.updatedAt = new Date().toISOString();
 
         if (this.currentProject.storageMode === 'localStorage') {
             LocalStorageAdapter.saveScene(
@@ -1132,6 +1280,10 @@ export class ProjectManager {
             this.currentScene = null;
         }
 
+        if (this.currentProject.storageMode === 'localStorage') {
+            LocalStorageAdapter.saveProject(this.currentProject);
+        }
+
         this.emit('sceneDeleted', scene);
     }
 
@@ -1151,7 +1303,16 @@ export class ProjectManager {
         const oldFileName = scene.fileName;
         const newFileName = `${newName}${ProjectManager.SCENE_EXTENSION}`;
 
-        if (this.directoryHandle) {
+        if (this.currentProject.storageMode === 'localStorage') {
+            const conflict = (this.currentProject.scenes || []).some(s => {
+                return s.id !== sceneId &&
+                    this._normalizeDirPath(s.dirPath || '') === this._normalizeDirPath(scene.dirPath || '') &&
+                    s.fileName === newFileName;
+            });
+            if (conflict) {
+                throw new Error('当前目录已存在同名场景');
+            }
+        } else if (this.directoryHandle) {
             const dirHandle = await this._getDirectoryHandleForPath(scene.dirPath, false);
             if (!dirHandle) {
                 throw new Error('场景目录不存在');
@@ -1166,6 +1327,10 @@ export class ProjectManager {
         if (this.currentScene && this.currentScene.id === sceneId) {
             this.currentScene.name = newName;
             this.currentScene.fileName = newFileName;
+        }
+
+        if (this.currentProject.storageMode === 'localStorage') {
+            LocalStorageAdapter.saveProject(this.currentProject);
         }
 
         this.emit('sceneRenamed', scene);
@@ -1359,8 +1524,10 @@ git push origin main`;
      */
     async getProjectTree() {
         if (!this.directoryHandle) {
-            // localStorage 模式返回简单结构
-            if (this.currentProject) {
+            if (!this.currentProject) {
+                return null;
+            }
+            if (this.currentProject.storageMode !== 'localStorage') {
                 return {
                     id: this.currentProject.id,
                     name: this.currentProject.name,
@@ -1374,7 +1541,58 @@ git push origin main`;
                     }))
                 };
             }
-            return null;
+
+            this._ensureLocalStorageDirectoryState();
+            const root = {
+                id: this.currentProject.id,
+                name: this.currentProject.name,
+                type: 'project',
+                children: []
+            };
+
+            const directoryMap = new Map();
+            const ensureDirectoryNode = (dirPath) => {
+                const normalized = this._normalizeDirPath(dirPath);
+                if (!normalized) return root;
+
+                const segments = normalized.split('/');
+                let currentPath = '';
+                let parentNode = root;
+                for (const segment of segments) {
+                    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+                    let node = directoryMap.get(currentPath);
+                    if (!node) {
+                        node = {
+                            id: currentPath,
+                            name: segment,
+                            type: 'directory',
+                            path: currentPath,
+                            children: []
+                        };
+                        directoryMap.set(currentPath, node);
+                        parentNode.children.push(node);
+                    }
+                    parentNode = node;
+                }
+                return parentNode;
+            };
+
+            for (const path of this._getLocalStorageDirectories()) {
+                ensureDirectoryNode(path);
+            }
+
+            for (const scene of this.currentProject.scenes || []) {
+                const parentNode = ensureDirectoryNode(scene.dirPath || '');
+                parentNode.children.push({
+                    id: scene.id,
+                    name: scene.name,
+                    type: 'scene',
+                    fileName: scene.fileName,
+                    dirPath: scene.dirPath || ''
+                });
+            }
+
+            return root;
         }
 
         const rawTree = await FileSystemAdapter.getDirectoryTree(this.directoryHandle);
@@ -1400,7 +1618,7 @@ git push origin main`;
                     const nextPath = currentPath ? `${currentPath}/${child.name}` : child.name;
                     const dirNode = buildDirectoryNode(child, nextPath, false);
                     children.push(dirNode);
-                } else if (child.kind === 'file' && child.name.endsWith(ProjectManager.SCENE_EXTENSION)) {
+                } else if (child.kind === 'file' && ProjectManager.isSceneFileName(child.name)) {
                     const relPath = currentPath ? `${currentPath}/${child.name}` : child.name;
                     const scene = sceneMap.get(relPath);
                     if (scene) {

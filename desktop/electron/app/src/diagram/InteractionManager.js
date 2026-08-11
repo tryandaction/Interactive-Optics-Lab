@@ -289,11 +289,15 @@ export class SelectionManager {
         if (!this.isSelecting || !this.selectionBox) return;
         
         const box = this._normalizeBox(this.selectionBox);
+        const scale = (typeof window !== 'undefined' && typeof window.cameraScale === 'number' && window.cameraScale > 0)
+            ? window.cameraScale
+            : 1;
+        const invScale = 1 / Math.max(1e-6, scale);
         
         ctx.save();
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1 * invScale;
+        ctx.setLineDash([5 * invScale, 5 * invScale]);
         ctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
         
         ctx.fillStyle = 'rgba(0, 120, 212, 0.1)';
@@ -573,7 +577,10 @@ export class InteractionManager {
         this.selection = new SelectionManager();
         this.clipboard = new ClipboardManager();
         this.groups = new GroupManager();
-        
+
+        /** @type {Object|null} Figma 风格悬停高亮的组件 */
+        this.hoveredItem = null;
+
         // 键盘快捷键绑定
         this._keyboardHandler = null;
         this._setupKeyboardShortcuts();
@@ -649,6 +656,141 @@ export class InteractionManager {
         };
         
         document.addEventListener('keydown', this._keyboardHandler);
+    }
+
+    /**
+     * 显示右键上下文菜单 — Figma 风格
+     * @param {MouseEvent} event
+     * @param {Object|null} targetComponent - 右键点击的组件
+     */
+    showContextMenu(event, targetComponent) {
+        if (typeof document === 'undefined') return;
+        event.preventDefault();
+
+        // 移除已有菜单
+        this._removeContextMenu();
+
+        // 如果右键点击了未选中的组件，先选中它
+        if (targetComponent && !this.selection.isSelected(targetComponent)) {
+            this.selection.select(targetComponent);
+        }
+
+        const hasSelection = this.selection.getSelectionCount() > 0;
+        const multiSelected = this.selection.getSelectionCount() >= 2;
+        const canUndo = this.history.canUndo();
+        const canRedo = this.history.canRedo();
+        const canPaste = this.clipboard.hasContent();
+
+        const menu = document.createElement('div');
+        menu.className = 'diagram-context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${event.clientX}px;
+            top: ${event.clientY}px;
+            z-index: 9999;
+            background: var(--menu-bg, #2d2d2d);
+            border: 1px solid var(--border-color, #444);
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            min-width: 180px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: var(--text-primary, #fff);
+        `;
+
+        const items = [
+            { label: '撤销', shortcut: 'Ctrl+Z', action: 'undo', disabled: !canUndo },
+            { label: '重做', shortcut: 'Ctrl+Y', action: 'redo', disabled: !canRedo },
+            { type: 'separator' },
+            { label: '复制', shortcut: 'Ctrl+C', action: 'copy', disabled: !hasSelection },
+            { label: '粘贴', shortcut: 'Ctrl+V', action: 'paste', disabled: !canPaste },
+            { label: '删除', shortcut: 'Delete', action: 'delete', disabled: !hasSelection },
+            { type: 'separator' },
+            { label: '全选', shortcut: 'Ctrl+A', action: 'selectAll' },
+            { type: 'separator' },
+            { label: '编组', shortcut: 'Ctrl+G', action: 'group', disabled: !multiSelected },
+            { label: '解组', shortcut: 'Ctrl+Shift+G', action: 'ungroup', disabled: !hasSelection },
+        ];
+
+        // __CONTINUE_HERE__
+        items.forEach(item => {
+            if (item.type === 'separator') {
+                const sep = document.createElement('div');
+                sep.style.cssText = 'height: 1px; background: var(--border-color, #444); margin: 4px 0;';
+                menu.appendChild(sep);
+                return;
+            }
+            const btn = document.createElement('div');
+            btn.className = 'diagram-context-menu-item';
+            btn.dataset.action = item.action;
+            const opacity = item.disabled ? '0.4' : '1';
+            btn.style.cssText = `
+                display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 16px; cursor: ${item.disabled ? 'not-allowed' : 'pointer'};
+                opacity: ${opacity}; user-select: none;
+                pointer-events: ${item.disabled ? 'none' : 'auto'};
+            `;
+            btn.innerHTML = `
+                <span>${item.label}</span>
+                <span style="font-size: 11px; color: var(--text-secondary, #888); margin-left: 24px;">${item.shortcut || ''}</span>
+            `;
+            if (!item.disabled) {
+                btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--hover-bg, rgba(255,255,255,0.1))'; });
+                btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; });
+                btn.addEventListener('click', () => {
+                    this._executeContextAction(item.action);
+                    this._removeContextMenu();
+                });
+            }
+            menu.appendChild(btn);
+        });
+
+        document.body.appendChild(menu);
+
+        // 确保菜单不超出视口
+        requestAnimationFrame(() => {
+            const rect = menu.getBoundingClientRect();
+            if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+            if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+        });
+
+        // 点击外部关闭
+        this._contextMenuCloseHandler = (e) => {
+            if (!menu.contains(e.target)) {
+                this._removeContextMenu();
+            }
+        };
+        setTimeout(() => document.addEventListener('mousedown', this._contextMenuCloseHandler), 0);
+    }
+
+    /**
+     * 执行上下文菜单操作
+     * @private
+     */
+    _executeContextAction(action) {
+        switch (action) {
+            case 'undo': this.undo(); break;
+            case 'redo': this.redo(); break;
+            case 'copy': this.copySelection(); break;
+            case 'paste': this.paste(); break;
+            case 'delete': this.deleteSelection(); break;
+            case 'selectAll': this.selectAll(); break;
+            case 'group': this.groupSelection(); break;
+            case 'ungroup': this.ungroupSelection(); break;
+        }
+    }
+
+    /**
+     * 移除上下文菜单
+     * @private
+     */
+    _removeContextMenu() {
+        const existing = document.querySelector('.diagram-context-menu');
+        if (existing) existing.remove();
+        if (this._contextMenuCloseHandler) {
+            document.removeEventListener('mousedown', this._contextMenuCloseHandler);
+            this._contextMenuCloseHandler = null;
+        }
     }
 
     /**
@@ -769,45 +911,271 @@ export class InteractionManager {
     }
 
     /**
-     * 渲染交互元素
+     * 设置悬停项目（用于 Figma 风格悬停高亮）
      */
-    render(ctx) {
-        // 渲染选择框
-        this.selection.renderSelectionBox(ctx);
-        
-        // 渲染选中项目高亮
-        this.selection.getSelectedItems().forEach(item => {
-            this._renderSelectionHighlight(ctx, item);
-        });
+    setHoveredItem(item) {
+        this.hoveredItem = item;
+    }
+
+    _getCameraScale() {
+        if (typeof window === 'undefined') return 1;
+        const scale = window.cameraScale;
+        if (typeof scale !== 'number' || !Number.isFinite(scale) || scale <= 0) return 1;
+        return scale;
     }
 
     /**
-     * 渲染选中高亮
+     * 渲染交互元素
+     */
+    render(ctx) {
+        // 渲染悬停高亮（仅未选中的项目）
+        if (this.hoveredItem && !this.selection.isSelected(this.hoveredItem)) {
+            this._renderHoverHighlight(ctx, this.hoveredItem);
+        }
+
+        // 渲染选择框
+        this.selection.renderSelectionBox(ctx);
+
+        const selectedItems = this.selection.getSelectedItems();
+
+        // 渲染每个选中项目的高亮
+        selectedItems.forEach(item => {
+            this._renderSelectionHighlight(ctx, item);
+        });
+
+        // 多选时渲染组合边界框
+        if (selectedItems.length > 1) {
+            this._renderMultiSelectionBounds(ctx, selectedItems);
+        }
+    }
+
+    /**
+     * 渲染多选组合边界框 — Figma 风格
+     * @private
+     */
+    _renderMultiSelectionBounds(ctx, items) {
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        items.forEach(item => {
+            const bb = this._getItemBounds(item);
+            minX = Math.min(minX, bb.x);
+            minY = Math.min(minY, bb.y);
+            maxX = Math.max(maxX, bb.x + bb.width);
+            maxY = Math.max(maxY, bb.y + bb.height);
+        });
+
+        const pad = 8 * invScale;
+        const rx = minX - pad;
+        const ry = minY - pad;
+        const rw = (maxX - minX) + pad * 2;
+        const rh = (maxY - minY) + pad * 2;
+
+        ctx.save();
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 * invScale;
+        ctx.setLineDash([4 * invScale, 4 * invScale]);
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.setLineDash([]);
+
+        // 选中数量标签
+        const count = items.length;
+        const fontSize = 11 * invScale;
+        ctx.font = `${fontSize}px sans-serif`;
+        const text = `${count} selected`;
+        const textWidth = ctx.measureText(text).width;
+        const labelX = rx + rw / 2 - textWidth / 2 - 6 * invScale;
+        const labelY = ry - 8 * invScale;
+        ctx.fillStyle = '#0078d4';
+        ctx.beginPath();
+        const rlx = labelX;
+        const rly = labelY - fontSize;
+        const rlw = textWidth + 12 * invScale;
+        const rlh = fontSize + 6 * invScale;
+        const rlr = 3 * invScale;
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(rlx, rly, rlw, rlh, rlr);
+        } else {
+            ctx.moveTo(rlx + rlr, rly);
+            ctx.lineTo(rlx + rlw - rlr, rly);
+            ctx.arcTo(rlx + rlw, rly, rlx + rlw, rly + rlr, rlr);
+            ctx.lineTo(rlx + rlw, rly + rlh - rlr);
+            ctx.arcTo(rlx + rlw, rly + rlh, rlx + rlw - rlr, rly + rlh, rlr);
+            ctx.lineTo(rlx + rlr, rly + rlh);
+            ctx.arcTo(rlx, rly + rlh, rlx, rly + rlh - rlr, rlr);
+            ctx.lineTo(rlx, rly + rlr);
+            ctx.arcTo(rlx, rly, rlx + rlr, rly, rlr);
+            ctx.closePath();
+        }
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(text, rx + rw / 2, labelY - 1 * invScale);
+
+        ctx.restore();
+    }
+
+    /**
+     * 渲染悬停高亮 — Figma 风格（薄蓝色边框，无手柄）
+     * @private
+     */
+    _renderHoverHighlight(ctx, item) {
+        const bb = this._getItemBounds(item);
+
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
+        const rx = bb.x - pad;
+        const ry = bb.y - pad;
+        const rw = bb.width + pad * 2;
+        const rh = bb.height + pad * 2;
+
+        ctx.save();
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 * invScale;
+        ctx.setLineDash([]);
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.restore();
+    }
+
+    /**
+     * 获取项目边界框
+     * @private
+     */
+    _getItemBounds(item) {
+        if (typeof item.getBoundingBox === 'function') {
+            return item.getBoundingBox();
+        }
+        const pos = item.pos || { x: item.x || 0, y: item.y || 0 };
+        const fallback = 40;
+        return { x: pos.x - fallback / 2, y: pos.y - fallback / 2, width: fallback, height: fallback };
+    }
+
+    /**
+     * 检测鼠标在选中组件的哪个手柄上
+     * @param {Object} mousePos - { x, y }
+     * @returns {{ type: string, item: Object, cursor: string }|null}
+     */
+    getHandleAtPoint(mousePos) {
+        const selectedItems = this.selection.getSelectedItems();
+        if (selectedItems.length !== 1) return null;
+
+        const item = selectedItems[0];
+        const bb = this._getItemBounds(item);
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
+        const rx = bb.x - pad, ry = bb.y - pad;
+        const rw = bb.width + pad * 2, rh = bb.height + pad * 2;
+        const threshold = 6 * invScale;
+
+        // 旋转手柄
+        const rotX = rx + rw / 2, rotY = ry - 20 * invScale;
+        if (Math.hypot(mousePos.x - rotX, mousePos.y - rotY) <= threshold) {
+            return { type: 'rotate', item, cursor: 'grab' };
+        }
+
+        // 角手柄（缩放）
+        const corners = [
+            { x: rx, y: ry, cursor: 'nwse-resize', name: 'tl' },
+            { x: rx + rw, y: ry, cursor: 'nesw-resize', name: 'tr' },
+            { x: rx, y: ry + rh, cursor: 'nesw-resize', name: 'bl' },
+            { x: rx + rw, y: ry + rh, cursor: 'nwse-resize', name: 'br' }
+        ];
+        for (const c of corners) {
+            if (Math.abs(mousePos.x - c.x) <= threshold && Math.abs(mousePos.y - c.y) <= threshold) {
+                return { type: 'resize', handle: c.name, item, cursor: c.cursor };
+            }
+        }
+
+        // 边中点手柄
+        const mids = [
+            { x: rx + rw / 2, y: ry, cursor: 'ns-resize', name: 'tm' },
+            { x: rx + rw / 2, y: ry + rh, cursor: 'ns-resize', name: 'bm' },
+            { x: rx, y: ry + rh / 2, cursor: 'ew-resize', name: 'ml' },
+            { x: rx + rw, y: ry + rh / 2, cursor: 'ew-resize', name: 'mr' }
+        ];
+        for (const m of mids) {
+            if (Math.abs(mousePos.x - m.x) <= threshold && Math.abs(mousePos.y - m.y) <= threshold) {
+                return { type: 'resize', handle: m.name, item, cursor: m.cursor };
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 渲染选中高亮 — Figma 风格
      * @private
      */
     _renderSelectionHighlight(ctx, item) {
-        const pos = item.pos || { x: item.x || 0, y: item.y || 0 };
-        const size = 40;
-        
+        const bb = this._getItemBounds(item);
+
+        const scale = this._getCameraScale();
+        const invScale = 1 / Math.max(1e-6, scale);
+        const pad = 4 * invScale;
+        const rx = bb.x - pad;
+        const ry = bb.y - pad;
+        const rw = bb.width + pad * 2;
+        const rh = bb.height + pad * 2;
+
         ctx.save();
+
+        // 1px 蓝色选中边框
         ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1 * invScale;
         ctx.setLineDash([]);
-        ctx.strokeRect(pos.x - size/2 - 5, pos.y - size/2 - 5, size + 10, size + 10);
-        
-        // 绘制调整手柄
-        const handleSize = 6;
-        ctx.fillStyle = '#0078d4';
-        const corners = [
-            { x: pos.x - size/2 - 5, y: pos.y - size/2 - 5 },
-            { x: pos.x + size/2 + 5, y: pos.y - size/2 - 5 },
-            { x: pos.x - size/2 - 5, y: pos.y + size/2 + 5 },
-            { x: pos.x + size/2 + 5, y: pos.y + size/2 + 5 }
+        ctx.strokeRect(rx, ry, rw, rh);
+
+        // 角手柄：8×8 白色填充 + 1px 蓝色描边
+        const cs = 8 * invScale;
+        const cornerPositions = [
+            { x: rx,      y: ry },       // 左上
+            { x: rx + rw, y: ry },       // 右上
+            { x: rx,      y: ry + rh },  // 左下
+            { x: rx + rw, y: ry + rh }   // 右下
         ];
-        corners.forEach(corner => {
-            ctx.fillRect(corner.x - handleSize/2, corner.y - handleSize/2, handleSize, handleSize);
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 * invScale;
+        cornerPositions.forEach(c => {
+            ctx.fillRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
+            ctx.strokeRect(c.x - cs / 2, c.y - cs / 2, cs, cs);
         });
-        
+
+        // 边中点手柄：6×6 白色填充 + 1px 蓝色描边
+        const ms = 6 * invScale;
+        const midPositions = [
+            { x: rx + rw / 2, y: ry },          // 上中
+            { x: rx + rw / 2, y: ry + rh },     // 下中
+            { x: rx,          y: ry + rh / 2 },  // 左中
+            { x: rx + rw,     y: ry + rh / 2 }   // 右中
+        ];
+        midPositions.forEach(m => {
+            ctx.fillRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
+            ctx.strokeRect(m.x - ms / 2, m.y - ms / 2, ms, ms);
+        });
+
+        // 旋转手柄：顶部中心上方的圆形手柄 + 连接线
+        const rotHandleY = ry - 20 * invScale;
+        const rotHandleX = rx + rw / 2;
+        // 连接线
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 * invScale;
+        ctx.beginPath();
+        ctx.moveTo(rotHandleX, ry);
+        ctx.lineTo(rotHandleX, rotHandleY);
+        ctx.stroke();
+        // 圆形手柄
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 * invScale;
+        ctx.beginPath();
+        ctx.arc(rotHandleX, rotHandleY, 5 * invScale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
         ctx.restore();
     }
 
@@ -818,6 +1186,7 @@ export class InteractionManager {
         if (this._keyboardHandler && typeof document !== 'undefined') {
             document.removeEventListener('keydown', this._keyboardHandler);
         }
+        this._removeContextMenu();
     }
 
     /**

@@ -8,6 +8,20 @@ import {
     N_AIR, DEFAULT_WAVELENGTH_NM, MAX_RAY_BOUNCES, MIN_RAY_INTENSITY,
     MIN_RAY_WIDTH, MAX_RAY_WIDTH, PIXELS_PER_NANOMETER
 } from './constants.js';
+import {
+    complexAdd,
+    complexSub,
+    complexMul,
+    complexScale,
+    complexAbs2,
+    applyJonesMatrix,
+    jonesRotationMatrix,
+    jonesLinear,
+    jonesCircular,
+    jonesIntensity
+} from './OpticsMath.js';
+
+let nextTraceSequence = 1;
 
 export class Ray {
     constructor(
@@ -40,6 +54,24 @@ export class Ray {
         this.beamDiameter = Math.max(0, beamDiameter);
         this.beamWaist = beamWaist;
         this.z_R = z_R;
+
+        // Trace lineage is descriptive metadata. It does not participate in physics calculations.
+        this.traceId = `ray-${nextTraceSequence++}`;
+        this.parentTraceId = null;
+        this.originComponentId = sourceId;
+        this.hitComponentId = null;
+        this.hitComponentType = null;
+        this.interactionType = null;
+        this.surfaceId = null;
+        this.surfaceNormal = null;
+        this.branchKind = sourceId ? 'output' : null;
+        this.frequencyOffsetHz = 0;
+        this.directionLabel = 'forward';
+        this.roundTrip = false;
+        this.auxiliary = false;
+        this.pathStyle = 'solid';
+        this.visitedComponentIds = sourceId ? [sourceId] : [];
+        this.segmentStartIndex = 0;
 
         // 初始化历史记录
         this.history = this._initHistory(initialHistory, origin);
@@ -149,38 +181,31 @@ export class Ray {
     // --- Jones矢量辅助方法 ---
     hasJones() { return !!(this.jones && this.jones.Ex && this.jones.Ey); }
     
-    static _cAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
-    static _cSub(a, b) { return { re: a.re - b.re, im: a.im - b.im }; }
-    static _cMul(a, b) { return { re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }; }
-    static _cScale(a, s) { return { re: a.re * s, im: a.im * s }; }
-    static _cAbs2(a) { return a.re * a.re + a.im * a.im; }
+    static _cAdd(a, b) { return complexAdd(a, b); }
+    static _cSub(a, b) { return complexSub(a, b); }
+    static _cMul(a, b) { return complexMul(a, b); }
+    static _cScale(a, s) { return complexScale(a, s); }
+    static _cAbs2(a) { return complexAbs2(a); }
     
     static _rot2(theta) {
-        const c = Math.cos(theta), s = Math.sin(theta);
-        return [[{ re: c, im: 0 }, { re: -s, im: 0 }], [{ re: s, im: 0 }, { re: c, im: 0 }]];
+        return jonesRotationMatrix(theta);
     }
     
     static _apply2x2(J, v) {
-        const Ex = Ray._cAdd(Ray._cMul(J[0][0], v.Ex), Ray._cMul(J[0][1], v.Ey));
-        const Ey = Ray._cAdd(Ray._cMul(J[1][0], v.Ex), Ray._cMul(J[1][1], v.Ey));
-        return { Ex, Ey };
+        return applyJonesMatrix(J, v);
     }
     
     static jonesLinear(angleRad) {
-        const c = Math.cos(angleRad), s = Math.sin(angleRad);
-        return { Ex: { re: c, im: 0 }, Ey: { re: s, im: 0 } };
+        return jonesLinear(angleRad);
     }
     
     static jonesCircular(rightHanded = true) {
-        const inv = 1 / Math.sqrt(2);
-        return rightHanded 
-            ? { Ex: { re: inv, im: 0 }, Ey: { re: 0, im: inv } }
-            : { Ex: { re: inv, im: 0 }, Ey: { re: 0, im: -inv } };
+        return jonesCircular(rightHanded);
     }
     
     jonesIntensity() {
         if (!this.hasJones()) return null;
-        return Ray._cAbs2(this.jones.Ex) + Ray._cAbs2(this.jones.Ey);
+        return jonesIntensity(this.jones);
     }
 
     ensureJonesVector() {
@@ -204,8 +229,8 @@ export class Ray {
     }
 
     _updatePolarizationFromJones() {
-        const Ex_mag2 = Ray._cAbs2(this.jones.Ex);
-        const Ey_mag2 = Ray._cAbs2(this.jones.Ey);
+        const Ex_mag2 = complexAbs2(this.jones.Ex);
+        const Ey_mag2 = complexAbs2(this.jones.Ey);
         const totalIntensity = Ex_mag2 + Ey_mag2;
 
         if (totalIntensity < 1e-9) {
@@ -313,6 +338,98 @@ export class Ray {
     }
 
     getPathPoints() { return this.history; }
+
+    markInteraction(component, intersectionInfo = null) {
+        const componentId = component?.id || component?.uuid || null;
+        if (!componentId) return this;
+        this.hitComponentId = componentId;
+        this.hitComponentType = component?.type || component?.constructor?.name || 'UnknownComponent';
+        this.interactionType = intersectionInfo?.interactionType || 'surface_interaction';
+        this.surfaceId = intersectionInfo?.surfaceId || null;
+
+        const normal = intersectionInfo?.normal;
+        if (Number.isFinite(normal?.x) && Number.isFinite(normal?.y)) {
+            const magnitude = Math.hypot(normal.x, normal.y);
+            this.surfaceNormal = magnitude > 0
+                ? { x: normal.x / magnitude, y: normal.y / magnitude }
+                : null;
+        } else {
+            this.surfaceNormal = null;
+        }
+
+        const isInternalThickLensSurface = this._thickLensInteriorId === componentId;
+        if (this.visitedComponentIds.includes(componentId) && !isInternalThickLensSurface) {
+            this.roundTrip = true;
+            this.directionLabel = 'return';
+        } else if (!this.visitedComponentIds.includes(componentId)) {
+            this.visitedComponentIds.push(componentId);
+        }
+        return this;
+    }
+
+    toTraceRecord() {
+        return {
+            traceId: this.traceId,
+            parentTraceId: this.parentTraceId,
+            sourceId: this.sourceId,
+            originComponentId: this.originComponentId,
+            hitComponentId: this.hitComponentId,
+            interactionType: this.interactionType,
+            surfaceId: this.surfaceId,
+            surfaceNormal: this.surfaceNormal ? { ...this.surfaceNormal } : null,
+            branchKind: this.branchKind,
+            wavelengthNm: this.wavelengthNm,
+            frequencyOffsetHz: this.frequencyOffsetHz,
+            polarizationAngle: this.polarizationAngle,
+            jones: this.jones,
+            intensity: this.intensity,
+            direction: this.directionLabel,
+            roundTrip: this.roundTrip,
+            auxiliary: this.auxiliary,
+            style: this.pathStyle,
+            endReason: this.endReason,
+            points: this.getPathPoints().slice(this.segmentStartIndex)
+        };
+    }
+
+    static linkSuccessors(parentRay, successors, component) {
+        if (!(parentRay instanceof Ray) || !Array.isArray(successors)) return successors;
+        const componentId = component?.id || component?.uuid || parentRay.hitComponentId;
+        const componentType = component?.type || component?.constructor?.name || parentRay.hitComponentType;
+
+        successors.forEach(successor => {
+            if (!(successor instanceof Ray)) return;
+            successor.parentTraceId = parentRay.traceId;
+            successor.originComponentId = componentId;
+            successor.visitedComponentIds = [...parentRay.visitedComponentIds];
+            successor.frequencyOffsetHz = parentRay.frequencyOffsetHz || 0;
+            successor.directionLabel = parentRay.directionLabel || 'forward';
+            successor.roundTrip = parentRay.roundTrip === true;
+            successor.segmentStartIndex = Math.max(0, successor.history.length - 1);
+
+            if (successor._thickLensBranchKind) {
+                successor.branchKind = successor._thickLensBranchKind;
+            } else if (componentType === 'AcoustoOpticModulator') {
+                const directionDelta = Math.abs(1 - successor.direction.dot(parentRay.direction));
+                successor.branchKind = directionDelta < 1e-8 ? 'zeroOrder' : 'firstOrder';
+                if (successor.branchKind === 'firstOrder') {
+                    successor.frequencyOffsetHz += (Number(component?.rfFrequencyMHz) || 0) * 1e6;
+                }
+            } else if (componentType === 'BeamSplitter') {
+                const directionDelta = Math.abs(1 - successor.direction.dot(parentRay.direction));
+                successor.branchKind = directionDelta < 1e-8 ? 'transmitted' : 'reflected';
+            } else if (/Mirror$/.test(componentType || '')) {
+                successor.branchKind = 'reflected';
+            } else {
+                successor.branchKind = 'output';
+            }
+        });
+        return successors;
+    }
+
+    static resetTraceSequence() {
+        nextTraceSequence = 1;
+    }
 
     // --- 干涉计算 ---
     getComplexAmplitude() {

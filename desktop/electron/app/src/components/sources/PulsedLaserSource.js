@@ -7,6 +7,29 @@ import { Vector } from '../../core/Vector.js';
 import { LaserSource } from './LaserSource.js';
 
 export class PulsedLaserSource extends LaserSource {
+    static fromJSON(data = {}) {
+        const source = new PulsedLaserSource(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.angleDeg,
+            data.wavelength,
+            data.peakPower ?? data.intensity,
+            data.pulseWidthFs,
+            data.repetitionRateHz,
+            data.numRays ?? data.rayCount,
+            data.spreadDeg,
+            data.enabled
+        );
+        source.id = data.id ?? source.id;
+        source.label = data.label ?? source.label;
+        source.notes = data.notes ?? source.notes;
+        source.chirpParameter = Number.isFinite(Number(data.chirpParameter)) ? Number(data.chirpParameter) : source.chirpParameter;
+        if (Object.prototype.hasOwnProperty.call(data, 'beamDiameter')) source.beamDiameter = data.beamDiameter;
+        if (Object.prototype.hasOwnProperty.call(data, 'initialBeamWaist')) source.initialBeamWaist = data.initialBeamWaist;
+        if (Object.prototype.hasOwnProperty.call(data, 'gaussianEnabled')) source.gaussianEnabled = !!data.gaussianEnabled;
+        if (Object.prototype.hasOwnProperty.call(data, 'ignoreDecay')) source.ignoreDecay = !!data.ignoreDecay;
+        return source;
+    }
+
     static functionDescription = "发射具有脉冲特性的激光，支持脉冲宽度、重复频率和峰值功率参数。";
 
     constructor(pos, angleDeg = 0, wavelength = 1064, peakPower = 1.0, 

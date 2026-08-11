@@ -6,8 +6,25 @@
 import { Vector } from '../../core/Vector.js';
 import { GameObject } from '../../core/GameObject.js';
 import { N_AIR, DEFAULT_WAVELENGTH_NM } from '../../core/constants.js';
+import { normalizeRayCount } from './SourceSampling.js';
 
 export class PointSource extends GameObject {
+    static fromJSON(data = {}) {
+        const source = new PointSource(
+            new Vector(data.posX ?? 0, data.posY ?? 0),
+            data.wavelength,
+            data.intensity,
+            data.numRays ?? data.rayCount,
+            data.angularRangeDeg,
+            data.enabled
+        );
+        source.angleRad = (data.angleDeg ?? 0) * (Math.PI / 180);
+        source.id = data.id ?? source.id;
+        source.label = data.label ?? source.label;
+        source.notes = data.notes ?? source.notes;
+        return source;
+    }
+
     static functionDescription = "向所有方向均匀发射光线的全向点光源。";
 
     constructor(pos, wavelength = DEFAULT_WAVELENGTH_NM, intensity = 1.0, 
@@ -16,7 +33,7 @@ export class PointSource extends GameObject {
         
         this.wavelength = wavelength ?? DEFAULT_WAVELENGTH_NM;
         this.intensity = Math.max(0, intensity ?? 1.0);
-        this.numRays = Math.max(1, numRays ?? 36);
+        this.numRays = normalizeRayCount(numRays, 36);
         this.angularRangeDeg = Math.max(0, Math.min(360, angularRangeDeg ?? 360));
         this.enabled = enabled ?? true;
         
@@ -160,7 +177,7 @@ export class PointSource extends GameObject {
                 this._rayColor = this.calculateRayColor(); 
                 needsRetraceUpdate = true; 
                 break;
-            case 'numRays': this.numRays = Math.max(1, parseInt(value)); needsRetraceUpdate = true; break;
+            case 'numRays': this.numRays = normalizeRayCount(value, this.numRays); needsRetraceUpdate = true; break;
             case 'angularRangeDeg': this.angularRangeDeg = Math.max(0, Math.min(360, parseFloat(value))); needsRetraceUpdate = true; break;
             default: return false;
         }

@@ -1,0 +1,46 @@
+{
+  "version": "1.1",
+  "currentMode": "ray_trace",
+  "view": {
+    "cameraScale": 1.0,
+    "cameraOffsetX": 0,
+    "cameraOffsetY": 0
+  },
+  "settings": {
+    "showGrid": true,
+    "maxRaysPerSource": 50,
+    "globalMaxBounces": 10,
+    "globalMinIntensity": 0.01,
+    "fastWhiteLightMode": false,
+    "globalShowArrows": true,
+    "onlyShowSelectedSourceArrow": false,
+    "arrowAnimationSpeed": 1.0
+  },
+  "components": [
+    {
+      "type": "PointSource",
+      "id": "src1",
+      "pos": { "x": 200, "y": 300 },
+      "angleRad": 0,
+      "wavelengthNm": 650,
+      "intensity": 1.0,
+      "rayCount": 7
+    },
+    {
+      "type": "Prism",
+      "id": "prism1",
+      "pos": { "x": 400, "y": 300 },
+      "angleRad": 1.0472,
+      "sideLength": 100,
+      "refractiveIndex": 1.5,
+      "dispersionCoeff": 0.01
+    },
+    {
+      "type": "Screen",
+      "id": "screen1",
+      "pos": { "x": 650, "y": 300 },
+      "angleRad": 1.5708,
+      "width": 150
+    }
+  ]
+}

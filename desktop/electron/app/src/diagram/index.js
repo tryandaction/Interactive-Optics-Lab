@@ -6,6 +6,8 @@
 export { ModeManager, APP_MODES, getModeManager, resetModeManager } from './ModeManager.js';
 export { ModeSwitcher, createModeSwitcher } from './ModeSwitcher.js';
 export { SymbolLibrary, getSymbolLibrary, resetSymbolLibrary } from './SymbolLibrary.js';
+export { SceneToDiagramAdapter, createSceneToDiagramAdapter, DIAGRAM_OBJECT_TYPES } from './SceneToDiagramAdapter.js';
+export { DiagramObjectSVGRenderer, createDiagramObjectSVGRenderer } from './DiagramObjectSVGRenderer.js';
 export { Annotation, AnnotationManager, getAnnotationManager, resetAnnotationManager, SUBSCRIPT_MAP, SUPERSCRIPT_MAP } from './AnnotationSystem.js';
 export {
     LayoutEngine,

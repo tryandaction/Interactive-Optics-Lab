@@ -35,7 +35,6 @@ export const ICON_CATEGORIES = {
     DETECTORS: 'detectors',
     ATOMIC: 'atomic',
     FIBERS: 'fibers',
-    POLARIZATION: 'polarization',
     MISC: 'misc'
 };
 
@@ -63,15 +62,34 @@ export class ProfessionalIconManager {
     }
 
     registerIcon(componentType, definition) {
+        const existing = this.iconDefinitions.get(componentType);
+        if (existing?.category && this.categories.has(existing.category)) {
+            const list = this.categories.get(existing.category) || [];
+            this.categories.set(existing.category, list.filter(type => type !== componentType));
+        }
+        const connectionPoints = Array.isArray(definition.connectionPoints) ? definition.connectionPoints : [];
+        const normalizedConnectionPoints = connectionPoints.length > 0
+            ? connectionPoints
+            : [{
+                id: 'center',
+                label: 'center',
+                position: { x: 0.5, y: 0.5 },
+                direction: 0,
+                type: CONNECTION_POINT_TYPES.INPUT
+            }];
         const icon = {
             id: definition.id || generateIconId(),
+            componentType,
             name: definition.name || componentType,
             category: definition.category || ICON_CATEGORIES.MISC,
+            tags: Array.isArray(definition.tags) ? definition.tags : [],
             svgContent: definition.svgContent || null,
+            svg: definition.svgContent || definition.svg || null,
             width: definition.width || 60,
             height: definition.height || 60,
-            connectionPoints: definition.connectionPoints || [],
-            defaultStyle: { ...this.defaultStyle, ...definition.defaultStyle }
+            connectionPoints: normalizedConnectionPoints,
+            defaultStyle: { ...this.defaultStyle, ...definition.defaultStyle },
+            tooltip: definition.tooltip || definition.name || componentType
         };
         this.iconDefinitions.set(componentType, icon);
         if (!this.categories.has(icon.category)) {
@@ -129,6 +147,20 @@ export class ProfessionalIconManager {
         return Array.from(this.iconDefinitions.keys());
     }
 
+    getAllIcons() {
+        const icons = Array.from(this.iconDefinitions.values());
+        const svgIcons = icons.filter(icon => typeof icon.svg === 'string' && icon.svg.trim());
+        return svgIcons.length > 0 ? svgIcons : icons;
+    }
+
+    getCategories() {
+        const result = {};
+        this.categories.forEach((value, key) => {
+            result[key] = value;
+        });
+        return result;
+    }
+
     getIconsByCategory(category) {
         return this.categories.get(category) || [];
     }
@@ -137,9 +169,24 @@ export class ProfessionalIconManager {
         return Array.from(this.categories.keys());
     }
 
+    searchIcons(query) {
+        if (!query) return this.getAllIcons();
+        const lowerQuery = query.toLowerCase();
+        return this.getAllIcons().filter(icon =>
+            (icon.name && icon.name.toLowerCase().includes(lowerQuery)) ||
+            (icon.category && icon.category.toLowerCase().includes(lowerQuery)) ||
+            (icon.tags && icon.tags.some(tag => tag.toLowerCase().includes(lowerQuery)))
+        );
+    }
+
     getConnectionPoints(componentType) {
         const icon = this.getIconDefinition(componentType);
         return icon ? [...icon.connectionPoints] : [];
+    }
+
+    getTooltip(componentType) {
+        const icon = this.getIconDefinition(componentType);
+        return icon ? icon.tooltip : componentType;
     }
 
     async loadSVG(svgSource, cacheKey) {
@@ -200,6 +247,8 @@ export class ProfessionalIconManager {
         ctx.translate(x, y);
         ctx.rotate(angle);
         ctx.scale(scale, scale);
+        if ('imageSmoothingEnabled' in ctx) ctx.imageSmoothingEnabled = true;
+        if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
         if (mergedStyle.opacity !== undefined) {
             ctx.globalAlpha = mergedStyle.opacity;
         }
@@ -244,20 +293,34 @@ export class ProfessionalIconManager {
     }
 
     _applySVGStyle(svgContent, style) {
-        if (style.preserveSvgColors) {
-            return svgContent;
-        }
         let styled = svgContent;
-        if (style.color) {
-            styled = styled.replace(/stroke="[^"]*"/g, `stroke="${style.color}"`);
+        if (!style.preserveSvgColors) {
+            if (style.color) {
+                styled = styled.replace(/stroke="[^"]*"/g, `stroke="${style.color}"`);
+            }
+            if (style.fillColor) {
+                styled = styled.replace(/fill="[^"]*"/g, `fill="${style.fillColor}"`);
+            }
+            if (style.strokeWidth) {
+                styled = styled.replace(/stroke-width="[^"]*"/g, `stroke-width="${style.strokeWidth}"`);
+            }
         }
-        if (style.fillColor) {
-            styled = styled.replace(/fill="[^"]*"/g, `fill="${style.fillColor}"`);
-        }
-        if (style.strokeWidth) {
-            styled = styled.replace(/stroke-width="[^"]*"/g, `stroke-width="${style.strokeWidth}"`);
-        }
+        styled = this._injectSvgRenderingHints(styled);
         return styled;
+    }
+
+    _injectSvgRenderingHints(svgContent) {
+        let updated = svgContent;
+        updated = this._injectSvgAttribute(updated, 'stroke-linecap', 'round');
+        updated = this._injectSvgAttribute(updated, 'stroke-linejoin', 'round');
+        updated = this._injectSvgAttribute(updated, 'shape-rendering', 'geometricPrecision');
+        return updated;
+    }
+
+    _injectSvgAttribute(svgContent, attr, value) {
+        const attrRe = new RegExp(`\\b${attr}\\s*=`, 'i');
+        if (attrRe.test(svgContent)) return svgContent;
+        return svgContent.replace(/<svg\\b([^>]*)>/i, (match, attrs) => `<svg${attrs} ${attr}="${value}">`);
     }
 
     /**
@@ -407,6 +470,7 @@ export class ProfessionalIconManager {
                 width: icon.width,
                 height: icon.height,
                 connectionPoints: icon.connectionPoints,
+                tooltip: icon.tooltip,
                 hasSvg: !!icon.svgContent
             };
         });
@@ -421,6 +485,7 @@ export class ProfessionalIconManager {
         // ========== 光源 ==========
         this.registerIcon('LaserSource', {
             name: '激光光源',
+            tooltip: '激光光源 - 单色相干光束',
             category: ICON_CATEGORIES.SOURCES,
             width: 80, height: 40,
             connectionPoints: [
@@ -455,6 +520,7 @@ export class ProfessionalIconManager {
         // ========== 反射镜 ==========
         this.registerIcon('Mirror', {
             name: '反射镜',
+            tooltip: '平面反射镜 - 改变光束方向',
             category: ICON_CATEGORIES.MIRRORS,
             width: 12, height: 50,
             connectionPoints: [
@@ -490,6 +556,7 @@ export class ProfessionalIconManager {
         // 二向色镜
         this.registerIcon('DichroicMirror', {
             name: '二向色镜',
+            tooltip: '二向色镜 - 按波长分离光束',
             category: ICON_CATEGORIES.MIRRORS,
             width: 50, height: 50,
             connectionPoints: [
@@ -517,6 +584,7 @@ export class ProfessionalIconManager {
         // ========== 透镜 ==========
         this.registerIcon('ConvexLens', {
             name: '凸透镜',
+            tooltip: '凸透镜 - 汇聚光束 (f > 0)',
             category: ICON_CATEGORIES.LENSES,
             width: 20, height: 60,
             connectionPoints: [
@@ -544,6 +612,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('ConcaveLens', {
             name: '凹透镜',
+            tooltip: '凹透镜 - 发散光束 (f < 0)',
             category: ICON_CATEGORIES.LENSES,
             width: 20, height: 60,
             connectionPoints: [
@@ -553,11 +622,16 @@ export class ProfessionalIconManager {
         });
         this._builtinDrawFunctions['ConcaveLens'] = (ctx, icon, style) => {
             const w = icon.width, h = icon.height;
+            // 对称双凹透镜：左右两侧都向内凹
             ctx.beginPath();
+            // 左曲面（向内凹）
             ctx.moveTo(-w/2, -h/2);
             ctx.quadraticCurveTo(w/4, 0, -w/2, h/2);
+            // 底边
             ctx.lineTo(w/2, h/2);
+            // 右曲面（向内凹，对称）
             ctx.quadraticCurveTo(-w/4, 0, w/2, -h/2);
+            // 顶边
             ctx.closePath();
             const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
             grad.addColorStop(0, 'rgba(100, 180, 255, 0.3)');
@@ -569,20 +643,85 @@ export class ProfessionalIconManager {
             ctx.lineWidth = 1.5;
             ctx.stroke();
         };
-        // 别名
-        this._builtinDrawFunctions['ThinLens'] = this._builtinDrawFunctions['ConvexLens'];
-        this.iconDefinitions.set('ThinLens', this.iconDefinitions.get('ConvexLens'));
-        this.registerAlias('ThinLens', 'ConvexLens');
+
+        // ThinLens: 独立注册，根据 focalLength 动态选择凸/凹绘制
+        this.registerIcon('ThinLens', {
+            name: '薄透镜',
+            tooltip: '薄透镜 - 根据焦距自动显示凸/凹',
+            category: ICON_CATEGORIES.LENSES,
+            width: 20, height: 60,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 1, y: 0.5 }, direction: 0, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['ThinLens'] = (ctx, icon, style) => {
+            const focalLength = style.focalLength ?? 100;
+            if (focalLength < 0) {
+                // 凹透镜
+                this._builtinDrawFunctions['ConcaveLens'](ctx, icon, style);
+            } else {
+                // 凸透镜
+                this._builtinDrawFunctions['ConvexLens'](ctx, icon, style);
+            }
+        };
+        // ========== 曲面镜 ==========
+        this.registerIcon('CurvedMirror', {
+            name: '曲面镜',
+            tooltip: '曲面镜 - 球面/抛物面反射镜',
+            category: ICON_CATEGORIES.MIRRORS,
+            width: 20, height: 50,
+            connectionPoints: [
+                { id: 'input', label: 'in', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.INPUT },
+                { id: 'output', label: 'out', position: { x: 0, y: 0.5 }, direction: 180, type: CONNECTION_POINT_TYPES.OUTPUT }
+            ]
+        });
+        this._builtinDrawFunctions['CurvedMirror'] = (ctx, icon, style) => {
+            const w = icon.width, h = icon.height;
+            // 弧形镜面
+            const grad = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+            grad.addColorStop(0, '#aaccff');
+            grad.addColorStop(0.5, '#ffffff');
+            grad.addColorStop(1, '#88aadd');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(w/2, -h/2);
+            ctx.quadraticCurveTo(-w/2, 0, w/2, h/2);
+            ctx.lineTo(w/2 + 4, h/2);
+            ctx.quadraticCurveTo(-w/2 + 4, 0, w/2 + 4, -h/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(w/2, -h/2);
+            ctx.quadraticCurveTo(-w/2, 0, w/2, h/2);
+            ctx.stroke();
+            // 背面阴影线
+            ctx.strokeStyle = '#666666';
+            ctx.lineWidth = 0.8;
+            const spacing = h / 8;
+            for (let i = -h/2 + spacing; i < h/2; i += spacing) {
+                const xOff = w/2 + 4 - (w + 4) * (1 - Math.pow(i / (h/2), 2)) * 0.3;
+                ctx.beginPath();
+                ctx.moveTo(xOff, i);
+                ctx.lineTo(xOff + 4, i + spacing * 0.6);
+                ctx.stroke();
+            }
+        };
         this.registerAlias('SphericalMirror', 'CurvedMirror');
         this.registerAlias('ConcaveMirror', 'CurvedMirror');
         this.registerAlias('ConvexMirror', 'CurvedMirror');
         this.registerAlias('ParabolicMirror', 'CurvedMirror');
         this.registerAlias('ParabolicMirrorToolbar', 'ParabolicMirror');
 
-        // ========== 分束器 ==========
+        // BS 是 BeamSplitter 的 type 属性值
         this.registerAlias('BS', 'BeamSplitter');
+
+        // ========== 分束器 ==========
         this.registerIcon('BeamSplitter', {
             name: '分束器',
+            tooltip: '分束器 - 按比例分割光束',
             category: ICON_CATEGORIES.SPLITTERS,
             width: 50, height: 50,
             connectionPoints: [
@@ -650,6 +789,7 @@ export class ProfessionalIconManager {
         // ========== 调制器 ==========
         this.registerIcon('AOM', {
             name: '声光调制器',
+            tooltip: '声光调制器 (AOM) - 频移和强度调制',
             category: ICON_CATEGORIES.MODULATORS,
             width: 60, height: 40,
             connectionPoints: [
@@ -729,6 +869,7 @@ export class ProfessionalIconManager {
         // ========== 波片 ==========
         this.registerIcon('HalfWavePlate', {
             name: '半波片',
+            tooltip: '半波片 (λ/2) - 旋转偏振方向',
             category: ICON_CATEGORIES.WAVEPLATES,
             width: 8, height: 50,
             connectionPoints: [
@@ -756,6 +897,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('QuarterWavePlate', {
             name: '四分之一波片',
+            tooltip: '四分之一波片 (λ/4) - 线偏振↔圆偏振',
             category: ICON_CATEGORIES.WAVEPLATES,
             width: 8, height: 50,
             connectionPoints: [
@@ -1560,6 +1702,7 @@ export class ProfessionalIconManager {
 
         this.registerIcon('FabryPerotCavity', {
             name: 'F-P腔',
+            tooltip: 'Fabry-Pérot腔 - 光学谐振腔',
             category: ICON_CATEGORIES.MISC,
             width: 80, height: 30,
             connectionPoints: [
@@ -1602,16 +1745,19 @@ export class ProfessionalIconManager {
         this._builtinDrawFunctions['FaradayRotator'] = (ctx, icon, style) => {
             const s = Math.min(icon.width, icon.height);
             const r = s / 2.5;
+            // 外圆
             ctx.strokeStyle = '#8855cc';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(0, 0, r, 0, Math.PI * 2);
             ctx.stroke();
+            // 旋转箭头弧线
             ctx.strokeStyle = '#aa77ee';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.arc(0, 0, r * 0.6, -Math.PI * 0.7, Math.PI * 0.3);
             ctx.stroke();
+            // 箭头头部
             const ax = r * 0.6 * Math.cos(Math.PI * 0.3);
             const ay = r * 0.6 * Math.sin(Math.PI * 0.3);
             ctx.fillStyle = '#aa77ee';
@@ -1621,6 +1767,7 @@ export class ProfessionalIconManager {
             ctx.lineTo(ax - 3, ay + 4);
             ctx.closePath();
             ctx.fill();
+            // F标记
             ctx.fillStyle = '#8855cc';
             ctx.font = 'bold 10px Arial';
             ctx.textAlign = 'center';
@@ -1640,17 +1787,20 @@ export class ProfessionalIconManager {
         });
         this._builtinDrawFunctions['FaradayIsolator'] = (ctx, icon, style) => {
             const w = icon.width, h = icon.height;
+            // 外框
             ctx.fillStyle = 'rgba(136, 85, 204, 0.15)';
             ctx.fillRect(-w/2, -h/2, w, h);
             ctx.strokeStyle = '#8855cc';
             ctx.lineWidth = 1.5;
             ctx.strokeRect(-w/2, -h/2, w, h);
+            // 输入偏振器（左竖线）
             ctx.strokeStyle = '#666';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(-w/2 + 6, -h/2 + 4);
             ctx.lineTo(-w/2 + 6, h/2 - 4);
             ctx.stroke();
+            // 法拉第旋转器（中间圆）
             ctx.strokeStyle = '#aa77ee';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -1661,12 +1811,14 @@ export class ProfessionalIconManager {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('F', 0, 0);
+            // 输出偏振器（右竖线）
             ctx.strokeStyle = '#666';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(w/2 - 6, -h/2 + 4);
             ctx.lineTo(w/2 - 6, h/2 - 4);
             ctx.stroke();
+            // 箭头表示单向
             ctx.fillStyle = '#8855cc';
             ctx.beginPath();
             ctx.moveTo(w/2 - 2, 0);
@@ -1700,11 +1852,13 @@ export class ProfessionalIconManager {
         });
         this._builtinDrawFunctions['CustomComponent'] = (ctx, icon, style) => {
             const s = Math.min(icon.width, icon.height);
+            // 虚线外框
             ctx.strokeStyle = '#888888';
             ctx.lineWidth = 1.5;
             ctx.setLineDash([4, 3]);
             ctx.strokeRect(-s/2, -s/2, s, s);
             ctx.setLineDash([]);
+            // 齿轮图标
             ctx.strokeStyle = '#666666';
             ctx.lineWidth = 1.5;
             ctx.beginPath();

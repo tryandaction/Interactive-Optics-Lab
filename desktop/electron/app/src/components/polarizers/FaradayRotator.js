@@ -5,8 +5,8 @@
 
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
-import { Ray } from '../../core/Ray.js';
 import { N_AIR } from '../../core/constants.js';
+import { applyJonesMatrix, jonesRotationMatrix } from '../../core/OpticsMath.js';
 
 export class FaradayRotator extends OpticalComponent {
     static functionDescription = "利用法拉第效应旋转偏振方向，旋转角与传播方向无关。";
@@ -161,8 +161,7 @@ export class FaradayRotator extends OpticalComponent {
             
             if (ray.hasJones()) {
                 const theta = this.rotationAngleRad;
-                const R = Ray._rot2(theta);
-                const v_out = Ray._apply2x2(R, ray.jones);
+                const v_out = applyJonesMatrix(jonesRotationMatrix(theta), ray.jones);
                 outRay.setJones(v_out);
             }
             newRays.push(outRay);

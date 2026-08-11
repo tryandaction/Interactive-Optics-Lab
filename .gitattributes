@@ -1,0 +1,2 @@
+# Preserve the upstream jsPDF license formatting without treating it as source whitespace errors.
+desktop/electron/app/src/libs/jspdf.umd.min.js -whitespace

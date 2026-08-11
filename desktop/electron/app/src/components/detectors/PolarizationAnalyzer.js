@@ -74,7 +74,8 @@ export class PolarizationAnalyzer extends OpticalComponent {
             S0: Ex_mag2 + Ey_mag2,
             S1: Ex_mag2 - Ey_mag2,
             S2: 2 * ExEyConj.re,
-            S3: 2 * ExEyConj.im
+            // The project defines positive Ey phase as right-circular polarization.
+            S3: -2 * ExEyConj.im
         };
     }
 
@@ -235,8 +236,8 @@ export class PolarizationAnalyzer extends OpticalComponent {
         
         if (Math.abs(x) > this.width / 2) return [];
         
-        let normal = this.perpDirection.multiply(-1);
-        if (denom > 0) normal = normal.multiply(-1);
+        let normal = this.perpDirection.clone();
+        if (rayDirection.dot(normal) > 0) normal = normal.multiply(-1);
         
         return [{
             distance: t,

@@ -242,7 +242,7 @@ export class RayTracer {
         }
 
         currentRay.addHistoryPoint(closestHit.point);
-        currentRay.markInteraction(hitComponent);
+        currentRay.markInteraction(hitComponent, closestHit);
 
         try {
             const interactionResult = hitComponent.interact(currentRay, closestHit, Ray);

@@ -6,6 +6,7 @@
 import { Vector } from '../../core/Vector.js';
 import { OpticalComponent } from '../../core/OpticalComponent.js';
 import { Ray } from '../../core/Ray.js';
+import { jonesLinear, splitJonesByPBS } from '../../core/OpticsMath.js';
 
 export class BeamSplitter extends OpticalComponent {
     static functionDescription = "分光器将入射光分为两路，可为非偏振或偏振型。";
@@ -205,30 +206,14 @@ export class BeamSplitter extends OpticalComponent {
         if (!ray.hasJones()) {
             transmittedIntensity = ray.intensity * (1.0 - this.pbsUnpolarizedReflectivity);
             reflectedIntensity = ray.intensity * this.pbsUnpolarizedReflectivity;
-            transmittedJones = Ray.jonesLinear(p_axis_angle);
-            reflectedJones = Ray.jonesLinear(p_axis_angle + Math.PI / 2);
+            transmittedJones = jonesLinear(p_axis_angle);
+            reflectedJones = jonesLinear(p_axis_angle + Math.PI / 2);
         } else {
-            const c = Math.cos(p_axis_angle);
-            const s = Math.sin(p_axis_angle);
-            const P_transmit = [[{re:c*c, im:0}, {re:c*s, im:0}], [{re:c*s, im:0}, {re:s*s, im:0}]];
-            
-            const s_axis_angle = p_axis_angle + Math.PI / 2;
-            const cs = Math.cos(s_axis_angle);
-            const ss = Math.sin(s_axis_angle);
-            const P_reflect = [[{re:cs*cs, im:0}, {re:cs*ss, im:0}], [{re:cs*ss, im:0}, {re:ss*ss, im:0}]];
-            
-            transmittedJones = Ray._apply2x2(P_transmit, ray.jones);
-            reflectedJones = Ray._apply2x2(P_reflect, ray.jones);
-
-            const inIntensityJones = ray.jonesIntensity();
-            const outIntensityJones_T = Ray._cAbs2(transmittedJones.Ex) + Ray._cAbs2(transmittedJones.Ey);
-            const outIntensityJones_R = Ray._cAbs2(reflectedJones.Ex) + Ray._cAbs2(reflectedJones.Ey);
-            
-            const scale_T = inIntensityJones > 1e-12 ? (outIntensityJones_T / inIntensityJones) : 0;
-            const scale_R = inIntensityJones > 1e-12 ? (outIntensityJones_R / inIntensityJones) : 0;
-
-            transmittedIntensity = ray.intensity * scale_T;
-            reflectedIntensity = ray.intensity * scale_R;
+            const split = splitJonesByPBS(ray.jones, p_axis_angle);
+            transmittedJones = split.transmittedJones;
+            reflectedJones = split.reflectedJones;
+            transmittedIntensity = ray.intensity * split.transmittedScale;
+            reflectedIntensity = ray.intensity * split.reflectedScale;
         }
         
         if (transmittedIntensity >= ray.minIntensityThreshold || ray.ignoreDecay) {

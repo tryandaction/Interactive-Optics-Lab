@@ -29,6 +29,17 @@ const MIN_RAY_INTENSITY = DEFAULT_MIN_RAY_INTENSITY;
 const MIN_RAY_WIDTH = DEFAULT_MIN_RAY_WIDTH;
 const MAX_RAY_WIDTH = DEFAULT_MAX_RAY_WIDTH;
 
+const DEBUG_RAY_TRACE = false;
+function traceDebug(...args) {
+    if (DEBUG_RAY_TRACE) console.debug(...args);
+}
+function traceTime(label) {
+    if (DEBUG_RAY_TRACE) console.time(label);
+}
+function traceTimeEnd(label) {
+    if (DEBUG_RAY_TRACE) console.timeEnd(label);
+}
+
 // --- Global DOM Elements ---
 let canvas, ctx, toolbar, simulationArea, inspector, inspectorContent, deleteBtn,
     toggleArrowsBtn, toggleSelectedArrowBtn, arrowSpeedSlider;
@@ -54,7 +65,10 @@ let labelDragOffset = null;
 let labelDragStartPos = null;
 let needsRetrace = true; // Flag to recalculate ray paths
 let componentToAdd = null; // Type string of component selected from toolbar
+let placementPreviewState = null;
 let currentRayPaths = []; // Stores the results of the last ray trace (Ray objects)
+let currentBeamGraph = { nodes: [], edges: [] };
+let currentBeamGraphSignature = '';
 let mousePos = null; // Current mouse position in canvas logical coordinates (initialized later)
 let mouseIsDown = false; // Is the primary mouse button currently pressed?
 let eventListenersSetup = false; // Ensure listeners are only added once
@@ -77,9 +91,38 @@ if (typeof window !== 'undefined') {
         set: (value) => { currentRayPaths = value; },
         configurable: true
     });
+    Object.defineProperty(window, 'currentBeamGraph', {
+        get: () => currentBeamGraph,
+        configurable: true
+    });
     Object.defineProperty(window, 'needsRetrace', {
         get: () => needsRetrace,
         set: (value) => { needsRetrace = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'selectedComponents', {
+        get: () => selectedComponents,
+        set: (value) => { selectedComponents = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'selectedComponent', {
+        get: () => selectedComponent,
+        set: (value) => { selectedComponent = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'cameraScale', {
+        get: () => cameraScale,
+        set: (value) => { cameraScale = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'cameraOffset', {
+        get: () => cameraOffset,
+        set: (value) => { cameraOffset = value; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'componentToAdd', {
+        get: () => componentToAdd,
+        set: (value) => { componentToAdd = value; },
         configurable: true
     });
 }
@@ -88,6 +131,21 @@ let cameraScale = 1.0;       // Current zoom level (1.0 = 100%)
 let cameraOffset = null; // Current pan offset (canvas origin relative to view origin, initialized later)
 let isPanning = false;       // Flag: Is the user currently panning?
 let lastPanMousePos = null;  // Mouse position at the start of panning
+
+// --- 绘图模式框选状态 ---
+let isMarqueeSelecting = false;
+let marqueeStart = null;
+let marqueeEnd = null;
+
+// --- 绘图模式手柄拖拽状态 ---
+let isHandleDragging = false;
+let handleDragType = null;    // 'rotate' | 'resize'
+let handleDragHandle = null;  // 'tl','tr','bl','br','tm','bm','ml','mr'
+let handleDragItem = null;
+let handleDragStartAngle = 0;
+let handleDragStartMouseAngle = 0;
+let handleDragStartBB = null;
+let handleDragStartPos = null;
 
 // 初始化 Vector 相关变量（在 Vector 类可用后调用）
 function initVectorVariables() {
@@ -105,6 +163,31 @@ let lastRecordedRotateState = null; // <<<--- 添加: 用于合并旋转操作
 let lastRecordedPropertyState = null; // <<<--- 添加: 用于合并属性修改
 let ongoingActionState = null; // { type: 'multi-move'/'rotate'/'property', component: comp, startValue: val, propName?: string }
 
+// --- 资源清理注册表 ---
+const _cleanupRegistry = []; // { remove: Function } 数组
+const _timerIds = [];         // setInterval/setTimeout ID 数组
+
+function trackEventListener(target, event, handler, options) {
+    target.addEventListener(event, handler, options);
+    _cleanupRegistry.push({ remove: () => target.removeEventListener(event, handler, options) });
+}
+
+function trackTimer(id, isInterval = true) {
+    _timerIds.push({ id, isInterval });
+}
+
+function _cleanupAllResources() {
+    _cleanupRegistry.forEach(entry => { try { entry.remove(); } catch (e) { /* ignore */ } });
+    _cleanupRegistry.length = 0;
+    _timerIds.forEach(entry => {
+        try { entry.isInterval ? clearInterval(entry.id) : clearTimeout(entry.id); } catch (e) { /* ignore */ }
+    });
+    _timerIds.length = 0;
+    if (_autoRecoveryManager) {
+        _autoRecoveryManager.stopAutoSave();
+    }
+}
+
 // 获取或初始化 HistoryManager
 function getHistoryManager() {
     if (!historyManager && typeof HistoryManager !== 'undefined') {
@@ -116,8 +199,8 @@ function getHistoryManager() {
 // --- Alignment Guides State ---
 let activeGuides = []; // Array to store currently active guide lines to draw
 const SNAP_THRESHOLD = 5.0; // Pixel distance threshold for snapping/showing guides (in logical coords)
-const GUIDE_COLOR = 'rgba(0, 255, 255, 0.75)'; // 亮青色 (Cyan)
-const GUIDE_DASH = [3, 3]; // 可以尝试不同的虚线模式，或设置为空数组 
+const GUIDE_COLOR = 'rgba(255, 0, 153, 0.85)'; // Figma 风格品红色
+const GUIDE_DASH = []; // 实线（Figma 风格）
 // --- Grid Settings ---
 const GRID_SIZE = 50; // Grid spacing in logical coordinates (should match drawGrid)
 const GRID_SNAP_THRESHOLD = 10.0; // Max distance (logical coords) to snap to grid
@@ -133,6 +216,8 @@ const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings';
 
 let sceneModified = false;     // Flag: Has the scene been modified since last save/load?
 let isImporting = false;       // Lock to prevent double import clicks/triggers
+let clipboardComponents = null; // Simulation-mode clipboard cache
+let clipboardPasteCount = 0;
 const LOCALSTORAGE_SCENE_KEY = 'opticsLabSceneData'; // Key for saving/loading scene
 // let showGrid = true;         // Default: Show grid initially
 // const LOCALSTORAGE_SETTINGS_KEY = 'opticsLabSettings'; // Key for saving settings
@@ -212,8 +297,8 @@ async function saveCurrentSceneToProject() {
     
     // 检查是否有打开的项目和场景
     if (!window.unifiedProjectPanel) {
-        console.log('[Save] No project panel available, using export as save');
-        await exportSceneAsFile();
+        console.log('[Save] No project panel available, saving document file');
+        await saveCurrentDocumentFile(false);
         return;
     }
     
@@ -223,13 +308,14 @@ async function saveCurrentSceneToProject() {
     
     // 如果没有打开的项目或场景，使用"另存为"功能
     if (!currentProject || !currentScene) {
-        console.log('[Save] No project/scene open, using export as save');
-        await exportSceneAsFile();
+        console.log('[Save] No project/scene open, saving document file');
+        await saveCurrentDocumentFile(false);
         return;
     }
     
+    const projectSceneModified = !!currentScene?.isModified;
     // 如果没有修改，不需要保存
-    if (!sceneModified) {
+    if (!sceneModified && !projectSceneModified) {
         console.log('[Save] No changes to save');
         showTemporaryMessage('没有需要保存的更改', 'info');
         return;
@@ -252,6 +338,9 @@ async function saveCurrentSceneToProject() {
         
         // 保存场景
         await projectManager.saveScene(components, settings);
+        if (currentScene) {
+            currentScene.isModified = false;
+        }
         
         // 标记为已保存
         markSceneAsSaved();
@@ -365,74 +454,6 @@ const BS_SPLIT_ARROW_THRESHOLD = 0.20; // If BS split results in intensity > 20%
 //     // console.log(`[getFullPathPoints] END for Ray (Src=${initialRay.sourceId}). Total points: ${fullPath.length}, Segments processed: ${safetyCounter}`); // DEBUG
 //     return fullPath;
 // }
-
-// --- Simulation Core Loop --- // (The rest of the file continues from here)
-
-// --- Simulation Core Loop ---
-function gameLoop(timestamp) {
-    const dt = (timestamp - lastTimestamp) / 1000; // Delta time in seconds
-    lastTimestamp = timestamp;
-
-    // Avoid large dt spikes if tab was inactive
-    const maxDt = 0.1; // Limit delta time to 100ms
-    const effectiveDt = Math.min(dt, maxDt);
-
-    // --- Update State ---
-    updateArrowAnimations(effectiveDt);
-
-    // --- Activate Rays Generated Last Frame ---
-    // (Currently only used for Fiber Output)
-    const initialActiveRays = []; // Start with an empty array for the main trace loop
-    if (nextFrameActiveRays.length > 0) {
-        console.log(`[GameLoop] Activating ${nextFrameActiveRays.length} rays from previous frame (fiber outputs).`);
-        initialActiveRays.push(...nextFrameActiveRays); // Add fiber outputs first? Or last? Let's add first.
-        nextFrameActiveRays = []; // Clear the queue for the next frame
-    }
-    // --- End Activation ---
-
-    // --- Ray Tracing ---
-    // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
-    console.time("RayTrace");
-    components.forEach(comp => comp.reset?.()); // Reset components
-
-    try {
-        // traceAllRays now potentially returns generated rays separately
-        const traceResult = traceAllRays(components,
-            canvas.width / (window.devicePixelRatio || 1),
-            canvas.height / (window.devicePixelRatio || 1),
-            initialActiveRays); // Pass initial rays (might include last frame's fiber outputs)
-
-        // traceResult should be an object: { completedPaths: [], generatedRays: [] }
-        if (traceResult && Array.isArray(traceResult.completedPaths)) {
-            currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
-            window.currentRayPaths = currentRayPaths;
-            if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
-                // Store newly generated rays (fiber outputs) for the *next* frame
-                nextFrameActiveRays.push(...traceResult.generatedRays);
-                console.log(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
-            }
-        } else {
-            console.error("traceAllRays returned invalid result:", traceResult);
-            currentRayPaths = [];
-            window.currentRayPaths = currentRayPaths;
-        }
-
-    } catch (e) {
-        console.error("!!! Error during traceAllRays:", e);
-        currentRayPaths = []; // Clear paths on error
-        window.currentRayPaths = currentRayPaths;
-        nextFrameActiveRays = []; // Also clear pending rays on error
-    } finally { // Ensure timing ends even on error
-        console.timeEnd("RayTrace");
-    }
-    // --- End Ray Tracing Block ---
-
-    // --- Rendering ---
-    draw();
-
-    // Request next frame
-    requestAnimationFrame(gameLoop);
-}
 
 // --- START OF REPLACEMENT: updateArrowAnimations function ---
 function updateArrowAnimations(dt) { // dt is not directly used, uses global time
@@ -566,15 +587,19 @@ function draw() {
     const computed = getComputedStyle(cssVarsSource);
     const canvasBg = computed.getPropertyValue('--canvas-bg').trim() || '#111111';
     const canvasGridColor = computed.getPropertyValue('--canvas-grid').trim() || 'rgba(255, 255, 255, 0.05)';
+    const canvasGridMajorColor = computed.getPropertyValue('--canvas-grid-major').trim() || 'rgba(255, 255, 255, 0.12)';
     // Bypass theme guard for the background fill so white canvas remains pure white
     ctx.__bypassThemeGuard = true;
     ctx.fillStyle = canvasBg;
     ctx.__bypassThemeGuard = false;
     ctx.fillRect(viewPortMinX, viewPortMinY, viewPortLogicalWidth, viewPortLogicalHeight);
     // Draw grid background using theme-aware grid color
-    drawGrid(ctx, 50, canvasGridColor);
+    drawGrid(ctx, 50, canvasGridColor, canvasGridMajorColor);
 
     // --- Draw based on Mode ---
+    // 检查是否为绘图模式（提前声明，供光线渲染和组件渲染使用）
+    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+
     if (currentMode === 'lens_imaging') {
         // Try to draw lens imaging diagram (includes special rays and image)
         const drawnSuccessfully = drawOpticalSystemDiagram(ctx);
@@ -586,9 +611,11 @@ function draw() {
         }
         // In lens imaging mode, we generally DON'T draw normal moving arrows
     } else { // Default 'ray_trace' mode
-        // Draw calculated ray paths and arrows as before
-        drawRayPaths(ctx, currentRayPaths);
-        drawArrowAnimations(ctx); // Only draw arrows in ray trace mode
+        // 绘图模式下跳过光线和箭头渲染，保持画面干净
+        if (!isDiagramModeActive) {
+            drawRayPaths(ctx, currentRayPaths);
+            drawArrowAnimations(ctx); // Only draw arrows in ray trace mode
+        }
     }
 
     // Draw placement preview if a tool is selected
@@ -596,8 +623,6 @@ function draw() {
     drawPlacementPreview(ctx);
 
     // Draw all components with user content filtering
-    // 检查是否为绘图模式
-    const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
     
     components.forEach(comp => {
         try {
@@ -613,9 +638,9 @@ function draw() {
             }
 
             // Draw selection highlight (which includes angle handle)
-            // The base GameObject.drawSelection handles the angle handle part.
-            // Subclasses might override drawSelection to add more highlights.
-            if (comp === selectedComponent || selectedComponents.includes(comp)) {
+            // In diagram mode, InteractionManager handles selection rendering (Figma-style)
+            // so we skip the default yellow angle handle.
+            if ((comp === selectedComponent || selectedComponents.includes(comp)) && !isDiagramModeActive) {
                 comp.drawSelection(ctx);
             }
 
@@ -644,29 +669,68 @@ function draw() {
 
 
 
-    // --- Draw Alignment Guides ---
+    // --- Draw Alignment Guides (Figma 风格) ---
     if (isDragging && activeGuides.length > 0) {
-        // const dpr = window.devicePixelRatio || 1; // No longer needed directly here if scaling context
         ctx.save();
-        ctx.strokeStyle = GUIDE_COLOR; // Defined constant: 'rgba(0, 255, 255, 0.75)'
-        ctx.lineWidth = 1 / cameraScale; // Make line thinner when zoomed in
-        ctx.setLineDash(GUIDE_DASH.map(d => d / cameraScale)); // Scale dash pattern with zoom
+        ctx.strokeStyle = GUIDE_COLOR;
+        ctx.lineWidth = 1 / cameraScale;
+        ctx.setLineDash(GUIDE_DASH.map(d => d / cameraScale));
 
         activeGuides.forEach(guide => {
             ctx.beginPath();
             if (guide.type === 'vertical') {
                 ctx.moveTo(guide.x, guide.y1);
                 ctx.lineTo(guide.x, guide.y2);
+                ctx.stroke();
+                // 距离标签
+                const dist = Math.abs(guide.y2 - guide.y1);
+                if (dist > 30 / cameraScale) {
+                    const midY = (guide.y1 + guide.y2) / 2;
+                    const fontSize = Math.max(10, 11 / cameraScale);
+                    ctx.font = `${fontSize}px sans-serif`;
+                    ctx.fillStyle = GUIDE_COLOR;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${Math.round(dist)}`, guide.x + 4 / cameraScale, midY);
+                }
             } else if (guide.type === 'horizontal') {
                 ctx.moveTo(guide.x1, guide.y);
                 ctx.lineTo(guide.x2, guide.y);
+                ctx.stroke();
+                // 距离标签
+                const dist = Math.abs(guide.x2 - guide.x1);
+                if (dist > 30 / cameraScale) {
+                    const midX = (guide.x1 + guide.x2) / 2;
+                    const fontSize = Math.max(10, 11 / cameraScale);
+                    ctx.font = `${fontSize}px sans-serif`;
+                    ctx.fillStyle = GUIDE_COLOR;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(`${Math.round(dist)}`, midX, guide.y - 3 / cameraScale);
+                }
             }
-            ctx.stroke();
         });
 
-        ctx.restore(); // Restore line dash and style
+        ctx.restore();
     }
     // --- End Draw Alignment Guides ---
+
+    // --- 绘图模式框选矩形渲染 ---
+    if (isMarqueeSelecting && marqueeStart && marqueeEnd) {
+        ctx.save();
+        const left = Math.min(marqueeStart.x, marqueeEnd.x);
+        const top = Math.min(marqueeStart.y, marqueeEnd.y);
+        const w = Math.abs(marqueeEnd.x - marqueeStart.x);
+        const h = Math.abs(marqueeEnd.y - marqueeStart.y);
+        ctx.strokeStyle = '#0078d4';
+        ctx.lineWidth = 1 / cameraScale;
+        ctx.setLineDash([]);
+        ctx.strokeRect(left, top, w, h);
+        ctx.fillStyle = 'rgba(0, 120, 212, 0.08)';
+        ctx.fillRect(left, top, w, h);
+        ctx.restore();
+    }
+    // --- End 框选矩形渲染 ---
 
 
     // --- Draw Image AFTER components in Lens Imaging Mode ---
@@ -682,26 +746,60 @@ function draw() {
     ctx.restore();
 } // --- End of draw function ---
 
-function drawGrid(context, gridSize, gridColor) {
+function drawGrid(context, gridSize, gridColor, majorGridColor) {
     if (!showGrid) {
         return; // Don't draw grid if it's turned off
     }
     const dpr = window.devicePixelRatio || 1;
     const logicalWidth = context.canvas.width / dpr;
     const logicalHeight = context.canvas.height / dpr;
+    const style = typeof window.computeGridRenderStyle === 'function'
+        ? window.computeGridRenderStyle({
+            dpr,
+            gridSize,
+            minorColor: gridColor,
+            majorColor: majorGridColor
+        })
+        : {
+            minorColor: gridColor,
+            majorColor: majorGridColor || gridColor,
+            minorWidth: 1 / dpr,
+            majorWidth: 1.25 / dpr,
+            pixelOffset: 0.5 / dpr,
+            gridSize,
+            majorEvery: 5
+        };
 
-    context.strokeStyle = gridColor;
-    context.lineWidth = 1 / dpr; // Make grid lines thin (1 physical pixel)
-    context.beginPath();
-    for (let x = gridSize; x < logicalWidth; x += gridSize) {
-        context.moveTo(x + 0.5 / dpr, 0); // Offset for crisp lines
-        context.lineTo(x + 0.5 / dpr, logicalHeight);
-    }
-    for (let y = gridSize; y < logicalHeight; y += gridSize) {
-        context.moveTo(0, y + 0.5 / dpr);
-        context.lineTo(logicalWidth, y + 0.5 / dpr);
-    }
-    context.stroke();
+    const drawGridLayer = (major) => {
+        context.strokeStyle = major ? style.majorColor : style.minorColor;
+        context.lineWidth = major ? style.majorWidth : style.minorWidth;
+        context.beginPath();
+
+        let xIndex = 1;
+        for (let x = style.gridSize; x < logicalWidth; x += style.gridSize, xIndex++) {
+            const isMajor = typeof window.isMajorGridLine === 'function'
+                ? window.isMajorGridLine(xIndex, style.majorEvery)
+                : xIndex > 0 && xIndex % style.majorEvery === 0;
+            if (isMajor !== major) continue;
+            context.moveTo(x + style.pixelOffset, 0);
+            context.lineTo(x + style.pixelOffset, logicalHeight);
+        }
+
+        let yIndex = 1;
+        for (let y = style.gridSize; y < logicalHeight; y += style.gridSize, yIndex++) {
+            const isMajor = typeof window.isMajorGridLine === 'function'
+                ? window.isMajorGridLine(yIndex, style.majorEvery)
+                : yIndex > 0 && yIndex % style.majorEvery === 0;
+            if (isMajor !== major) continue;
+            context.moveTo(0, y + style.pixelOffset);
+            context.lineTo(logicalWidth, y + style.pixelOffset);
+        }
+
+        context.stroke();
+    };
+
+    drawGridLayer(false);
+    drawGridLayer(true);
 }
 
 function drawRayPaths(context, completedPaths) {
@@ -906,7 +1004,8 @@ function drawPlacementPreview(ctx) {
 
     // Create a temporary dummy component at mouse position for drawing its preview
     let previewComp = null;
-    const previewPos = mousePos.clone();
+    const previewPosition = placementPreviewState?.position || mousePos;
+    const previewPos = new Vector(previewPosition.x, previewPosition.y);
     try {
         // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
         // 光源默认朝右（0°）
@@ -981,8 +1080,8 @@ function drawPlacementPreview(ctx) {
             
             // 新透镜
             case 'CylindricalLens': previewComp = new CylindricalLens(previewPos, 80, 150, 90); break;
-            case 'AsphericLens': previewComp = new AsphericLens(previewPos, 80, 150, 90); break;
-            case 'GRINLens': previewComp = new GRINLens(previewPos, 60, 40, 90); break;
+            case 'AsphericLens': previewComp = new AsphericLens(previewPos, 80, 150, 0, [0, 0, 0, 0], 90); break;
+            case 'GRINLens': previewComp = new GRINLens(previewPos, 60, 40, 1.6, 0.01, 90); break;
             
             // 新偏振器件
             case 'WollastonPrism': previewComp = new WollastonPrism(previewPos, 60, 40, 0); break;
@@ -1007,6 +1106,13 @@ function drawPlacementPreview(ctx) {
         }
 
         if (previewComp) {
+            if (Number.isFinite(placementPreviewState?.angleDeg)) {
+                const angleRad = placementPreviewState.angleDeg * Math.PI / 180;
+                if ('angleRad' in previewComp) previewComp.angleRad = angleRad;
+                if ('angle' in previewComp) previewComp.angle = angleRad;
+                previewComp.onAngleChanged?.();
+                previewComp._updateGeometry?.();
+            }
             // Use the component's own draw method for the preview
             previewComp.selected = false; // Ensure it's not drawn as selected
             
@@ -1021,205 +1127,63 @@ function drawPlacementPreview(ctx) {
             if (!drawnWithProfessionalIcon) {
                 previewComp.draw(ctx);
             }
+
+            if (placementPreviewState?.snappedToBeam) {
+                ctx.save();
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 2 / cameraScale;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.arc(previewPos.x, previewPos.y, 8 / cameraScale, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
     } catch (e) { console.error("Error creating preview component:", e); }
     ctx.restore();
 }
 
-// --- START REPLACEMENT for the ENTIRE drawOpticalSystemDiagram function (V8 - Ray Path Logic Finalized) ---
-function drawOpticalSystemDiagram(ctx) {
-    const dpr = window.devicePixelRatio || 1;
-
-    // --- Style Constants ---
-    const AXIS_COLOR = 'rgba(180, 180, 180, 0.5)'; const LENS_COLOR = '#AAAAFF'; const OBJ_COLOR = '#FFA500';
-    const IMG_REAL_COLOR = '#32CD32'; const IMG_VIRTUAL_COLOR = '#90EE90'; const FOCI_COLOR = 'cyan';
-    const RAY_PARALLEL_COLOR = 'rgba(255, 100, 100, 0.85)'; const RAY_CENTER_COLOR = 'rgba(100, 255, 100, 0.85)';
-    const RAY_FOCAL_COLOR = 'rgba(100, 100, 255, 0.85)'; const INFO_COLOR = 'rgba(230, 230, 230, 0.9)';
-
-    const LINE_WIDTH = 1.0 / dpr; const THICK_LINE_WIDTH = 1.8 / dpr; const RAY_WIDTH = 1.2 / dpr;
-    const POINT_RADIUS = 3 / dpr; const ARROW_SIZE = 8 / dpr; const DASH_PATTERN = [4 / dpr, 3 / dpr];
-
-    // --- Helper Functions ---
-    const _isValidVector = (...vectors) => vectors.every(v => v && v instanceof Vector && !isNaN(v.x) && !isNaN(v.y));
-    const _isValidNumber = (...numbers) => numbers.every(n => typeof n === 'number' && isFinite(n));
-    const _drawLabeledPoint = (point, label, color, offset = new Vector(5, -5), align = 'left', base = 'bottom') => { if (!_isValidVector(point)) return; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(point.x, point.y, POINT_RADIUS, 0, 2 * Math.PI); ctx.fill(); ctx.font = `italic ${12 / dpr}px sans-serif`; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillStyle = INFO_COLOR; ctx.fillText(label, point.x + offset.x / dpr, point.y + offset.y / dpr); };
-    const _drawLine = (p1, p2, color, width = LINE_WIDTH, dashes = []) => { if (!_isValidVector(p1, p2)) return; ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dashes); ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.restore(); };
-    const _drawArrow = (p1, p2, color, size = ARROW_SIZE, width = THICK_LINE_WIDTH) => { if (!_isValidVector(p1, p2)) return; const vec = p2.subtract(p1); if (vec.magnitudeSquared() < 1e-9) return; _drawLine(p1, p2, color, width); const normDir = vec.normalize(); if (!_isValidVector(normDir)) return; const angle = Math.PI / 6; const v1 = normDir.rotate(Math.PI + angle).multiply(size); const v2 = normDir.rotate(Math.PI - angle).multiply(size); if (!_isValidVector(v1, v2)) return; ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p2.x + v1.x, p2.y + v1.y); ctx.lineTo(p2.x + v2.x, p2.y + v2.y); ctx.closePath(); ctx.fill(); };
-    const _drawLensSchematic = (lensComp, color = LENS_COLOR) => { if (!lensComp || !_isValidVector(lensComp.p1, lensComp.p2, lensComp.axisDirection)) return; const p1 = lensComp.p1; const p2 = lensComp.p2; const F = lensComp.focalLength; const isFlat = Math.abs(F) === Infinity; _drawLine(p1, p2, color, THICK_LINE_WIDTH * 1.2); if (!isFlat) { const arrowSize = ARROW_SIZE * 0.8; const midTop = Vector.lerp(lensComp.pos, p1, 0.85); const midBot = Vector.lerp(lensComp.pos, p2, 0.85); const arrowDir = lensComp.axisDirection.clone(); ctx.fillStyle = color; if (F > 0) { _drawArrowheadHelper(ctx, midTop, arrowDir.multiply(-1), arrowSize); _drawArrowheadHelper(ctx, midBot, arrowDir, arrowSize); } else { _drawArrowheadHelper(ctx, midTop, arrowDir, arrowSize); _drawArrowheadHelper(ctx, midBot, arrowDir.multiply(-1), arrowSize); } } };
-    const _drawArrowheadHelper = (ctx, tip, direction, size) => { if (!_isValidVector(tip, direction) || direction.magnitudeSquared() < 1e-6 || size <= 0) return; const normDir = direction.normalize(); if (!_isValidVector(normDir)) return; const angle = Math.PI / 6; const v1 = normDir.rotate(Math.PI + angle).multiply(size); const v2 = normDir.rotate(Math.PI - angle).multiply(size); if (!_isValidVector(v1, v2)) return; ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x + v1.x, tip.y + v1.y); ctx.lineTo(tip.x + v2.x, tip.y + v2.y); ctx.closePath(); ctx.fill(); };
-    const intersectLensLine = (rayOrigin, rayDir, lensCenter, lensPlaneDir, lensP1, lensP2) => { if (!_isValidVector(rayOrigin, rayDir, lensCenter, lensPlaneDir, lensP1, lensP2)) return null; const OC = rayOrigin.subtract(lensCenter); const cross_Dir_Plane = rayDir.cross(lensPlaneDir); if (Math.abs(cross_Dir_Plane) < 1e-9) return null; const s = -(OC.cross(lensPlaneDir)) / cross_Dir_Plane; if (s < 1e-6) return null; const hitPoint = rayOrigin.add(rayDir.multiply(s)); const lensDiameterSq = lensP1.distanceSquaredTo(lensP2); const proj = hitPoint.subtract(lensP1).dot(lensP2.subtract(lensP1)) / (lensDiameterSq > 1e-9 ? lensDiameterSq : 1); if (proj < -0.05 || proj > 1.05) return null; return hitPoint; };
-    const extendRay = (startPoint, direction, factor = 2.0) => { // Increased factor slightly
-        if (!_isValidVector(startPoint, direction) || direction.magnitudeSquared() < 1e-9) return startPoint;
-        const length = Math.max(canvasWidth, canvasHeight) * factor; // Use canvas size for extension length
-        const normDir = direction.normalize();
-        return _isValidVector(normDir) ? startPoint.add(normDir.multiply(length)) : startPoint;
-    };
-
-    // --- Find Object and Lens ---
-    let objectSource = components.find(comp => comp instanceof LaserSource || comp instanceof FanSource || comp instanceof LineSource || comp instanceof WhiteLightSource);
-    let lens = components.find(comp => comp instanceof ThinLens);
-
-    // --- Validation ---
-    if (!objectSource || !lens || !(lens instanceof ThinLens) ||
-        !_isValidVector(objectSource.pos, lens.pos, lens.axisDirection, lens.p1, lens.p2) ||
-        !_isValidNumber(lens.focalLength, lens.diameter) || lens.diameter < 1e-6) {
-        showModeHint('透镜成像需要：1个有效光源和1个有效薄透镜。'); return false;
+// --- drawOpticalSystemDiagram: delegates to LensImaging singleton ---
+let _lensImagingInstance = null;
+function _getLensImagingInstance() {
+    if (!_lensImagingInstance) {
+        if (typeof window.getLensImaging === 'function') {
+            _lensImagingInstance = window.getLensImaging();
+        } else if (typeof window.LensImaging === 'function') {
+            _lensImagingInstance = new window.LensImaging();
+        }
     }
-    const canvasWidth = ctx.canvas.width / dpr; const canvasHeight = ctx.canvas.height / dpr;
-    const F = lens.focalLength; const isFlat = Math.abs(F) === Infinity; const LENS_CENTER = lens.pos;
-    const LENS_AXIS = lens.axisDirection.clone(); const LENS_PLANE_DIR = lens.p1.subtract(lens.p2).normalize();
-    const lensP1 = lens.p1; const lensP2 = lens.p2;
-
-    // --- Object Calculation ---
-    const OBJ_TIP = objectSource.pos.clone(); const vecCenterToObjTip = OBJ_TIP.subtract(LENS_CENTER);
-    const u_dist_signed = vecCenterToObjTip.dot(LENS_AXIS); const OBJ_BASE = LENS_CENTER.add(LENS_AXIS.multiply(u_dist_signed));
-    const objHeightVec = OBJ_TIP.subtract(OBJ_BASE); const ho_signed = objHeightVec.dot(LENS_PLANE_DIR);
-    const MIN_DIAGRAM_HEIGHT = 5 / dpr; let ho_effective = ho_signed;
-    if (Math.abs(ho_effective) < MIN_DIAGRAM_HEIGHT) { ho_effective = Math.sign(ho_effective) * MIN_DIAGRAM_HEIGHT || MIN_DIAGRAM_HEIGHT; }
-    const OBJ_TIP_EFFECTIVE = OBJ_BASE.add(LENS_PLANE_DIR.multiply(ho_effective));
-    if (!_isValidVector(OBJ_BASE, OBJ_TIP_EFFECTIVE)) { showModeHint('物体位置计算错误。'); return false; }
-
-    // --- Image Calculation ---
-    const u = -u_dist_signed; let v = Infinity; let M = 0; let hi_signed = 0;
-    let IMG_TIP = null; let IMG_BASE = null; let isRealImage = false; let imageAtInfinity = false;
-    // ... (Robust image calculation logic from V6/V7) ...
-    if (isFlat) { v = -u; M = 1.0; }
-    else if (Math.abs(u) < 1e-9) { v = 0; M = 1.0; } else if (Math.abs(F) < 1e-9) { v = -u; M = 1.0; }
-    else if (Math.abs(u - F) < 1e-6) { v = Infinity; M = Infinity; imageAtInfinity = true; }
-    else { const one_over_f = 1 / F; const one_over_u = 1 / u; if (!_isValidNumber(one_over_f, one_over_u)) { showModeHint('计算错误 (1/f or 1/u)。'); return false; } const one_over_v = one_over_f - one_over_u; if (!_isValidNumber(one_over_v)) { showModeHint('计算错误 (1/v)。'); return false; } if (Math.abs(one_over_v) < 1e-9) { v = Infinity; M = Infinity; imageAtInfinity = true; } else { v = 1 / one_over_v; if (!_isValidNumber(v)) { showModeHint('计算错误 (v)。'); return false; } M = -v / u; if (!_isValidNumber(M)) M = 0; } }
-    if (!imageAtInfinity) { IMG_BASE = LENS_CENTER.add(LENS_AXIS.multiply(v)); hi_signed = M * ho_effective; if (!_isValidNumber(hi_signed)) hi_signed = 0; IMG_TIP = IMG_BASE.add(LENS_PLANE_DIR.multiply(hi_signed)); isRealImage = (u_dist_signed * v < -1e-9); if (!_isValidVector(IMG_BASE, IMG_TIP)) { showModeHint('像位置计算错误。'); IMG_BASE = null; IMG_TIP = null; } }
-
-    // --- Calculate Focal Points ---
-    let F_obj_world = null; let F_img_world = null;
-    if (!isFlat) { F_obj_world = LENS_CENTER.add(LENS_AXIS.multiply(-F)); F_img_world = LENS_CENTER.add(LENS_AXIS.multiply(F)); if (!_isValidVector(F_obj_world, F_img_world)) { showModeHint('焦点计算错误。'); return false; } }
-
-    // --- Start Drawing ---
-    ctx.save();
-    try {
-        // --- Draw Static Elements ---
-        const axisP1 = LENS_CENTER.add(LENS_AXIS.multiply(-canvasWidth * 1.5)); const axisP2 = LENS_CENTER.add(LENS_AXIS.multiply(canvasWidth * 1.5));
-        _drawLine(axisP1, axisP2, AXIS_COLOR, LINE_WIDTH, DASH_PATTERN);
-        _drawLensSchematic(lens, LENS_COLOR);
-        _drawArrow(OBJ_BASE, OBJ_TIP_EFFECTIVE, OBJ_COLOR);
-        _drawLabeledPoint(OBJ_TIP_EFFECTIVE, "A", OBJ_COLOR, new Vector(5, -5)); _drawLabeledPoint(OBJ_BASE, "B", OBJ_COLOR, new Vector(5, 5));
-        if (F_obj_world && F_img_world) { _drawLabeledPoint(F_obj_world, "F", FOCI_COLOR, new Vector(-15 / dpr, 5 / dpr), 'right'); _drawLabeledPoint(F_img_world, "F'", FOCI_COLOR, new Vector(5 / dpr, 5 / dpr), 'left'); }
-        if (IMG_TIP && IMG_BASE) { const imageColor = isRealImage ? IMG_REAL_COLOR : IMG_VIRTUAL_COLOR; const imageLabel = isRealImage ? "A' (实)" : "A' (虚)"; const dashes = isRealImage ? [] : DASH_PATTERN; _drawArrow(IMG_BASE, IMG_TIP, imageColor); _drawLabeledPoint(IMG_TIP, imageLabel, imageColor, new Vector(5, -5)); _drawLabeledPoint(IMG_BASE, "B'", imageColor, new Vector(5, 5)); }
-
-        // --- Trace and Draw Principal Rays ---
-        const rayWidth = RAY_WIDTH;
-
-        // Function to draw a single principal ray with correct solid/dashed lines
-        const drawPrincipalRay = (startPoint, dirIn, hitPoint, dirOut, endPoint, isVirtualIn, isVirtualOut, color) => {
-            if (!hitPoint) return; // Cannot draw if ray misses lens
-
-            // Draw Incoming Segment
-            _drawLine(startPoint, hitPoint, color, rayWidth, isVirtualIn ? DASH_PATTERN : []);
-
-            // Draw Outgoing Segment (Actual Path - Always Solid)
-            const effectiveEndPoint = imageAtInfinity ? extendRay(hitPoint, dirOut) : endPoint;
-            if (effectiveEndPoint) {
-                _drawLine(hitPoint, effectiveEndPoint, color, rayWidth); // Actual path is solid
-            }
-
-            // Draw Backward Extension (Virtual Path - Always Dashed)
-            if (isVirtualOut && effectiveEndPoint) { // Only draw if forms virtual image or diverges from virtual point
-                // Extend backwards from hitPoint along the negative dirOut direction
-                const virtualOrigin = extendRay(hitPoint, dirOut.multiply(-1));
-                _drawLine(hitPoint, virtualOrigin, color, rayWidth, DASH_PATTERN);
-            }
-        };
-
-        // Ray 1: Parallel -> F'
-        const traceRay1 = () => {
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = LENS_AXIS.clone();
-            const hitPoint = intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
-            if (!hitPoint || isFlat || !F_img_world) return; // Need hit and F' for curved lens
-
-            let dirOut;
-            if (F > 0) { dirOut = F_img_world.subtract(hitPoint).normalize(); } // Convex aims through F'
-            else { dirOut = hitPoint.subtract(F_img_world).normalize(); }       // Concave seems to come from F'
-
-            if (!_isValidVector(dirOut)) return;
-            const endPoint = IMG_TIP; // Ray should pass through image tip
-            const isVirtualOut = !isRealImage;
-
-            drawPrincipalRay(startPoint, dirIn, hitPoint, dirOut, endPoint, false, isVirtualOut, RAY_PARALLEL_COLOR);
-        };
-
-        // Ray 2: Center -> Undeviated
-        const traceRay2 = () => {
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const hitPoint = LENS_CENTER; // Approx center
-            const dir = hitPoint.subtract(startPoint).normalize();
-            if (!_isValidVector(dir)) return;
-
-            const endPoint = IMG_TIP; // Ray should pass through image tip
-            const isVirtualOut = !isRealImage;
-
-            drawPrincipalRay(startPoint, dir, hitPoint, dir, endPoint, false, isVirtualOut, RAY_CENTER_COLOR);
-        };
-
-        // Ray 3: F -> Parallel
-        const traceRay3 = () => {
-            if (isFlat || !F_obj_world) return;
-            const startPoint = OBJ_TIP_EFFECTIVE;
-            const dirIn = F_obj_world.subtract(startPoint).normalize(); // Direction from object tip towards F
-            if (!_isValidVector(dirIn) || dirIn.magnitudeSquared() < 1e-9) return; // Object is at F
-
-            let isVirtualIn = (F < 0); // Aiming line is virtual for concave
-            const hitPoint = intersectLensLine(startPoint, dirIn, LENS_CENTER, LENS_PLANE_DIR, lensP1, lensP2);
-
-            // Only proceed if the ray (or its virtual aiming line) hits the lens
-            if (hitPoint) {
-                const dirOut = LENS_AXIS.clone(); // Parallel exit
-                const endPoint = IMG_TIP; // Ray should pass through image tip
-                const isVirtualOut = !isRealImage;
-                drawPrincipalRay(startPoint, dirIn, hitPoint, dirOut, endPoint, isVirtualIn, isVirtualOut, RAY_FOCAL_COLOR);
-            } else if (isVirtualIn) {
-                // Draw only the virtual aiming line if it misses the lens segment
-                const aimPoint = extendRay(startPoint, dirIn);
-                _drawLine(startPoint, aimPoint, RAY_FOCAL_COLOR, rayWidth, DASH_PATTERN);
-            }
-        };
-
-        // Execute ray tracing
-        traceRay1();
-        traceRay2();
-        traceRay3();
-
-        // --- Display Numerical Info ---
-        // ... (Info display logic remains the same as V6/V7) ...
-        const infoFont = `${13 / dpr}px sans-serif`; const lineHeight = 16 / dpr; const textX = 15 / dpr; let textY = 20 / dpr;
-        ctx.fillStyle = INFO_COLOR; ctx.font = infoFont; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-        const formatNum = (n, figs = 1) => (Math.abs(n) === Infinity) ? "∞" : (_isValidNumber(n) ? n.toFixed(figs) : "N/A");
-        const textLines = [`f = ${formatNum(F)}`, `u = ${formatNum(u)}`, `v = ${formatNum(v)}`, `M = ${formatNum(M, 2)}`, `hₒ = ${formatNum(ho_signed)}`, `hᵢ = ${formatNum(hi_signed)}`];
-        textLines.forEach(line => { ctx.fillText(line, textX, textY); textY += lineHeight; });
-        let imagePropsText = "像: ";
-        if (imageAtInfinity) { imagePropsText += "无穷远"; }
-        else if (IMG_TIP && _isValidNumber(M)) { imagePropsText += isRealImage ? "实" : "虚"; imagePropsText += ", "; imagePropsText += (M * ho_signed >= -1e-9) ? "正" : "倒"; imagePropsText += ", "; const absM = Math.abs(M); imagePropsText += (absM > 1.0 + 1e-2) ? "放大" : ((absM < 1.0 - 1e-2) ? "缩小" : "等大"); }
-        else { imagePropsText += "---"; }
-        ctx.fillText(imagePropsText, textX, textY);
-
-    } catch (error) {
-        console.error("[Draw Diagram] Error during drawing:", error); showModeHint('绘制透镜成像图时出错!'); ctx.restore(); return false;
-    } finally {
-        ctx.restore();
-    }
-    return true; // Success
+    return _lensImagingInstance;
 }
-// --- END REPLACEMENT for the ENTIRE drawOpticalSystemDiagram function ---
+
+function drawOpticalSystemDiagram(ctx) {
+    const li = _getLensImagingInstance();
+    if (!li) {
+        showModeHint('透镜成像模块未加载。');
+        return false;
+    }
+    const dpr = window.devicePixelRatio || 1;
+    return li.drawOpticalSystemDiagram(ctx, {
+        components: components,
+        canvasWidth: ctx.canvas.width / dpr,
+        canvasHeight: ctx.canvas.height / dpr,
+        showHint: showModeHint
+    });
+}
+// --- END drawOpticalSystemDiagram ---
 
 // --- Ray Tracing Core ---
 // --- PASTE this entire function into main.js, replacing the old traceAllRays ---
 function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveRays = []) {
-    console.log("[traceAllRays] Starting trace (Debug TIR Version).");
+    Ray.resetTraceSequence?.();
+    traceDebug("[traceAllRays] Starting trace.");
     let completedPaths = []; // Stores Ray objects representing terminated paths
     let activeRays = []; // Queue for tracing
 
     // 1. Generate initial rays
 
-    console.log("  --- Generating Initial Rays ---");
+    traceDebug("  --- Generating Initial Rays ---");
     sceneComponents.forEach(comp => {
         if (typeof comp.generateRays === 'function' && comp.enabled) {
             if (typeof Ray !== 'undefined') {
@@ -1228,10 +1192,13 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                     if (Array.isArray(generated)) {
                         generated.forEach(r => {
                             if (r instanceof Ray) {
+                                r.originComponentId = comp.id;
+                                r.branchKind = 'output';
+                                r.visitedComponentIds = [comp.id];
                                 r.animateArrow = true; // Enable animation by default
                                 if (r.shouldTerminate()) { // Check initial termination
                                     if (r.endReason === 'low_intensity') r.animateArrow = false;
-                                    console.log(` -> Initial Ray ${r.sourceId}-0 terminated immediately: ${r.endReason}`);
+                                    traceDebug(` -> Initial Ray ${r.sourceId}-0 terminated immediately: ${r.endReason}`);
                                     completedPaths.push(r);
                                 } else {
                                     activeRays.push(r);
@@ -1243,13 +1210,13 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             } else { console.error("Ray class undefined during generation!"); }
         }
     });
-    console.log(`  --- Initial Active Queue Size: ${activeRays.length} ---`);
+    traceDebug(`  --- Initial Active Queue Size: ${activeRays.length} ---`);
 
     // After generating NEW initial rays from sources...
     if (initialActiveRays.length > 0) {
-        console.log(`  --- Adding ${initialActiveRays.length} initial rays from previous frame ---`);
+        traceDebug(`  --- Adding ${initialActiveRays.length} initial rays from previous frame ---`);
         activeRays.push(...initialActiveRays); // Add rays passed in (e.g., fiber outputs)
-        console.log(`  --- Active Queue now size: ${activeRays.length} ---`);
+        traceDebug(`  --- Active Queue now size: ${activeRays.length} ---`);
     }
 
     let tracedCount = 0;
@@ -1262,7 +1229,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         // --- LOG 1: Before pre-check ---
         if (currentRay.bouncesSoFar > 3) { // Log only for rays with multiple bounces
-            console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}: State: Term=${currentRay.terminated}, Reason=${currentRay.endReason}, I=${currentRay.intensity.toExponential(3)}, O=(${currentRay.origin?.x.toFixed(1)},${currentRay.origin?.y.toFixed(1)}), D=(${currentRay.direction?.x.toFixed(3)},${currentRay.direction?.y.toFixed(3)})`);
+            traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}: State: Term=${currentRay.terminated}, Reason=${currentRay.endReason}, I=${currentRay.intensity.toExponential(3)}, O=(${currentRay.origin?.x.toFixed(1)},${currentRay.origin?.y.toFixed(1)}), D=(${currentRay.direction?.x.toFixed(3)},${currentRay.direction?.y.toFixed(3)})`);
         }
 
         // --- Pre-computation Termination Check ---
@@ -1274,7 +1241,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
         // }
         // Explicitly check max bounces here, before calling shouldTerminate
         if (currentRay.bouncesSoFar >= MAX_RAY_BOUNCES) {
-            console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATING (max bounces ${MAX_RAY_BOUNCES})`);
+            traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATING (max bounces ${MAX_RAY_BOUNCES})`);
             currentRay.terminate('max_bounces');
             // NOTE: shouldTerminate will also catch this, but checking here first is slightly cleaner
         }
@@ -1284,7 +1251,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             const reason = currentRay.endReason || 'unknown_shouldTerminate';
             // Don't log termination again if reason was max_bounces, it was logged above
             if (reason !== 'max_bounces') {
-                console.log(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATED (Pre-Check). Reason: ${reason}. Adding to completed.`);
+                traceDebug(`[TraceLoop PreCheck] Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} TERMINATED (Pre-Check). Reason: ${reason}. Adding to completed.`);
             }
             if (!completedPaths.includes(currentRay)) {
                 let historyValid = currentRay.history && currentRay.history.length > 0 && currentRay.history.every(p => p instanceof Vector && !isNaN(p.x));
@@ -1355,7 +1322,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
         // 4. Process the intersection (or lack thereof)
         // --- Process Fiber Hit OR Component Hit ---
         if (fiberComp && fiberHit && fiberDist <= closestDist) { // Fiber hit is closer or equal
-            console.log(` -> Fiber Input Hit: Fiber ${fiberComp.id}, Dist ${fiberDist.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`); // DEBUG
+            traceDebug(` -> Fiber Input Hit: Fiber ${fiberComp.id}, Dist ${fiberDist.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
 
             // Add history point *up to* the fiber input facet plane
             if (!(fiberHit.point instanceof Vector) || isNaN(fiberHit.point.x)) {
@@ -1394,7 +1361,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         } else if (hitComponent && closestHit) {
             // --- LOG 3: After intersection found ---
-            if (currentRay.bouncesSoFar > 3) console.log(` -> Hit found: Comp ${hitComponent.label} (${hitComponent.id}), Dist ${closestHit.distance.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
+            if (currentRay.bouncesSoFar > 3) traceDebug(` -> Hit found: Comp ${hitComponent.label} (${hitComponent.id}), Dist ${closestHit.distance.toFixed(2)}, Bnc ${currentRay.bouncesSoFar}`);
 
             // Add hit point to history *before* interaction
             // Check validity of the hit point before adding
@@ -1405,16 +1372,17 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 continue;
             }
             currentRay.addHistoryPoint(closestHit.point);
+            currentRay.markInteraction?.(hitComponent);
 
             let interactionResult = [];
             try {
-                console.log(` ---> Calling interact() on ${hitComponent.label} for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}`);
+                traceDebug(` ---> Calling interact() on ${hitComponent.label} for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}`);
                 interactionResult = hitComponent.interact(currentRay, closestHit, Ray);
                 if (!currentRay.terminated) {
                     console.warn(`!!! Interact for ${hitComponent.label} did not terminate parent ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Forcing.`);
                     currentRay.terminate('segment_end_after_interaction');
                 }
-                console.log(` ---> Interact() finished for Bnc ${currentRay.bouncesSoFar}. Got ${Array.isArray(interactionResult) ? interactionResult.length : '?'} successors.`);
+                traceDebug(` ---> Interact() finished for Bnc ${currentRay.bouncesSoFar}. Got ${Array.isArray(interactionResult) ? interactionResult.length : '?'} successors.`);
 
             } catch (e) {
                 console.error(`Interact Err on component ${hitComponent?.label} (${hitComponent?.id}):`, e, currentRay, closestHit);
@@ -1429,6 +1397,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             // Process successors
             if (Array.isArray(interactionResult)) {
                 let successors = interactionResult.filter(r => r instanceof Ray);
+                Ray.linkSuccessors?.(currentRay, successors, hitComponent);
                 // Determine which successors should have their arrows animated
                 if (successors.length > 0) {
                     const parentWasAnimated = currentRay.animateArrow; // Check parent animation state
@@ -1466,7 +1435,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 // --- Process and Add Successors ---
                 successors.forEach(newRay => {
                     // --- LOG 6: Processing each successor ---
-                    if (newRay.bouncesSoFar > 3) console.log(` ----> Processing Successor Bnc ${newRay.bouncesSoFar}: State: Term=${newRay.terminated}, Reason=${newRay.endReason}, I=${newRay.intensity.toExponential(3)}, Anim=${newRay.animateArrow}`);
+                    if (newRay.bouncesSoFar > 3) traceDebug(` ----> Processing Successor Bnc ${newRay.bouncesSoFar}: State: Term=${newRay.terminated}, Reason=${newRay.endReason}, I=${newRay.intensity.toExponential(3)}, Anim=${newRay.animateArrow}`);
 
                     // // Check 1: Max bounce limit (only if limits active)
                     // let hitBounceLimit = !window.ignoreMaxBounces && newRay.bouncesSoFar >= MAX_RAY_BOUNCES;
@@ -1502,7 +1471,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                         const reason = newRay.endReason || 'unknown_successor_terminate';
                         // Log termination (avoid duplicate logging if max_bounces)
                         if (reason !== 'max_bounces') { // max_bounces termination is logged inside shouldTerminate now
-                            console.log(`[TraceLoop Successor] Ray ${newRay.sourceId}-${newRay.bouncesSoFar} terminated immediately (${reason}). Adding to completed.`);
+                            traceDebug(`[TraceLoop Successor] Ray ${newRay.sourceId}-${newRay.bouncesSoFar} terminated immediately (${reason}). Adding to completed.`);
                         }
                         if (reason === 'low_intensity') newRay.animateArrow = false;
 
@@ -1514,7 +1483,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                         // Continue to the next successor, DO NOT add to active queue
                     } else {
                         // Ray is valid, continue tracing
-                        if (newRay.bouncesSoFar > 3) console.log(` ----> ADDING Successor Bnc ${newRay.bouncesSoFar} to active queue.`);
+                        if (newRay.bouncesSoFar > 3) traceDebug(` ----> ADDING Successor Bnc ${newRay.bouncesSoFar} to active queue.`);
                         activeRays.push(newRay);
                     }
                 }); // End successors.forEach
@@ -1525,7 +1494,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
                 if (currentRay.terminated && !completedPaths.includes(currentRay)) {
                     let historyValid = currentRay.history && currentRay.history.length > 0 && currentRay.history.every(p => p instanceof Vector && !isNaN(p.x));
                     if (historyValid) {
-                        console.log(` -----> Adding terminated parent Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} (Reason: ${currentRay.endReason}) to completedPaths.`); // 添加日志
+                        traceDebug(` -----> Adding terminated parent Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} (Reason: ${currentRay.endReason}) to completedPaths.`);
                         completedPaths.push(currentRay);
                     } else {
                         console.error(` -----> SKIPPED adding terminated parent ray ${currentRay.sourceId}-${currentRay.bouncesSoFar} due to invalid history after interaction.`);
@@ -1549,7 +1518,7 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
 
         } else { // No hit
             // --- LOG 8: No hit / OOB ---
-            if (currentRay.bouncesSoFar > 3) console.log(` -> No Hit for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Terminating OOB.`);
+            if (currentRay.bouncesSoFar > 3) traceDebug(` -> No Hit for Ray ${currentRay.sourceId}-${currentRay.bouncesSoFar}. Terminating OOB.`);
             // Terminate ray, add final segment to completedPaths
             const exitDistance = Math.max(canvasWidth, canvasHeight) * 2;
             if (currentRay.origin instanceof Vector && currentRay.direction instanceof Vector &&
@@ -1571,14 +1540,14 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
     if (tracedCount >= MAX_TOTAL_RAYS_TO_PROCESS) {
         console.warn(`Ray tracing limit (${MAX_TOTAL_RAYS_TO_PROCESS}) reached.`);
     }
-    console.log(`[traceAllRays] Trace complete. ${activeRays.length} rays left in queue (should be 0). ${completedPaths.length} total paths generated.`);
+    traceDebug(`[traceAllRays] Trace complete. ${activeRays.length} rays left in queue (should be 0). ${completedPaths.length} total paths generated.`);
     // Add any remaining rays in active queue to completed (they might be stuck or error states)
     activeRays.forEach(ray => {
         if (!ray.terminated) ray.terminate('stuck_in_queue');
         if (!completedPaths.includes(ray)) completedPaths.push(ray);
     });
     // --- Generate Fiber Output Rays AFTER main tracing ---
-    console.log("[traceAllRays] Generating fiber outputs...");
+    traceDebug("[traceAllRays] Generating fiber outputs...");
     let fiberOutputRays = []; // Store rays generated THIS frame
     sceneComponents.forEach(comp => {
         if (comp instanceof OpticalFiber && typeof comp.generateOutputRays === 'function') {
@@ -1591,13 +1560,21 @@ function traceAllRays(sceneComponents, canvasWidth, canvasHeight, initialActiveR
             } catch (e) { console.error(`Fiber (${comp.id}) generateOutputRays error:`, e); }
         }
     });
-    console.log(`  -> Generated ${fiberOutputRays.length} rays from fiber outputs this frame.`);
+    traceDebug(`  -> Generated ${fiberOutputRays.length} rays from fiber outputs this frame.`);
     // --- End Fiber Output Generation ---
+
+    const beamGraph = window.BeamGraphBuilder
+        ? window.BeamGraphBuilder.fromTraceRecords(
+            sceneComponents,
+            completedPaths.map(ray => ray.toTraceRecord?.() || ray)
+        ).toJSON()
+        : { nodes: [], edges: [] };
 
     // Return BOTH completed paths from this frame AND newly generated rays
     return {
         completedPaths: completedPaths,
-        generatedRays: fiberOutputRays // These will be activated next frame
+        generatedRays: fiberOutputRays, // These will be activated next frame
+        beamGraph
     };
 } // --- END OF traceAllRays function ---
 
@@ -1654,6 +1631,35 @@ function updateInspector() {
             funcDesc.className = 'component-function';
             funcDesc.textContent = selectedComponent.constructor.functionDescription;
             infoHeader.appendChild(funcDesc);
+        }
+
+        const reliability = typeof window.getComponentReliability === 'function'
+            ? window.getComponentReliability(selectedComponent)
+            : null;
+        if (reliability) {
+            const reliabilityBox = document.createElement('div');
+            reliabilityBox.className = `component-reliability reliability-${reliability.level || 'unknown'}`;
+
+            const badge = document.createElement('span');
+            badge.className = 'component-reliability-badge';
+            badge.textContent = typeof window.getReliabilityLabel === 'function'
+                ? window.getReliabilityLabel(reliability.level)
+                : (reliability.level || '未评估');
+            reliabilityBox.appendChild(badge);
+
+            const scope = document.createElement('p');
+            scope.className = 'component-reliability-scope';
+            scope.textContent = reliability.scope || '该元件尚未纳入可信度基线。';
+            reliabilityBox.appendChild(scope);
+
+            if (reliability.limitations) {
+                const limitations = document.createElement('p');
+                limitations.className = 'component-reliability-limitations';
+                limitations.textContent = reliability.limitations;
+                reliabilityBox.appendChild(limitations);
+            }
+
+            infoHeader.appendChild(reliabilityBox);
         }
 
         const notesContainer = document.createElement('div');
@@ -2039,6 +2045,12 @@ function getMousePos(canvasElement, event) {
             return new Vector(0, 0);
         }
     }
+    if (!event || typeof event.clientX !== 'number' || typeof event.clientY !== 'number') {
+        if (mousePos && typeof mousePos.clone === 'function') {
+            return mousePos.clone();
+        }
+        return new Vector(0, 0);
+    }
     const rect = canvasElement.getBoundingClientRect();
     // 1. Mouse position relative to canvas top-left (CSS pixels)
     const cssX = event.clientX - rect.left;
@@ -2053,6 +2065,55 @@ function getMousePos(canvasElement, event) {
     return new Vector(logicalX, logicalY);
 }
 // --- END OF REPLACEMENT ---
+
+function resetInteractionState(options = {}) {
+    const { clearSelection = false, clearCursor = true } = options;
+
+    isDragging = false;
+    draggingComponents = [];
+    dragStartOffsets.clear();
+    ongoingActionState = null;
+
+    isLabelDragging = false;
+    draggedLabel = null;
+    labelDragOffset = null;
+    labelDragStartPos = null;
+
+    isHandleDragging = false;
+    handleDragType = null;
+    handleDragHandle = null;
+    handleDragItem = null;
+    handleDragStartBB = null;
+    handleDragStartPos = null;
+
+    isMarqueeSelecting = false;
+    marqueeStart = null;
+    marqueeEnd = null;
+
+    if (isPanning) {
+        isPanning = false;
+        lastPanMousePos = null;
+    }
+
+    activeGuides = [];
+    placementPreviewState = null;
+    mouseIsDown = false;
+
+    if (clearSelection) {
+        selectedComponents.forEach(comp => comp.selected = false);
+        selectedComponents = [];
+        selectedComponent = null;
+        updateInspector();
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr?.selection) interactionMgr.selection.clearSelection();
+    }
+
+    if (clearCursor && canvas) {
+        canvas.style.cursor = 'default';
+    }
+
+    needsRetrace = true;
+}
 
 // --- REPLACEMENT for handleMouseDown (V5 - Multi-Select Logic) ---
 function handleMouseDown(event) {
@@ -2075,6 +2136,16 @@ function handleMouseDown(event) {
     dragStartOffsets.clear(); // Clear previous offsets
     dragStartMousePos = mousePos.clone();
     ongoingActionState = null;
+
+    // --- Lens Imaging mode: delegate mouse down to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li && li.handleMouseDown(mousePos)) {
+            canvas.style.cursor = 'grabbing';
+            needsRetrace = true;
+            return; // LensImaging consumed the event (started object drag)
+        }
+    }
 
     // --- 绘图模式下的光线链接创建处理 ---
     const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
@@ -2168,7 +2239,18 @@ function handleMouseDown(event) {
     // --- 优先处理工具放置：如果选择了工具，直接在点击位置创建元件 ---
     if (componentToAdd) {
         let newComp = null;
-        const compPos = mousePos.clone();
+        placementPreviewState = window.BenchInteractions?.createPlacementPreview?.(
+            componentToAdd,
+            mousePos,
+            currentRayPaths,
+            {
+                threshold: 14 / cameraScale,
+                angleLocked: event.shiftKey,
+                angleIncrementDeg: 15
+            }
+        ) || placementPreviewState;
+        const targetPosition = placementPreviewState?.position || mousePos;
+        const compPos = new Vector(targetPosition.x, targetPosition.y);
         try {
             // 大多数光学元件默认应该是竖直放置的（90°），与光路垂直
             // 光源默认朝右（0°）
@@ -2242,8 +2324,8 @@ function handleMouseDown(event) {
                 
                 // 新透镜
                 case 'CylindricalLens': newComp = new CylindricalLens(compPos, 80, 150, 90); break;
-                case 'AsphericLens': newComp = new AsphericLens(compPos, 80, 150, 90); break;
-                case 'GRINLens': newComp = new GRINLens(compPos, 60, 40, 90); break;
+                case 'AsphericLens': newComp = new AsphericLens(compPos, 80, 150, 0, [0, 0, 0, 0], 90); break;
+                case 'GRINLens': newComp = new GRINLens(compPos, 60, 40, 1.6, 0.01, 90); break;
                 
                 // 新偏振器件
                 case 'WollastonPrism': newComp = new WollastonPrism(compPos, 60, 40, 0); break;
@@ -2271,6 +2353,16 @@ function handleMouseDown(event) {
         } catch (e) { console.error(`Error creating new component ${componentToAdd}:`, e); }
 
         if (newComp) {
+            if (Number.isFinite(placementPreviewState?.angleDeg)) {
+                const angleRad = placementPreviewState.angleDeg * Math.PI / 180;
+                if ('angleRad' in newComp) newComp.angleRad = angleRad;
+                if ('angle' in newComp) newComp.angle = angleRad;
+                newComp.onAngleChanged?.();
+                newComp._updateGeometry?.();
+            }
+            if (placementPreviewState?.beam) {
+                newComp.pendingBeamInsertion = { ...placementPreviewState.beam };
+            }
             const previousSelectionBeforeAdd = [...selectedComponents];
             selectedComponents.forEach(comp => comp.selected = false);
             selectedComponents = [newComp];
@@ -2278,7 +2370,7 @@ function handleMouseDown(event) {
             newComp.selected = true;
             components.push(newComp);
             historyManager.addCommand(new AddComponentCommand(newComp, components));
-            historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents));
+            historyManager.addCommand(new SelectCommand(previousSelectionBeforeAdd, selectedComponents, components));
             updateUndoRedoUI();
             updateInspector();
             needsRetrace = true;
@@ -2294,6 +2386,7 @@ function handleMouseDown(event) {
             }
         }
         componentToAdd = null;
+        placementPreviewState = null;
         clearToolbarSelection();
         canvas.style.cursor = 'default';
         return; // 工具放置完成，直接返回
@@ -2391,11 +2484,20 @@ function handleMouseDown(event) {
     } else { // Clicked empty space
         // --- Clicked Empty Space, No Tool Selected ---
         // (componentToAdd 已在函数开头处理，这里只处理清除选择)
-        if (selectedComponents.length > 0) {
-            selectionChanged = true; // Selection changing from N to 0
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram && !isShiftPressed) {
+            // 绘图模式：开始框选
+            isMarqueeSelecting = true;
+            marqueeStart = { x: mousePos.x, y: mousePos.y };
+            marqueeEnd = { x: mousePos.x, y: mousePos.y };
         }
-        selectedComponents.forEach(comp => comp.selected = false);
-        selectedComponents = []; // Clear selection
+        if (!isShiftPressed) {
+            if (selectedComponents.length > 0) {
+                selectionChanged = true;
+            }
+            selectedComponents.forEach(comp => comp.selected = false);
+            selectedComponents = [];
+        }
     }
 
     // --- Update Selection Visuals & Inspector ---
@@ -2411,18 +2513,55 @@ function handleMouseDown(event) {
     const previousSelectionIds = previousSelection.map(c => c.id).sort();
     if (JSON.stringify(currentSelectionIds) !== JSON.stringify(previousSelectionIds)) {
         // Selection actually changed, add the command
-        historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents)); // Use the arrays before they were potentially modified further
+        historyManager.addCommand(new SelectCommand(previousSelection, selectedComponents, components)); // Use the arrays before they were potentially modified further
         updateUndoRedoUI(); // Update buttons now that a command is added
         console.log("Selection changed, SelectCommand added.");
-        sceneModified = true; // Changing selection counts as modification
-        markSceneAsModified();
     } else {
         // console.log("Selection state did not change."); // Optional log
     }
     // --- End Add Undo Command ---
 
+    // --- 同步 InteractionManager 选择状态 ---
+    {
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr?.selection) {
+                interactionMgr.selection.clearSelection();
+                selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+            }
+        }
+    }
+
 
     // --- Initiate Dragging ---
+    // 绘图模式：检测手柄点击（旋转/缩放）
+    const isDiagramForHandle = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagramForHandle && selectedComponents.length === 1 && !specificHandleClicked) {
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr) {
+            const handle = interactionMgr.getHandleAtPoint(mousePos);
+            if (handle) {
+                isHandleDragging = true;
+                handleDragType = handle.type;
+                handleDragHandle = handle.handle || null;
+                handleDragItem = handle.item;
+                handleDragStartPos = handle.item.pos.clone();
+                handleDragStartBB = interactionMgr._getItemBounds(handle.item);
+                if (handle.type === 'rotate') {
+                    handleDragStartAngle = handle.item.angleRad;
+                    const dx = mousePos.x - handle.item.pos.x;
+                    const dy = mousePos.y - handle.item.pos.y;
+                    handleDragStartMouseAngle = Math.atan2(dy, dx);
+                    canvas.style.cursor = 'grabbing';
+                } else {
+                    canvas.style.cursor = handle.cursor;
+                }
+                return; // 不进入普通拖拽
+            }
+        }
+    }
+
     // Start dragging if clicked on a component (handle or body) that is currently selected
     if (clickedComponent && selectedComponents.includes(clickedComponent)) {
         isDragging = true;
@@ -2443,8 +2582,55 @@ function handleMouseDown(event) {
             }
         } else {
             // --- Dragging the body (move all selected components) ---
+            // Alt+拖拽：复制并拖拽（Figma 风格）
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (isDiagram && event.altKey && selectedComponents.length > 0) {
+                const duplicated = [];
+                const idMap = new Map();
+                selectedComponents.forEach(comp => {
+                    try {
+                        const data = comp.toJSON();
+                        const ComponentClass = window[data.type];
+                        if (ComponentClass) {
+                            const newComp = new ComponentClass(new Vector(data.pos.x, data.pos.y));
+                            Object.keys(data).forEach(key => {
+                                if (key !== 'type' && key !== 'id' && key !== 'pos') {
+                                    newComp.setProperty?.(key, data[key]);
+                                }
+                            });
+                            idMap.set(comp.id, newComp.id);
+                            components.push(newComp);
+                            duplicated.push(newComp);
+                        }
+                    } catch (e) {
+                        console.error('Alt+drag duplicate failed:', e);
+                    }
+                });
+                if (duplicated.length > 0) {
+                    // 记录添加操作（含 undoData 以支持撤销删除）
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr) {
+                        interactionMgr.recordAction(
+                            window.ActionType?.ADD_COMPONENT || 'add_component',
+                            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+                            { componentIds: duplicated.map(c => c.id) }
+                        );
+                    }
+                    // 切换选择到复制品
+                    selectedComponents.forEach(c => c.selected = false);
+                    selectedComponents = duplicated;
+                    duplicated.forEach(c => c.selected = true);
+                    selectedComponent = duplicated[duplicated.length - 1] || null;
+                    // 同步 InteractionManager 选择
+                    if (interactionMgr?.selection) {
+                        interactionMgr.selection.clearSelection();
+                        duplicated.forEach(c => interactionMgr.selection.select(c, true));
+                    }
+                }
+            }
+
             draggingComponents = [...selectedComponents]; // Drag all selected
-            const startPositions = new Map(); // Use Map for start values { compId -> Vector }
+            const startPositions = new Map();
             draggingComponents.forEach(comp => {
                 if (comp.pos instanceof Vector) {
                     dragStartOffsets.set(comp.id, comp.pos.subtract(mousePos));
@@ -2468,6 +2654,33 @@ function handleMouseMove(event) {
     const currentMousePos = getMousePos(canvas, event);
     mousePos = currentMousePos; // Update global mouse position
 
+    if (componentToAdd && window.BenchInteractions?.createPlacementPreview) {
+        placementPreviewState = window.BenchInteractions.createPlacementPreview(
+            componentToAdd,
+            currentMousePos,
+            currentRayPaths,
+            {
+                threshold: 14 / cameraScale,
+                angleLocked: event.shiftKey,
+                angleIncrementDeg: 15
+            }
+        );
+        needsRetrace = true;
+    }
+
+    // --- Lens Imaging mode: delegate mouse move to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li) {
+            const cursorHint = li.handleMouseMove(currentMousePos);
+            if (cursorHint) {
+                canvas.style.cursor = cursorHint;
+                needsRetrace = true;
+                return; // LensImaging is handling (dragging or hovering object)
+            }
+        }
+    }
+
     // --- 绘图模式下的光线链接更新 ---
     const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
     if (isDiagramModeActive && diagramModeIntegration) {
@@ -2480,9 +2693,13 @@ function handleMouseMove(event) {
             needsRetrace = true;
         }
         
-        // 更新连接点悬停状态
+        // 更新连接点悬停状态 + 智能可见性同步
         if (connectionPointManager) {
             connectionPointManager.handleMouseMove(currentMousePos);
+            // 同步链接模式状态
+            connectionPointManager.setLinkModeActive(
+                diagramModeIntegration.isRayLinkModeActive?.() || false
+            );
         }
         
         // 更新光线链接悬停状态
@@ -2514,6 +2731,62 @@ function handleMouseMove(event) {
         return;
     }
 
+    // --- 绘图模式手柄拖拽更新 ---
+    if (isHandleDragging && handleDragItem) {
+        if (handleDragType === 'rotate') {
+            const dx = currentMousePos.x - handleDragItem.pos.x;
+            const dy = currentMousePos.y - handleDragItem.pos.y;
+            const currentMouseAngle = Math.atan2(dy, dx);
+            const deltaAngle = currentMouseAngle - handleDragStartMouseAngle;
+            handleDragItem.angleRad = handleDragStartAngle + deltaAngle;
+            if (typeof handleDragItem.onAngleChanged === 'function') { try { handleDragItem.onAngleChanged(); } catch (_) {} }
+            if (typeof handleDragItem._updateGeometry === 'function') { try { handleDragItem._updateGeometry(); } catch (_) {} }
+            canvas.style.cursor = 'grabbing';
+        } else if (handleDragType === 'resize' && handleDragStartBB) {
+            // 缩放：根据手柄方向调整 length/width/height
+            const bb = handleDragStartBB;
+            const centerX = bb.x + bb.width / 2;
+            const centerY = bb.y + bb.height / 2;
+            const h = handleDragHandle;
+            let scaleX = 1, scaleY = 1;
+            if (h === 'mr' || h === 'tr' || h === 'br') {
+                scaleX = Math.max(0.2, (currentMousePos.x - centerX) / (bb.width / 2));
+            } else if (h === 'ml' || h === 'tl' || h === 'bl') {
+                scaleX = Math.max(0.2, (centerX - currentMousePos.x) / (bb.width / 2));
+            }
+            if (h === 'bm' || h === 'br' || h === 'bl') {
+                scaleY = Math.max(0.2, (currentMousePos.y - centerY) / (bb.height / 2));
+            } else if (h === 'tm' || h === 'tr' || h === 'tl') {
+                scaleY = Math.max(0.2, (centerY - currentMousePos.y) / (bb.height / 2));
+            }
+            // 应用缩放到组件属性
+            const comp = handleDragItem;
+            if (comp.length !== undefined && (h === 'tm' || h === 'bm' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                const origLen = handleDragStartBB.width > handleDragStartBB.height ? handleDragStartBB.width : handleDragStartBB.height;
+                const scale = h === 'ml' || h === 'mr' ? scaleX : (h === 'tm' || h === 'bm' ? scaleY : Math.max(scaleX, scaleY));
+                comp.length = Math.max(10, origLen * scale);
+            }
+            if (comp.width !== undefined && (h === 'ml' || h === 'mr' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                comp.width = Math.max(10, handleDragStartBB.width * scaleX);
+            }
+            if (comp.height !== undefined && (h === 'tm' || h === 'bm' || h === 'tl' || h === 'tr' || h === 'bl' || h === 'br')) {
+                comp.height = Math.max(10, handleDragStartBB.height * scaleY);
+            }
+            if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (_) {} }
+        }
+        needsRetrace = true;
+        sceneModified = true;
+        return;
+    }
+
+    // --- 绘图模式框选更新 ---
+    if (isMarqueeSelecting) {
+        marqueeEnd = { x: currentMousePos.x, y: currentMousePos.y };
+        canvas.style.cursor = 'crosshair';
+        needsRetrace = true;
+        return;
+    }
+
     // --- Panning Logic ---
     if (isPanning) {
         if (lastPanMousePos) {
@@ -2540,6 +2813,17 @@ function handleMouseMove(event) {
             if (componentBeingHandled && draggingComponents.includes(componentBeingHandled)) { // Ensure it's in the list
                 try {
                     componentBeingHandled.drag(currentMousePos); // Let component handle its specific handle logic
+                    if (ongoingActionState.type === 'rotate' && event.shiftKey && Number.isFinite(componentBeingHandled.angleRad)) {
+                        const lockedDeg = window.BenchInteractions?.lockAngleDeg?.(
+                            componentBeingHandled.angleRad * 180 / Math.PI,
+                            15
+                        );
+                        if (Number.isFinite(lockedDeg)) {
+                            componentBeingHandled.angleRad = lockedDeg * Math.PI / 180;
+                            componentBeingHandled.onAngleChanged?.();
+                            componentBeingHandled._updateGeometry?.();
+                        }
+                    }
                     // No snapping or alignment guides for handle drags currently
                 } catch (e) { console.error(`Error during handle drag for ${componentBeingHandled?.label}:`, e); }
                 needsRetrace = true;
@@ -2690,6 +2974,35 @@ function handleMouseMove(event) {
                 else newCursor = 'grab';
             } else { newCursor = 'pointer'; }
         } else { newCursor = 'default'; }
+
+        // 绘图模式：检测选中手柄悬停（覆盖默认光标）
+        if (isDiagramModeActive && selectedComponents.length === 1) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr) {
+                const handle = interactionMgr.getHandleAtPoint(currentMousePos);
+                if (handle) {
+                    newCursor = handle.cursor;
+                }
+            }
+        }
+
+        // 智能连接点可见性：同步悬停组件 & 选中组件
+        if (isDiagramModeActive) {
+            const cpManager = diagramModeIntegration?.getModule?.('connectionPointManager');
+            if (cpManager) {
+                cpManager.setHoveredComponent(
+                    hoveredComponent ? (hoveredComponent.id || hoveredComponent.uuid) : null
+                );
+                cpManager.setSelectedComponents(
+                    selectedComponents.map(c => c.id || c.uuid)
+                );
+            }
+            // Figma 风格悬停高亮
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr) {
+                interactionMgr.setHoveredItem(hoveredComponent || null);
+            }
+        }
     }
     if (canvas.style.cursor !== newCursor) { canvas.style.cursor = newCursor; }
     // --- End Hover Logic ---
@@ -2705,6 +3018,108 @@ function handleMouseUp(event) {
 
     mouseIsDown = false;
     let dragJustEnded = false;
+
+    // --- 绘图模式手柄拖拽结束 ---
+    if (isHandleDragging && handleDragItem) {
+        const comp = handleDragItem;
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+
+        if (handleDragType === 'rotate') {
+            const newAngle = comp.angleRad;
+            if (Math.abs(newAngle - handleDragStartAngle) > 1e-4) {
+                if (interactionMgr && window.ActionType) {
+                    interactionMgr.recordAction(
+                        window.ActionType.ROTATE_COMPONENT || 'rotate_component',
+                        { componentId: comp.id, angle: newAngle },
+                        { angle: handleDragStartAngle }
+                    );
+                } else {
+                    historyManager.addCommand(new RotateComponentCommand(comp, handleDragStartAngle, newAngle));
+                    updateUndoRedoUI();
+                }
+                markSceneAsModified();
+            }
+        } else if (handleDragType === 'resize') {
+            markSceneAsModified();
+        }
+
+        isHandleDragging = false;
+        handleDragType = null;
+        handleDragHandle = null;
+        handleDragItem = null;
+        handleDragStartBB = null;
+        handleDragStartPos = null;
+        canvas.style.cursor = 'default';
+        needsRetrace = true;
+        updateInspector();
+        return;
+    }
+
+    // --- 绘图模式框选结束 ---
+    if (isMarqueeSelecting) {
+        isMarqueeSelecting = false;
+        if (marqueeStart && marqueeEnd) {
+            const left = Math.min(marqueeStart.x, marqueeEnd.x);
+            const right = Math.max(marqueeStart.x, marqueeEnd.x);
+            const top = Math.min(marqueeStart.y, marqueeEnd.y);
+            const bottom = Math.max(marqueeStart.y, marqueeEnd.y);
+            // 只有拖出了一定大小才算框选（避免单击误触发）
+            if (right - left > 3 || bottom - top > 3) {
+                const isShift = event.shiftKey;
+                if (!isShift) {
+                    selectedComponents.forEach(c => c.selected = false);
+                    selectedComponents = [];
+                }
+                components.forEach(comp => {
+                    const pos = comp.pos || { x: comp.x || 0, y: comp.y || 0 };
+                    if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom) {
+                        if (!selectedComponents.includes(comp)) {
+                            selectedComponents.push(comp);
+                            comp.selected = true;
+                        }
+                    }
+                });
+                selectedComponent = selectedComponents.length > 0 ? selectedComponents[selectedComponents.length - 1] : null;
+                // 同步到 InteractionManager
+                const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+                if (isDiagram) {
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr?.selection) {
+                        interactionMgr.selection.clearSelection();
+                        selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+                    }
+                }
+                updateInspector();
+            } else {
+                // 单击空白区域（未拖出框选）：清除选择
+                selectedComponents.forEach(c => c.selected = false);
+                selectedComponents = [];
+                selectedComponent = null;
+                const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+                if (isDiagram) {
+                    const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                    if (interactionMgr?.selection) interactionMgr.selection.clearSelection();
+                }
+                updateInspector();
+            }
+        }
+        marqueeStart = null;
+        marqueeEnd = null;
+        canvas.style.cursor = 'default';
+        needsRetrace = true;
+        return;
+    }
+
+    // --- Lens Imaging mode: delegate mouse up to LensImaging ---
+    if (currentMode === 'lens_imaging') {
+        const li = _getLensImagingInstance();
+        if (li && li.handleMouseUp()) {
+            canvas.style.cursor = 'default';
+            needsRetrace = true;
+            return; // LensImaging consumed the event (ended object drag)
+        }
+    }
 
     if (isLabelDragging && draggedLabel) {
         const endPos = { x: draggedLabel.position.x, y: draggedLabel.position.y };
@@ -2899,24 +3314,10 @@ function handleMouseLeave(event) {
             } catch (e) { console.error("Error in endDrag on mouse leave (component drag):", e); }
         });
     }
-    // If mouse leaves canvas WHILE panning
     if (isPanning) {
         console.log("Mouse left canvas during pan, stopping pan.");
-        isPanning = false;
-        lastPanMousePos = null;
-        canvas.style.cursor = 'default';
     }
-    // Reset general flags
-    isDragging = false;
-    draggingComponents = []; // Clear dragging components array
-    dragStartOffsets.clear(); // Clear offsets
-    mouseIsDown = false; // Reset mouse down state when leaving
-    ongoingActionState = null; // Clear ongoing action state
-    // componentToAdd = null; // Optionally reset tool selection
-    // clearToolbarSelection();
-    if (!isDragging && !isPanning) {
-        canvas.style.cursor = 'default';
-    }
+    resetInteractionState({ clearSelection: false });
 }
 // --- END OF REPLACEMENT ---
 // --- End Corrected handleMouseLeave ---
@@ -3013,9 +3414,140 @@ function handleWheelZoom(event) {
     cameraOffset.x = mouseCssX - mousePosBeforeZoom.x * cameraScale;
     cameraOffset.y = mouseCssY - mousePosBeforeZoom.y * cameraScale;
     needsRetrace = true;
+
+    // 绘图模式缩放百分比指示器
+    const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (isDiagram) {
+        _showZoomIndicator(cameraScale);
+    }
     // --- End Canvas Zooming ---
 }
 // --- END OF REPLACEMENT for handleWheelZoom ---
+
+// --- 绘图模式缩放百分比指示器 ---
+let _zoomIndicatorTimer = null;
+function _showZoomIndicator(scale) {
+    let el = document.getElementById('diagram-zoom-indicator');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'diagram-zoom-indicator';
+        el.style.cssText = `
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: #fff; padding: 4px 14px;
+            border-radius: 4px; font-size: 13px; font-family: sans-serif;
+            pointer-events: none; z-index: 9000; transition: opacity 0.3s;
+        `;
+        document.body.appendChild(el);
+    }
+    el.textContent = `${Math.round(scale * 100)}%`;
+    el.style.opacity = '1';
+    clearTimeout(_zoomIndicatorTimer);
+    _zoomIndicatorTimer = setTimeout(() => { el.style.opacity = '0'; }, 1200);
+}
+
+// --- 绘图模式内联文本编辑器 ---
+function _showInlineEditor(clientX, clientY, initialText, onConfirm) {
+    const existing = document.querySelector('.diagram-inline-editor');
+    if (existing) existing.remove();
+
+    const input = document.createElement('input');
+    input.className = 'diagram-inline-editor';
+    input.type = 'text';
+    input.value = initialText;
+    input.style.cssText = `
+        position: fixed; left: ${clientX - 60}px; top: ${clientY - 14}px;
+        min-width: 120px; padding: 4px 8px; z-index: 9999;
+        background: var(--input-bg, #2d2d2d); color: var(--text-color, #fff);
+        border: 2px solid #0078d4; border-radius: 4px; outline: none;
+        font-size: 13px; font-family: sans-serif;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finish = (accept) => {
+        if (accept) onConfirm(input.value);
+        input.remove();
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+}
+
+function copySelectedComponentsToClipboard() {
+    if (!selectedComponents || selectedComponents.length === 0) {
+        return false;
+    }
+    const copied = [];
+    selectedComponents.forEach(comp => {
+        try {
+            if (typeof comp?.toJSON === 'function') {
+                copied.push(comp.toJSON());
+            }
+        } catch (e) {
+            console.error('复制组件失败:', e);
+        }
+    });
+    if (copied.length === 0) {
+        return false;
+    }
+    clipboardComponents = copied;
+    clipboardPasteCount = 0;
+    return true;
+}
+
+function pasteClipboardComponents() {
+    if (!clipboardComponents || clipboardComponents.length === 0) {
+        return false;
+    }
+    clipboardPasteCount += 1;
+    const offset = new Vector(20 * clipboardPasteCount, 20 * clipboardPasteCount);
+    const duplicated = [];
+    clipboardComponents.forEach(data => {
+        try {
+            const basePos = data?.pos ?? { x: data?.posX ?? data?.x ?? 0, y: data?.posY ?? data?.y ?? 0 };
+            const posX = (basePos?.x ?? 0) + offset.x;
+            const posY = (basePos?.y ?? 0) + offset.y;
+            const ComponentClass = window[data.type];
+            if (!ComponentClass) return;
+            const newComp = new ComponentClass(new Vector(posX, posY));
+            Object.keys(data).forEach(key => {
+                if (key !== 'type' && key !== 'id' && key !== 'uuid' && key !== 'pos' && key !== 'posX' && key !== 'posY') {
+                    try { newComp.setProperty?.(key, data[key]); } catch (_) {}
+                }
+            });
+            components.push(newComp);
+            duplicated.push(newComp);
+        } catch (e) {
+            console.error('粘贴组件失败:', e);
+        }
+    });
+    if (duplicated.length === 0) {
+        return false;
+    }
+    selectedComponents.forEach(c => c.selected = false);
+    selectedComponents = duplicated;
+    duplicated.forEach(c => c.selected = true);
+    selectedComponent = duplicated[0] || null;
+    needsRetrace = true;
+    markSceneAsModified();
+    const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+    const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+    if (interactionMgr && window.ActionType) {
+        interactionMgr.recordAction(
+            window.ActionType.ADD_COMPONENT,
+            { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+            { componentIds: duplicated.map(c => c.id) }
+        );
+        interactionMgr.selection.clearSelection();
+        duplicated.forEach(c => interactionMgr.selection.select(c, true));
+    }
+    updateInspector();
+    return true;
+}
 
 
 // --- REPLACEMENT for handleKeyDown (V4 - Undo/Redo Shortcuts & Corrected 'r' key logic) ---
@@ -3030,9 +3562,153 @@ function handleKeyDown(event) {
     }
 
     // --- Ctrl+S: Save current scene ---
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         saveCurrentSceneToProject();
+        return;
+    }
+
+    // --- Ctrl+1: Reset zoom to 100% ---
+    if ((event.ctrlKey || event.metaKey) && event.key === '1') {
+        event.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const worldCenterX = (centerX - cameraOffset.x) / cameraScale;
+        const worldCenterY = (centerY - cameraOffset.y) / cameraScale;
+        cameraScale = 1.0;
+        cameraOffset.x = centerX - worldCenterX * cameraScale;
+        cameraOffset.y = centerY - worldCenterY * cameraScale;
+        needsRetrace = true;
+        if (diagramModeIntegration?.isDiagramMode?.()) _showZoomIndicator(cameraScale);
+        return;
+    }
+
+    // --- Ctrl+0: Zoom to fit all components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+        event.preventDefault();
+        if (components.length === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        components.forEach(comp => {
+            const pos = comp.pos || { x: comp.x || 0, y: comp.y || 0 };
+            const bb = typeof comp.getBoundingBox === 'function' ? comp.getBoundingBox() : { x: pos.x - 30, y: pos.y - 30, width: 60, height: 60 };
+            minX = Math.min(minX, bb.x);
+            minY = Math.min(minY, bb.y);
+            maxX = Math.max(maxX, bb.x + bb.width);
+            maxY = Math.max(maxY, bb.y + bb.height);
+        });
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) return;
+        const padding = 60;
+        const rect = canvas.getBoundingClientRect();
+        const sceneW = maxX - minX + padding * 2;
+        const sceneH = maxY - minY + padding * 2;
+        const scaleX = rect.width / sceneW;
+        const scaleY = rect.height / sceneH;
+        cameraScale = Math.min(scaleX, scaleY, 2.0);
+        cameraScale = Math.max(cameraScale, 0.1);
+        const sceneCenterX = (minX + maxX) / 2;
+        const sceneCenterY = (minY + maxY) / 2;
+        cameraOffset.x = rect.width / 2 - sceneCenterX * cameraScale;
+        cameraOffset.y = rect.height / 2 - sceneCenterY * cameraScale;
+        needsRetrace = true;
+        if (diagramModeIntegration?.isDiagramMode?.()) _showZoomIndicator(cameraScale);
+        return;
+    }
+
+    // --- Ctrl+A: Select all components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+        event.preventDefault();
+        selectedComponents = components.slice();
+        components.forEach(c => c.selected = true);
+        selectedComponent = selectedComponents.length > 0 ? selectedComponents[0] : null;
+        // 同步到 InteractionManager
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        if (isDiagram) {
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (interactionMgr?.selection) {
+                interactionMgr.selection.clearSelection();
+                selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+            }
+        }
+        updateInspector();
+        needsRetrace = true;
+        return;
+    }
+
+    // --- Ctrl+C / Ctrl+V: Copy/Paste (simulation-mode fallback) ---
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        const diagramIntegration = window.getDiagramModeIntegration?.();
+        const interactionMgr = diagramIntegration?.isDiagramMode?.()
+            ? diagramIntegration.getModule?.('interactionManager')
+            : null;
+        if (interactionMgr?.copySelection) {
+            interactionMgr.copySelection();
+            return;
+        }
+        copySelectedComponentsToClipboard();
+        return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+        event.preventDefault();
+        const diagramIntegration = window.getDiagramModeIntegration?.();
+        const interactionMgr = diagramIntegration?.isDiagramMode?.()
+            ? diagramIntegration.getModule?.('interactionManager')
+            : null;
+        if (interactionMgr?.paste) {
+            interactionMgr.paste();
+            return;
+        }
+        pasteClipboardComponents();
+        return;
+    }
+
+    // --- Ctrl+D: Duplicate selected components ---
+    if ((event.ctrlKey || event.metaKey) && event.key === 'd') {
+        event.preventDefault();
+        if (selectedComponents.length > 0) {
+            const duplicated = [];
+            selectedComponents.forEach(comp => {
+                try {
+                    const data = comp.toJSON();
+                    const offset = new Vector(20, 20);
+                    data.pos = { x: data.pos.x + offset.x, y: data.pos.y + offset.y };
+                    const ComponentClass = window[data.type];
+                    if (ComponentClass) {
+                        const newComp = new ComponentClass(new Vector(data.pos.x, data.pos.y));
+                        Object.keys(data).forEach(key => {
+                            if (key !== 'type' && key !== 'id' && key !== 'pos') {
+                                newComp.setProperty?.(key, data[key]);
+                            }
+                        });
+                        components.push(newComp);
+                        duplicated.push(newComp);
+                    }
+                } catch (e) {
+                    console.error('复制组件失败:', e);
+                }
+            });
+            selectedComponents.forEach(c => c.selected = false);
+            selectedComponents = duplicated;
+            duplicated.forEach(c => c.selected = true);
+            selectedComponent = duplicated[0] || null;
+            needsRetrace = true;
+            markSceneAsModified();
+            // 记录撤销历史 + 同步 InteractionManager
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+            if (interactionMgr && window.ActionType) {
+                interactionMgr.recordAction(
+                    window.ActionType.ADD_COMPONENT,
+                    { components: duplicated.map(c => ({ id: c.id, uuid: c.uuid || c.id })) },
+                    { componentIds: duplicated.map(c => c.id) }
+                );
+                interactionMgr.selection.clearSelection();
+                duplicated.forEach(c => interactionMgr.selection.select(c, true));
+            }
+            updateInspector();
+        }
         return;
     }
 
@@ -3111,6 +3787,53 @@ function handleKeyDown(event) {
             else if (typeof selectedComponent._updateGeometry === 'function') { try { selectedComponent._updateGeometry(); } catch { } }
         }
     } // --- End 'r' key rotation ---
+
+    // --- Arrow keys: nudge selected components (Figma 风格) ---
+    else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && selectedComponents.length > 0) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (event.key === 'ArrowUp') dy = -step;
+        else if (event.key === 'ArrowDown') dy = step;
+        else if (event.key === 'ArrowLeft') dx = -step;
+        else if (event.key === 'ArrowRight') dx = step;
+
+        const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+        const interactionMgr = isDiagram ? diagramModeIntegration?.getModule?.('interactionManager') : null;
+        const batchActions = [];
+
+        selectedComponents.forEach(comp => {
+            if (comp.pos instanceof Vector) {
+                const startX = comp.pos.x, startY = comp.pos.y;
+                comp.pos.x += dx;
+                comp.pos.y += dy;
+                if (typeof comp.onPositionChanged === 'function') { try { comp.onPositionChanged(); } catch (_) {} }
+                if (typeof comp._updateGeometry === 'function') { try { comp._updateGeometry(); } catch (_) {} }
+                if (interactionMgr && window.ActionType) {
+                    batchActions.push({
+                        type: window.ActionType.MOVE_COMPONENT,
+                        data: { componentId: comp.id, position: { x: comp.pos.x, y: comp.pos.y } },
+                        undoData: { position: { x: startX, y: startY } }
+                    });
+                }
+            }
+        });
+        if (interactionMgr && batchActions.length > 0) {
+            interactionMgr.recordAction(window.ActionType.BATCH, { actions: batchActions });
+        } else if (!interactionMgr && selectedComponents.length > 0) {
+            const startPositions = new Map();
+            const finalPositions = new Map();
+            selectedComponents.forEach(c => {
+                startPositions.set(c.id, new Vector(c.pos.x - dx, c.pos.y - dy));
+                finalPositions.set(c.id, c.pos.clone());
+            });
+            historyManager.addCommand(new MoveComponentsCommand(selectedComponents.map(c => c.id), startPositions, finalPositions));
+            updateUndoRedoUI();
+        }
+        needsRetrace = true;
+        sceneModified = true;
+        markSceneAsModified();
+    }
 
     // --- Toggle enabled state for sources (Space key) ---
     else if (event.code === 'Space' && selectedComponent && selectedComponent.hasOwnProperty('enabled')) {
@@ -3268,6 +3991,16 @@ function deleteSelectedComponents() {
         // Clear selection state AFTER successful deletion
         selectedComponents = [];
         selectedComponent = null;
+        // 同步 InteractionManager 选择状态
+        {
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (isDiagram) {
+                const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                if (interactionMgr?.selection) {
+                    interactionMgr.selection.clearSelection();
+                }
+            }
+        }
         updateInspector(); // Update inspector for cleared selection
         needsRetrace = true; // Ensure redraw after deletion
 
@@ -3378,7 +4111,7 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'SphericalMirror': newComp = new SphericalMirror(pos, compData.radiusOfCurvature, compData.centralAngleDeg, angleDeg); break;
                 case 'ParabolicMirror': newComp = new ParabolicMirror(pos, compData.focalLength, compData.diameter, angleDeg); break;
                 case 'Screen': newComp = new Screen(pos, compData.length, angleDeg, compData.numBins); if (compData.hasOwnProperty('showPattern')) newComp.showPattern = compData.showPattern; break;
-                case 'ThinLens': newComp = new ThinLens(pos, compData.diameter, compData.focalLength, angleDeg); if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex); if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB); if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality); if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated); if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens); if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration); if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration); break;
+                case 'ThinLens': newComp = ThinLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'Aperture': newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg); break;
                 case 'Polarizer': newComp = new Polarizer(pos, compData.length, compData.transmissionAxisAngleDeg, angleDeg); break;
                 case 'BeamSplitter': newComp = new BeamSplitter(pos, compData.length, angleDeg, compData.type, compData.splitRatio, compData.pbsUnpolarizedReflectivity); break;
@@ -3386,7 +4119,7 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'Photodiode': newComp = new Photodiode(pos, angleDeg, compData.diameter); break;
                 case 'OpticalFiber': const outputPos = new Vector(compData.outputX ?? pos.x + 100, compData.outputY ?? pos.y); newComp = new OpticalFiber(pos, outputPos, angleDeg, compData.outputAngleDeg, compData.numericalAperture, compData.coreDiameter, compData.fiberIntrinsicEfficiency, compData.transmissionLossDbPerKm, compData.facetLength); break;
                 case 'Prism': newComp = new Prism(pos, compData.baseLength, compData.apexAngleDeg, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB); break;
-                case 'WhiteLightSource': newComp = new WhiteLightSource(pos, angleDeg, compData.baseIntensity, compData.rayCount, compData.spreadDeg, compData.enabled, compData.ignoreDecay, compData.beamDiameter); if (compData.hasOwnProperty('gaussianEnabled')) newComp.setProperty('gaussianEnabled', compData.gaussianEnabled); break; // Restore Gaussian state
+                case 'WhiteLightSource': newComp = WhiteLightSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'DiffractionGrating': newComp = new DiffractionGrating(pos, compData.length, compData.gratingPeriodInMicrons, angleDeg, compData.maxOrder); break;
                 case 'HalfWavePlate': newComp = new HalfWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
                 case 'QuarterWavePlate': newComp = new QuarterWavePlate(pos, compData.length, compData.fastAxisAngleDeg, angleDeg); break;
@@ -3394,19 +4127,19 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 
                 // === 新增元件 ===
                 // 新光源
-                case 'PointSource': newComp = new PointSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.rayCount, compData.enabled); break;
-                case 'LEDSource': newComp = new LEDSource(pos, angleDeg, compData.centerWavelength, compData.fwhm, compData.intensity, compData.rayCount, compData.spreadDeg, compData.enabled); break;
-                case 'PulsedLaserSource': newComp = new PulsedLaserSource(pos, angleDeg, compData.wavelength, compData.intensity, compData.numRays, compData.spreadDeg, compData.enabled); break;
+                case 'PointSource': newComp = PointSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'LEDSource': newComp = LEDSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'PulsedLaserSource': newComp = PulsedLaserSource.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新反射镜
-                case 'DichroicMirror': newComp = new DichroicMirror(pos, compData.length, angleDeg, compData.cutoffWavelength, compData.transitionWidth); break;
-                case 'MetallicMirror': newComp = new MetallicMirror(pos, compData.length, angleDeg, compData.metalType); break;
-                case 'RingMirror': newComp = new RingMirror(pos, compData.outerRadius, compData.innerRadius, angleDeg); break;
+                case 'DichroicMirror': newComp = DichroicMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'MetallicMirror': newComp = MetallicMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'RingMirror': newComp = RingMirror.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新透镜
                 case 'CylindricalLens': newComp = new CylindricalLens(pos, compData.diameter, compData.focalLength, angleDeg, compData.cylinderAxis); break;
-                case 'AsphericLens': newComp = new AsphericLens(pos, compData.diameter, compData.focalLength, angleDeg); break;
-                case 'GRINLens': newComp = new GRINLens(pos, compData.diameter, compData.length, angleDeg); break;
+                case 'AsphericLens': newComp = AsphericLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
+                case 'GRINLens': newComp = GRINLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 新偏振器件
                 case 'WollastonPrism': newComp = new WollastonPrism(pos, compData.width, compData.height, angleDeg, compData.separationAngleDeg); break;
@@ -3420,16 +4153,16 @@ async function loadPresetScene(presetPath) { // Make function async for fetch
                 case 'PolarizationAnalyzer': newComp = new PolarizationAnalyzer(pos, compData.width, compData.height, angleDeg); break;
                 
                 // 调制器
-                case 'ElectroOpticModulator': newComp = new ElectroOpticModulator(pos, compData.width, compData.height, angleDeg, compData.vPi, compData.appliedVoltage, compData.modulationMode); break;
+                case 'ElectroOpticModulator': newComp = ElectroOpticModulator.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 case 'VariableAttenuator': newComp = new VariableAttenuator(pos, compData.diameter, angleDeg, compData.attenuation); break;
-                case 'OpticalChopper': newComp = new OpticalChopper(pos, compData.diameter, angleDeg, compData.frequency, compData.dutyCycle, compData.bladeCount); break;
+                case 'OpticalChopper': newComp = OpticalChopper.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 // 原子物理
                 case 'AtomicCell': newComp = new AtomicCell(pos, compData.width, compData.height, angleDeg, compData.atomType, compData.temperature, compData.numberDensity); break;
                 case 'MagneticCoil': newComp = new MagneticCoil(pos, compData.diameter, angleDeg, compData.coilType, compData.fieldStrength); break;
                 
                 // 干涉仪
-                case 'FabryPerotCavity': newComp = new FabryPerotCavity(pos, compData.cavityLength, angleDeg, compData.mirrorReflectivity, compData.finesse); break;
+                case 'FabryPerotCavity': newComp = FabryPerotCavity.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg }); break;
                 
                 default: console.warn(`Unknown component type during preset load: ${compType}`);
             }
@@ -3590,7 +4323,10 @@ function gameLoop(timestamp) {
 
     // --- Ray Tracing ---
     // --- Ray Tracing Block (Modified for Fiber Output Handling) ---
-    console.time("RayTrace");
+    // 绘图模式下跳过光线追踪，节省性能
+    const isDiagramModeForTrace = diagramModeIntegration?.isDiagramMode?.() || false;
+    if (!isDiagramModeForTrace) {
+    traceTime("RayTrace");
     components.forEach(comp => comp.reset?.()); // Reset components
 
     try {
@@ -3604,10 +4340,20 @@ function gameLoop(timestamp) {
         if (traceResult && Array.isArray(traceResult.completedPaths)) {
             currentRayPaths = traceResult.completedPaths; // Paths completed THIS frame
             window.currentRayPaths = currentRayPaths;
+            if (traceResult.beamGraph) {
+                currentBeamGraph = traceResult.beamGraph;
+                const nextSignature = JSON.stringify(currentBeamGraph);
+                if (nextSignature !== currentBeamGraphSignature) {
+                    currentBeamGraphSignature = nextSignature;
+                    opticsDocumentStore?.setBeamGraph?.(currentBeamGraph);
+                }
+                document.body.dataset.beamGraphNodes = String(currentBeamGraph.nodes?.length || 0);
+                document.body.dataset.beamGraphEdges = String(currentBeamGraph.edges?.length || 0);
+            }
             if (Array.isArray(traceResult.generatedRays) && traceResult.generatedRays.length > 0) {
                 // Store newly generated rays (fiber outputs) for the *next* frame
                 nextFrameActiveRays.push(...traceResult.generatedRays);
-                console.log(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
+                traceDebug(` -> Stored ${traceResult.generatedRays.length} generated rays for next frame.`);
             }
         } else {
             console.error("traceAllRays returned invalid result:", traceResult);
@@ -3621,8 +4367,9 @@ function gameLoop(timestamp) {
         window.currentRayPaths = currentRayPaths;
         nextFrameActiveRays = []; // Also clear pending rays on error
     } finally { // Ensure timing ends even on error
-        console.timeEnd("RayTrace");
+        traceTimeEnd("RayTrace");
     }
+    } // end if (!isDiagramModeForTrace)
     // --- End Ray Tracing Block ---
 
     // --- Rendering ---
@@ -4042,20 +4789,6 @@ function closeSettingsModal() {
     }
 }
 // --- END OF REPLACEMENT ---
-
-
-
-function closeSettingsModal() {
-    const modal = document.getElementById('settings-modal');
-    if (modal) {
-        modal.classList.remove('visible');
-        // Wait for fade-out transition to finish before setting display to none
-        // Match transition duration (0.3s = 300ms)
-        setTimeout(() => {
-            modal.style.display = 'none';
-        }, 300);
-    }
-}
 // --- END Settings Modal Functions ---
 
 
@@ -4178,16 +4911,14 @@ function loadSceneDataFromStorage(sceneName) {
 function saveSceneDataToStorage(sceneName, sceneData) {
     if (!sceneName || !sceneData) return false;
     const key = SCENE_KEY_PREFIX + sceneName;
-    try {
-        const jsonString = JSON.stringify(sceneData); // Use compact JSON for storage
-        localStorage.setItem(key, jsonString);
+    const success = safeLocalStorageSave(key, sceneData);
+    if (success) {
         console.log(`Scene '${sceneName}' saved to localStorage.`);
-        return true;
-    } catch (e) {
-        console.error(`Error saving scene '${sceneName}' to localStorage:`, e);
+    } else {
+        console.error(`Error saving scene '${sceneName}' to localStorage.`);
         alert(`保存场景 '${sceneName}' 时出错！可能是存储空间已满。`);
-        return false;
     }
+    return success;
 }
 
 function deleteSceneFromStorage(sceneName) {
@@ -4279,12 +5010,17 @@ function updateUndoRedoUI() {
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
         : null;
-    const canUndo = interactionManager
-        ? interactionManager.history?.canUndo?.()
-        : historyManager?.canUndo?.();
-    const canRedo = interactionManager
-        ? interactionManager.history?.canRedo?.()
-        : historyManager?.canRedo?.();
+    const schematicHistoryActive = document.body.dataset.workspace === 'schematic';
+    const canUndo = schematicHistoryActive
+        ? opticsDocumentStore?.canUndo?.()
+        : interactionManager
+            ? interactionManager.history?.canUndo?.()
+            : historyManager?.canUndo?.();
+    const canRedo = schematicHistoryActive
+        ? opticsDocumentStore?.canRedo?.()
+        : interactionManager
+            ? interactionManager.history?.canRedo?.()
+            : historyManager?.canRedo?.();
 
     // Update Undo Button and Menu Item
     if (canUndo) {
@@ -4307,6 +5043,13 @@ function updateUndoRedoUI() {
 // --- End of REPLACEMENT for updateUndoRedoUI ---
 
 function performUndo() {
+    if (document.body.dataset.workspace === 'schematic' && opticsDocumentStore?.undo?.()) {
+        const documentData = opticsDocumentStore.getDocument();
+        schematicWorkspace?.refresh(documentData);
+        synchronizeRuntimeComponents(documentData);
+        updateUndoRedoUI();
+        return;
+    }
     const diagramIntegration = window.getDiagramModeIntegration?.();
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
@@ -4327,6 +5070,13 @@ function performUndo() {
 }
 
 function performRedo() {
+    if (document.body.dataset.workspace === 'schematic' && opticsDocumentStore?.redo?.()) {
+        const documentData = opticsDocumentStore.getDocument();
+        schematicWorkspace?.refresh(documentData);
+        synchronizeRuntimeComponents(documentData);
+        updateUndoRedoUI();
+        return;
+    }
     const diagramIntegration = window.getDiagramModeIntegration?.();
     const interactionManager = diagramIntegration?.isDiagramMode?.()
         ? diagramIntegration.getModule?.('interactionManager')
@@ -4348,96 +5098,137 @@ function performRedo() {
 
 
 
-// --- REPLACEMENT for generateSceneDataObject (Uses toJSON) ---
-function generateSceneDataObject() {
-    const sceneData = {
-        version: "1.1",
-        currentMode: currentMode,
-        view: {
-            cameraScale: cameraScale,
-            cameraOffsetX: cameraOffset?.x ?? 0,
-            cameraOffsetY: cameraOffset?.y ?? 0
+let opticsDocumentStore = null;
+let opticsDocumentFileController = null;
+let opticsDocumentRecovery = null;
+let schematicWorkspace = null;
+
+function synchronizeRuntimeComponents(documentData) {
+    const sharedById = new Map(documentData.components.map(component => [component.id, component]));
+    components = components.filter(component => sharedById.has(component.id));
+    for (const component of components) {
+        const shared = sharedById.get(component.id);
+        if (shared?.name) component.name = shared.name;
+        if (shared?.label) component.label = shared.label;
+    }
+    currentBeamGraph = documentData.beamGraph;
+    currentBeamGraphSignature = JSON.stringify(currentBeamGraph);
+    needsRetrace = true;
+}
+
+function ensureOpticsDocumentServices() {
+    if (!opticsDocumentFileController && typeof DocumentFileController !== 'undefined') {
+        opticsDocumentFileController = new DocumentFileController();
+    }
+    if (!opticsDocumentRecovery && typeof DocumentRecovery !== 'undefined') {
+        opticsDocumentRecovery = new DocumentRecovery();
+    }
+    window.opticsDocumentStore = opticsDocumentStore;
+    window.opticsDocumentFileController = opticsDocumentFileController;
+    window.opticsDocumentRecovery = opticsDocumentRecovery;
+}
+
+function captureCurrentOpticsDocument() {
+    if (typeof Serializer === 'undefined' || typeof Serializer.captureDocument !== 'function') {
+        throw new Error('OpticsDocument v3 serializer is unavailable.');
+    }
+    ensureOpticsDocumentServices();
+    const projectScene = getProjectContext().scene;
+    const existingDocument = opticsDocumentStore?.getDocument?.() || projectScene?.data || null;
+    const documentData = Serializer.captureDocument({
+        existingDocument,
+        components,
+        currentMode,
+        camera: {
+            scale: cameraScale,
+            offsetX: cameraOffset?.x ?? 0,
+            offsetY: cameraOffset?.y ?? 0
         },
         settings: {
             showGrid: !!showGrid,
-            maxRaysPerSource: window.maxRaysPerSource,
-            globalMaxBounces: window.globalMaxBounces,
-            globalMinIntensity: window.globalMinIntensity,
+            maxRays: window.maxRaysPerSource,
+            maxBounces: window.globalMaxBounces,
+            minIntensity: window.globalMinIntensity,
             fastWhiteLightMode: !!window.fastWhiteLightMode,
-            globalShowArrows: !!globalShowArrows,
+            showArrows: !!globalShowArrows,
             onlyShowSelectedSourceArrow: !!onlyShowSelectedSourceArrow,
-            arrowAnimationSpeed: arrowAnimationSpeed
+            arrowSpeed: arrowAnimationSpeed
         },
-        components: []
-    };
-    components.forEach(comp => {
-        try {
-            if (typeof comp.toJSON === 'function') {
-                sceneData.components.push(comp.toJSON()); // Call component's toJSON method
-            } else {
-                console.warn(`Component ${comp?.label} (${comp?.constructor?.name}) is missing toJSON method. Skipping.`);
+        metadata: {
+            id: existingDocument?.metadata?.id,
+            title: projectScene?.name || existingDocument?.metadata?.title || '未命名光学实验'
+        },
+        beamGraph: currentBeamGraph?.edges?.length ? currentBeamGraph : existingDocument?.beamGraph
+    });
+
+    if (opticsDocumentStore) {
+        opticsDocumentStore.replaceDocument(documentData, 'capture bench state', { recordHistory: false });
+    } else if (typeof DocumentStore !== 'undefined') {
+        opticsDocumentStore = new DocumentStore(documentData);
+    }
+    window.opticsDocumentStore = opticsDocumentStore;
+    return opticsDocumentStore?.getDocument?.() || documentData;
+}
+
+// Unified OpticsDocument v3 capture path.
+function generateSceneDataObject() {
+    return captureCurrentOpticsDocument();
+}
+
+function initializeSchematicWorkspace() {
+    if (schematicWorkspace || typeof SchematicWorkspace === 'undefined') return schematicWorkspace;
+    const switcher = document.getElementById('mode-switcher-container');
+    const root = document.getElementById('schematic-workspace');
+    if (!switcher || !root || !canvas) return null;
+
+    schematicWorkspace = new SchematicWorkspace({
+        switcher,
+        benchElement: canvas,
+        root,
+        getDocument: () => captureCurrentOpticsDocument(),
+        onDocumentChange: (nextDocument, reason) => {
+            ensureOpticsDocumentServices();
+            if (opticsDocumentStore) {
+                opticsDocumentStore.replaceDocument(nextDocument, reason || 'edit schematic', {
+                    recordHistory: reason !== 'project schematic'
+                });
+            } else if (typeof DocumentStore !== 'undefined') {
+                opticsDocumentStore = new DocumentStore(nextDocument);
             }
-        } catch (e) {
-            console.error(`Error calling toJSON for component ${comp?.label} (${comp?.id}):`, e);
+            window.opticsDocumentStore = opticsDocumentStore;
+            synchronizeRuntimeComponents(nextDocument);
+            opticsDocumentRecovery?.save?.(nextDocument);
+            document.body.dataset.schematicComponents = String(nextDocument.components.length);
+            document.body.dataset.schematicPaths = String(nextDocument.views.schematic.paths.length);
+            updateUndoRedoUI();
+        },
+        onWorkspaceChange: (workspace) => {
+            opticsDocumentStore?.setWorkspace?.(workspace);
+            if (workspace === 'bench') {
+                needsRetrace = true;
+                resizeCanvas();
+            }
+        },
+        onExport: async (format, documentData) => {
+            try {
+                await SchematicExporter.download(documentData, format);
+                showTemporaryMessage(`${format.toUpperCase()} exported`, 'success');
+            } catch (error) {
+                console.error(`[Schematic] ${format} export failed:`, error);
+                showTemporaryMessage(`${format.toUpperCase()} export failed: ${error.message}`, 'error');
+            }
         }
     });
-    sceneData.diagram = buildDiagramPayloadForExport();
-    console.log("Generated scene data using toJSON. Mode:", currentMode);
-    return sceneData;
-}
-// --- END REPLACEMENT ---
-
-function buildDiagramPayloadForExport() {
-    try {
-        if (typeof window.createSceneToDiagramAdapter !== 'function') {
-            return null;
-        }
-
-        const adapter = window.createSceneToDiagramAdapter({
-            includePageFrame: true,
-            page: {
-                width: canvas?.width || 1920,
-                height: canvas?.height || 1080,
-                margin: 48
-            }
-        });
-
-        return adapter.convert({
-            name: document?.title || 'OpticsLab scene',
-            components,
-            rays: currentRayPaths
-        });
-    } catch (error) {
-        console.warn('[Export] Failed to build diagram payload:', error);
-        return null;
-    }
+    window.schematicWorkspace = schematicWorkspace;
+    return schematicWorkspace;
 }
 
 function generateProfessionalSVGString(options = {}) {
-    const diagram = buildDiagramPayloadForExport();
-    if (!diagram) {
-        throw new Error('Professional diagram payload is not available.');
+    if (typeof SchematicExporter === 'undefined' || typeof SchematicProjector === 'undefined') {
+        throw new Error('OpticsDocument v3 schematic exporter is unavailable.');
     }
-    if (typeof window.createDiagramObjectSVGRenderer !== 'function') {
-        throw new Error('Professional SVG renderer is not available.');
-    }
-
-    const renderer = window.createDiagramObjectSVGRenderer({
-        includeXmlDeclaration: true,
-        includeBackground: true,
-        includePageFrame: true,
-        showLabels: true,
-        showOpticalAxis: true,
-        showFocalMarkers: true,
-        rayGlow: true,
-        showRayArrows: true,
-        autoFit: true,
-        contentPadding: 72,
-        stylePreset: 'paper',
-        ...options
-    });
-
-    return renderer.render(diagram);
+    const documentData = SchematicProjector.project(captureCurrentOpticsDocument());
+    return SchematicExporter.toSvg(documentData, options);
 }
 
 function exportProfessionalSVG() {
@@ -4474,6 +5265,11 @@ function loadSceneFromData(sceneData, options = {}) {
     const { switchToPropertiesTab = true } = options;
     console.log("--- Loading Scene from Data Object ---"); // Log start
     try {
+        let sourceDocument = null;
+        if (sceneData?.schemaVersion || sceneData?.version) {
+            sourceDocument = Serializer.deserialize(sceneData);
+            sceneData = Serializer.toLegacySceneData(sourceDocument);
+        }
         components = [];
         selectedComponent = null;
         selectedComponents = [];
@@ -4527,18 +5323,7 @@ function loadSceneFromData(sceneData, options = {}) {
                         if (compData.hasOwnProperty('showPattern')) newComp.setProperty('showPattern', compData.showPattern);
                         break;
                     case 'ThinLens':
-                        let fLen = compData.focalLength;
-                        if (fLen === null) fLen = Infinity; // Handle Infinity
-                        newComp = new ThinLens(pos, compData.diameter, fLen, angleDeg);
-                        // Set properties not in constructor
-                        if (compData.hasOwnProperty('baseRefractiveIndex')) newComp.setProperty('baseRefractiveIndex', compData.baseRefractiveIndex);
-                        if (compData.hasOwnProperty('dispersionCoeffB')) newComp.setProperty('dispersionCoeffB', compData.dispersionCoeffB);
-                        if (compData.hasOwnProperty('quality')) newComp.setProperty('quality', compData.quality);
-                        if (compData.hasOwnProperty('coated')) newComp.setProperty('coated', compData.coated);
-                        if (compData.hasOwnProperty('isThickLens')) newComp.setProperty('isThickLens', compData.isThickLens);
-                        // if (compData.hasOwnProperty('thickLensThickness')) newComp.setProperty('thickLensThickness', compData.thickLensThickness); // If visual thickness is saved
-                        if (compData.hasOwnProperty('chromaticAberration')) newComp.setProperty('chromaticAberration', compData.chromaticAberration);
-                        if (compData.hasOwnProperty('sphericalAberration')) newComp.setProperty('sphericalAberration', compData.sphericalAberration);
+                        newComp = ThinLens.fromJSON({ ...compData, posX: pos.x, posY: pos.y, angleDeg });
                         break;
                     case 'Aperture':
                         newComp = new Aperture(pos, compData.length, compData.numberOfSlits, compData.slitWidth, compData.slitSeparation, angleDeg);
@@ -4550,6 +5335,13 @@ function loadSceneFromData(sceneData, options = {}) {
                         // Be tolerant to both legacy 'type' and new 'splitterType' field
                         const bsType = (compData.splitterType || compData.type) === 'PBS' ? 'PBS' : 'BS';
                         newComp = new BeamSplitter(pos, compData.length, angleDeg, bsType, compData.splitRatio, compData.pbsUnpolarizedReflectivity);
+                        break;
+                    case 'PBS':
+                        newComp = new BeamSplitter(pos, compData.length, angleDeg, 'PBS', compData.splitRatio, compData.pbsUnpolarizedReflectivity);
+                        break;
+                    case 'AtomicCell':
+                        newComp = new AtomicCell(pos, compData.width, compData.height, angleDeg, compData.atomType, compData.density, compData.temperature);
+                        if (compData.hasOwnProperty('transitionLine')) newComp.setProperty?.('transitionLine', compData.transitionLine);
                         break;
                     case 'DielectricBlock':
                         newComp = new DielectricBlock(pos, compData.width, compData.height, angleDeg, compData.baseRefractiveIndex, compData.dispersionCoeffB_nm2, compData.absorptionCoeff, compData.showEvanescentWave);
@@ -4661,6 +5453,18 @@ function loadSceneFromData(sceneData, options = {}) {
 
         needsRetrace = true;
         sceneModified = false; // Mark as unmodified after successful load
+        if (sourceDocument && typeof DocumentStore !== 'undefined') {
+            currentBeamGraph = sourceDocument.beamGraph || { nodes: [], edges: [] };
+            currentBeamGraphSignature = JSON.stringify(currentBeamGraph);
+            opticsDocumentStore = new DocumentStore(sourceDocument);
+            window.opticsDocumentStore = opticsDocumentStore;
+        } else {
+            captureCurrentOpticsDocument();
+        }
+        if (schematicWorkspace) {
+            schematicWorkspace.refresh(opticsDocumentStore?.getDocument?.());
+            schematicWorkspace.switchWorkspace(sourceDocument?.metadata?.activeWorkspace || 'bench');
+        }
         
         // 触发场景已保存事件（因为刚加载的场景是未修改状态）
         document.dispatchEvent(new CustomEvent('sceneSaved'));
@@ -4764,7 +5568,7 @@ function triggerFileInputForImport() {
 }
 
 // --- REPLACEMENT for exportScene (Download Only, uses helper) ---
-function exportScene() {
+async function exportScene() {
     console.log("Exporting current scene to file...");
 
     if (!confirm("确定要将【当前画布】上的场景导出为 JSON 文件吗？")) {
@@ -4772,26 +5576,7 @@ function exportScene() {
         return;
     }
 
-    const sceneData = generateSceneDataObject(); // Use helper to get data
-    if (!sceneData) {
-        alert("无法生成场景数据以供导出！"); return;
-    }
-
-    const jsonString = JSON.stringify(sceneData, null, 2); // Pretty print
-
-    // Trigger Download
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const suggestedName = `optics_scene_${new Date().toISOString().slice(0, 10)}.json`;
-    a.download = suggestedName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    console.log("Scene download triggered.");
-    // Note: Exporting does not change sceneModified state
+    await saveCurrentDocumentFile(true);
 }
 // --- END OF REPLACEMENT ---
 
@@ -4800,77 +5585,36 @@ function exportScene() {
  * 使用 File System Access API 让用户选择保存位置和文件名
  * 如果浏览器不支持，则回退到传统下载方式
  */
-async function exportSceneAsFile() {
-    console.log('[ExportAs] Exporting scene as file...');
-    
-    const sceneData = generateSceneDataObject();
-    if (!sceneData) {
-        showTemporaryMessage('无法生成场景数据', 'error');
-        return;
+async function saveCurrentDocumentFile(saveAs = false) {
+    ensureOpticsDocumentServices();
+    if (!opticsDocumentFileController) {
+        throw new Error('文档文件控制器不可用');
     }
-    
-    const jsonString = JSON.stringify(sceneData, null, 2);
-    const suggestedName = `场景_${new Date().toISOString().slice(0, 10)}.scene.json`;
-    
-    // 检查是否支持 File System Access API
-    if ('showSaveFilePicker' in window) {
-        try {
-            const fileHandle = await window.showSaveFilePicker({
-                suggestedName: suggestedName,
-                types: [{
-                    description: '光学场景文件',
-                    accept: {
-                        'application/json': ['.scene.json', '.json']
-                    }
-                }]
-            });
-            
-            // 写入文件
-            const writable = await fileHandle.createWritable();
-            await writable.write(jsonString);
-            await writable.close();
-            
-            // 标记为已保存
-            markSceneAsSaved();
-            
-            showTemporaryMessage(`场景已保存为 "${fileHandle.name}"`, 'success');
-            console.log('[ExportAs] Scene saved to:', fileHandle.name);
-            
-        } catch (err) {
-            // 用户取消选择
-            if (err.name === 'AbortError') {
-                console.log('[ExportAs] User cancelled file save');
-                return;
-            }
-            console.error('[ExportAs] Failed to save file:', err);
-            showTemporaryMessage(`保存失败: ${err.message}`, 'error');
-        }
-    } else {
-        // 回退到传统下载方式
-        console.log('[ExportAs] File System Access API not supported, using download');
-        
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        // 标记为已保存
+    const documentData = generateSceneDataObject();
+    try {
+        const result = saveAs
+            ? await opticsDocumentFileController.saveAs(documentData)
+            : await opticsDocumentFileController.save(documentData);
         markSceneAsSaved();
-        
-        showTemporaryMessage('场景已下载', 'success');
-        console.log('[ExportAs] Scene download triggered');
+        opticsDocumentRecovery?.clear?.();
+        showTemporaryMessage(`文档已保存为 "${result.fileName}"`, 'success');
+        return result;
+    } catch (error) {
+        if (error?.name === 'AbortError') return null;
+        console.error('[Document] Save failed:', error);
+        showTemporaryMessage(`保存失败: ${error.message}`, 'error');
+        throw error;
     }
+}
+
+async function exportSceneAsFile() {
+    return saveCurrentDocumentFile(true);
 }
 
 
 // --- REPLACEMENT for importScene (Project-aware) ---
 function deriveImportSceneName(sceneData, fileName) {
-    const nameFromData = sceneData?.name || sceneData?.metadata?.name;
+    const nameFromData = sceneData?.metadata?.title || sceneData?.name || sceneData?.metadata?.name;
     if (nameFromData && String(nameFromData).trim()) {
         return String(nameFromData).trim();
     }
@@ -4990,6 +5734,45 @@ function importScene(file) {
 // --- END OF REPLACEMENT ---
 
 
+function arrangeSelectedBenchComponents(operation, direction) {
+    const requiredCount = operation === 'distribute' ? 3 : 2;
+    if (selectedComponents.length < requiredCount) {
+        showTemporaryMessage?.(`请至少选择 ${requiredCount} 个元件`, 'info');
+        return false;
+    }
+
+    const arranger = operation === 'distribute'
+        ? window.BenchInteractions?.distributePlacements
+        : window.BenchInteractions?.alignPlacements;
+    if (typeof arranger !== 'function') return false;
+
+    const ids = selectedComponents.map(component => component.id);
+    const startPositions = new Map(selectedComponents.map(component => [component.id, component.pos.clone()]));
+    const placements = selectedComponents.map(component => ({
+        id: component.id,
+        x: component.pos.x,
+        y: component.pos.y
+    }));
+    const arranged = arranger(placements, direction);
+    const finalPositions = new Map();
+
+    arranged.forEach(placement => {
+        const component = selectedComponents.find(item => item.id === placement.id);
+        if (!component) return;
+        component.pos.set(placement.x, placement.y);
+        component.onPositionChanged?.();
+        component._updateGeometry?.();
+        finalPositions.set(component.id, component.pos.clone());
+    });
+
+    historyManager.addCommand(new MoveComponentsCommand(ids, startPositions, finalPositions, components));
+    updateUndoRedoUI();
+    updateInspector();
+    markSceneAsModified();
+    needsRetrace = true;
+    return true;
+}
+
 // --- REPLACEMENT for setupEventListeners function (V3 - Complete & Corrected) ---
 function setupEventListeners() {
     // Prevent multiple initializations
@@ -5057,6 +5840,22 @@ function setupEventListeners() {
         e.preventDefault();
         deleteSelectedComponents(); // Call the new function
     });
+    document.getElementById('menu-align-horizontal')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('align', 'centerY');
+    });
+    document.getElementById('menu-align-vertical')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('align', 'centerX');
+    });
+    document.getElementById('menu-distribute-horizontal')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('distribute', 'horizontal');
+    });
+    document.getElementById('menu-distribute-vertical')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        arrangeSelectedBenchComponents('distribute', 'vertical');
+    });
     // --- Inside setupEventListeners, listener for #menu-clear-all ---
     document.getElementById('menu-clear-all')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -5095,11 +5894,17 @@ function setupEventListeners() {
     document.getElementById('menu-toggle-grid')?.addEventListener('click', (e) => { e.preventDefault(); showGrid = !showGrid; const cb = document.getElementById('setting-show-grid'); if (cb) cb.checked = showGrid; saveSettings(); needsRetrace = true; });
 
     // Simulation Menu
-    document.getElementById('menu-mode-raytrace')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'ray_trace') switchMode('ray_trace'); });
-    document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
+    document.getElementById('menu-mode-raytrace')?.addEventListener('click', (e) => { e.preventDefault(); schematicWorkspace?.switchWorkspace('bench'); if (currentMode !== 'ray_trace') switchMode('ray_trace'); });
+    document.getElementById('menu-mode-lensimaging')?.addEventListener('click', (e) => { e.preventDefault(); schematicWorkspace?.switchWorkspace('bench'); if (currentMode !== 'lens_imaging') switchMode('lens_imaging'); });
     document.getElementById('menu-mode-diagram')?.addEventListener('click', (e) => { 
         e.preventDefault(); 
-        // 切换到专业绘图模式
+        resetInteractionState({ clearSelection: true });
+        const workspace = initializeSchematicWorkspace();
+        if (workspace) {
+            workspace.switchWorkspace('schematic');
+            return;
+        }
+        // 切换到科研图示模式
         const trySwitch = () => {
             if (typeof window.getModeManager === 'function') {
                 const modeManager = window.getModeManager();
@@ -5115,18 +5920,18 @@ function setupEventListeners() {
         
         if (!trySwitch()) {
             // 模块可能还在加载中，显示提示并重试
-            showTemporaryMessage('专业绘图模式正在加载中...', 'info');
+            showTemporaryMessage('科研图示模式正在加载中...', 'info');
             let retryCount = 0;
             const maxRetries = 20; // 最多重试20次，每次100ms
             const retryInterval = setInterval(() => {
                 retryCount++;
                 if (trySwitch()) {
                     clearInterval(retryInterval);
-                    showTemporaryMessage('已切换到专业绘图模式', 'success');
+                    showTemporaryMessage('已切换到科研图示模式', 'success');
                 } else if (retryCount >= maxRetries) {
                     clearInterval(retryInterval);
-                    console.error('专业绘图模式模块加载失败');
-                    showTemporaryMessage('专业绘图模式加载失败，请刷新页面重试', 'error');
+                    console.error('科研图示模式模块加载失败');
+                    showTemporaryMessage('科研图示模式加载失败，请刷新页面重试', 'error');
                 }
             }, 100);
         }
@@ -5225,6 +6030,69 @@ function setupEventListeners() {
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
         canvas.addEventListener('wheel', handleWheelZoom, { passive: false });
+        // --- 绘图模式右键上下文菜单 ---
+        canvas.addEventListener('contextmenu', (e) => {
+            const isDiagramModeActive = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (!isDiagramModeActive) return; // 模拟模式使用浏览器默认菜单
+            const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+            if (!interactionMgr) return;
+            const mousePos = getMousePos(canvas, e);
+            let targetComp = null;
+            for (let i = components.length - 1; i >= 0; i--) {
+                try {
+                    if (components[i]._containsPointBody?.(mousePos)) {
+                        targetComp = components[i];
+                        break;
+                    }
+                } catch (_) {}
+            }
+            interactionMgr.showContextMenu(e, targetComp);
+        });
+        // --- 绘图模式双击编辑标签 ---
+        canvas.addEventListener('dblclick', (e) => {
+            const isDiagram = diagramModeIntegration?.isDiagramMode?.() || false;
+            if (!isDiagram) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const mousePos = getMousePos(canvas, e);
+            // 检查是否双击了组件
+            let targetComp = null;
+            for (let i = components.length - 1; i >= 0; i--) {
+                try {
+                    if (components[i]._containsPointBody?.(mousePos)) {
+                        targetComp = components[i];
+                        break;
+                    }
+                } catch (_) {}
+            }
+            if (!targetComp) {
+                // 检查是否双击了专业标注
+                const labelManager = diagramModeIntegration.getModule('professionalLabelManager');
+                if (labelManager) {
+                    const label = labelManager.getLabelAtPosition?.(mousePos);
+                    if (label) {
+                        _showInlineEditor(e.clientX, e.clientY, label.text || '', (newText) => {
+                            if (newText.trim()) {
+                                label.text = newText.trim();
+                                needsRetrace = true;
+                                markSceneAsModified();
+                            }
+                        });
+                        return;
+                    }
+                }
+                return;
+            }
+            // 双击组件：编辑标签
+            const currentLabel = targetComp.label || targetComp.type || '';
+            _showInlineEditor(e.clientX, e.clientY, currentLabel, (newLabel) => {
+                if (newLabel.trim()) {
+                    targetComp.label = newLabel.trim();
+                    needsRetrace = true;
+                    markSceneAsModified();
+                }
+            });
+        });
         // --- Touch Event Listeners for Canvas ---
         console.log("Adding touch event listeners for canvas...");
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false }); // Use passive: false to allow preventDefault
@@ -5234,6 +6102,81 @@ function setupEventListeners() {
         // --- End Touch Listeners ---
     } else { console.error("Canvas element not found!"); }
 
+    // --- 绘图模式自定义事件监听 ---
+    document.addEventListener('diagram-select-all', () => {
+        selectedComponents = components.slice();
+        components.forEach(c => c.selected = true);
+        selectedComponent = selectedComponents.length > 0 ? selectedComponents[0] : null;
+        const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+        if (interactionMgr?.selection) {
+            interactionMgr.selection.clearSelection();
+            selectedComponents.forEach(c => interactionMgr.selection.select(c, true));
+        }
+        updateInspector();
+        needsRetrace = true;
+    });
+
+    document.addEventListener('diagram-delete-selection', () => {
+        if (selectedComponents.length > 0) {
+            deleteSelectedComponents();
+        }
+    });
+
+    document.addEventListener('diagram-paste', (e) => {
+        const result = e.detail;
+        if (result && result.items) {
+            const duplicated = [];
+            result.items.forEach(item => {
+                try {
+                    // item 是 ClipboardManager 返回的克隆对象
+                    const typeName = item.type || item.constructor?.name;
+                    const ComponentClass = window[typeName];
+                    if (ComponentClass) {
+                        const posX = item.pos?.x ?? item.x ?? 0;
+                        const posY = item.pos?.y ?? item.y ?? 0;
+                        const newComp = new ComponentClass(new Vector(posX, posY));
+                        // 恢复属性
+                        Object.keys(item).forEach(key => {
+                            if (key !== 'type' && key !== 'id' && key !== 'uuid' && key !== 'pos') {
+                                try { newComp.setProperty?.(key, item[key]); } catch (_) {}
+                            }
+                        });
+                        components.push(newComp);
+                        duplicated.push(newComp);
+                    }
+                } catch (_) {}
+            });
+            if (duplicated.length > 0) {
+                selectedComponents.forEach(c => c.selected = false);
+                selectedComponents = duplicated;
+                duplicated.forEach(c => c.selected = true);
+                selectedComponent = duplicated[0] || null;
+                // 同步 InteractionManager
+                const interactionMgr = diagramModeIntegration?.getModule?.('interactionManager');
+                if (interactionMgr?.selection) {
+                    interactionMgr.selection.clearSelection();
+                    duplicated.forEach(c => interactionMgr.selection.select(c, true));
+                }
+                needsRetrace = true;
+                markSceneAsModified();
+                updateInspector();
+            }
+        }
+    });
+    document.addEventListener('diagram-icon-selected', (e) => {
+        // 图标浏览器选中图标后，设置添加模式
+        const iconType = e.detail?.iconType || window.componentToAdd;
+        if (iconType) {
+            componentToAdd = iconType;
+            canvas.style.cursor = 'crosshair';
+            // 清除当前选择
+            selectedComponents.forEach(c => c.selected = false);
+            selectedComponents = [];
+            selectedComponent = null;
+            needsRetrace = true;
+        }
+    });
+    // --- End 绘图模式自定义事件监听 ---
     // --- File Input Listener (Permanent Hidden) ---
     const fileInput = document.getElementById('import-file-input');
     if (fileInput) {
@@ -5261,17 +6204,14 @@ function setupEventListeners() {
     // --- Global Keydown ---
     window.addEventListener('keydown', handleKeyDown);
 
-    // --- Warn on Leave ---
-    // --- Warn on Leave ---
+    // --- Warn on Leave + Cleanup ---
     window.addEventListener('beforeunload', (event) => {
-        if (sceneModified) { // Only prompt if changes were made
+        _cleanupAllResources();
+        if (sceneModified) {
             console.log("beforeunload triggered: Scene modified, prompting user.");
-            event.preventDefault(); // Standard way to ask browser to show prompt
-            event.returnValue = '您有未保存的更改。确定要离开吗？'; // Generic message (often ignored)
+            event.preventDefault();
+            event.returnValue = '您有未保存的更改。确定要离开吗？';
             return event.returnValue;
-        } else {
-            console.log("beforeunload triggered: No modifications detected.");
-            // No prompt needed if no changes
         }
     });
 
@@ -5681,29 +6621,6 @@ function closeSceneManagerModal() {
     }
 }
 
-// --- NEW Helper to handle "Save As" click (extracted logic) ---
-function handleSaveAsClick() {
-    const defaultName = `场景 ${new Date().toLocaleDateString()}`;
-    const sceneName = prompt("请输入要保存的场景名称:", defaultName);
-    if (sceneName !== null && sceneName.trim() !== "") {
-        const trimmedName = sceneName.trim();
-        const existingNames = getSavedSceneNames();
-        if (existingNames.includes(trimmedName)) {
-            if (!confirm(`场景 "${trimmedName}" 已存在。是否覆盖？`)) {
-                console.log("Save As cancelled, name exists."); return;
-            }
-        }
-        const sceneData = generateSceneDataObject(); // Use helper to get data
-        if (sceneData && saveSceneDataToStorage(trimmedName, sceneData)) {
-            sceneModified = false;
-            updateSavedScenesList(); // Refresh list
-            alert(`场景 "${trimmedName}" 已成功保存到本地浏览器！`);
-            // Optionally close modal after save?
-            // closeSceneManagerModal();
-        }
-    } else { console.log("Save As cancelled by user."); }
-}
-
 
 
 
@@ -5712,19 +6629,25 @@ function handleSaveAsClick() {
 
 // --- Mode Switching Function ---
 function switchMode(newMode) {
-    console.log(`Switching mode from ${currentMode} to ${newMode}`);
+    const oldMode = currentMode;
+    console.log(`Switching mode from ${oldMode} to ${newMode}`);
     currentMode = newMode;
-    hideModeHint(); // Hide any previous hint
+    hideModeHint();
+    resetInteractionState({ clearSelection: true });
 
-    // Actions needed when switching modes:
-    needsRetrace = true; // Always retrace/redraw when mode changes
+    needsRetrace = true;
 
-    // Reset things specific to certain modes if necessary
-    // (e.g., clear special drawing layers)
     if (newMode === 'ray_trace') {
-        // Actions for switching TO ray trace mode (if any)
+        // Leaving lens_imaging → reset LensImaging interactive state
+        const li = _getLensImagingInstance();
+        if (li) li.reset();
     } else if (newMode === 'lens_imaging') {
-        // Actions for switching TO lens imaging mode (if any)
+        // Entering lens_imaging → stop arrow animations, clear selection drag state
+        arrowAnimationStates.clear();
+
+        // Reset LensImaging so it picks up fresh component state
+        const li = _getLensImagingInstance();
+        if (li) li.reset();
     }
 }
 
@@ -5756,6 +6679,7 @@ let touchState = {
     // --- ADD THESE ---
     touchStartTime: 0,
     touchStartPos: null, // Store logical position at touch start
+    touchStartClient: null, // Store CSS pixel position at touch start
     isDraggingConfirmed: false, // Flag to confirm drag intent
     dragThreshold: 5 // Pixels (logical) movement needed to confirm drag
     // --- END ADD ---
@@ -5807,6 +6731,7 @@ function handleTouchStart(event) {
         touchState.lastSingleTouchId = touch.identifier;
         touchState.touchStartTime = performance.now(); // Record time
         touchState.touchStartPos = getTouchPos(canvas, touch); // Record logical position
+        touchState.touchStartClient = { x: touch.clientX, y: touch.clientY }; // Record CSS position
 
         // -- DON'T call handleMouseDown here anymore --
 
@@ -5833,6 +6758,7 @@ function handleTouchStart(event) {
         touchState.isDraggingConfirmed = false;
         touchState.touchStartTime = 0;
         touchState.touchStartPos = null;
+        touchState.touchStartClient = null;
 
         const touch1 = event.touches[0];
         const touch2 = event.touches[1];
@@ -5904,8 +6830,8 @@ function handleTouchMove(event) {
 
                     // --- Initiate the Drag (like original mousedown) ---
                     const simulatedMouseDownEvent = {
-                        clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || event.touches[0].clientX, // Use stored start touch if available
-                        clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || event.touches[0].clientY,
+                        clientX: touchState.touchStartClient?.x ?? touch.clientX,
+                        clientY: touchState.touchStartClient?.y ?? touch.clientY,
                         button: 0,
                         preventDefault: () => { }, // Doesn't need to prevent default here
                     };
@@ -5972,8 +6898,8 @@ function handleTouchEnd(event) {
             // Simulate a MouseDown *and* MouseUp at the start position to trigger selection/placement
             if (touchState.touchStartPos && endedTouch) { // Ensure we have start pos
                 const simulatedMouseDownEvent = {
-                    clientX: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientX || endedTouch.clientX,
-                    clientY: touchState.lastTouches.find(t => t.identifier === touchState.lastSingleTouchId)?.clientY || endedTouch.clientY,
+                    clientX: touchState.touchStartClient?.x ?? endedTouch.clientX,
+                    clientY: touchState.touchStartClient?.y ?? endedTouch.clientY,
                     button: 0,
                     preventDefault: () => { },
                 };
@@ -6004,6 +6930,7 @@ function handleTouchEnd(event) {
         touchState.isDraggingConfirmed = false;
         touchState.touchStartTime = 0;
         touchState.touchStartPos = null;
+        touchState.touchStartClient = null;
 
     }
 
@@ -6013,6 +6940,7 @@ function handleTouchEnd(event) {
         touchState.isDown = false;
         touchState.isMultiTouch = false;
         touchState.lastSingleTouchId = null;
+        touchState.touchStartClient = null;
         if (!isDragging) { // Reset cursor if not already handled by mouseup->mousemove
             canvas.style.cursor = 'default';
         }
@@ -6089,7 +7017,7 @@ let diagramModeIntegration = null;
 let diagramModeBootstrapDone = false;
 
 /**
- * 初始化专业绘图模式集成
+ * 初始化科研图示模式集成
  * 创建DiagramModeIntegration实例并设置相关功能
  */
 function initializeDiagramModeIntegration() {
@@ -6103,10 +7031,10 @@ function initializeDiagramModeIntegration() {
                         offset: cameraOffset
                     }
                 });
-                console.log('专业绘图模式集成已初始化');
+                console.log('科研图示模式集成已初始化');
                 return true;
             } catch (error) {
-                console.error('初始化专业绘图模式失败:', error);
+                console.error('初始化科研图示模式失败:', error);
                 return false;
             }
         } else if (typeof window.getDiagramModeIntegration === 'function') {
@@ -6119,10 +7047,10 @@ function initializeDiagramModeIntegration() {
                         offset: cameraOffset
                     }
                 });
-                console.log('专业绘图模式集成已初始化');
+                console.log('科研图示模式集成已初始化');
                 return true;
             } catch (error) {
-                console.error('初始化专业绘图模式失败:', error);
+                console.error('初始化科研图示模式失败:', error);
                 return false;
             }
         }
@@ -6138,10 +7066,10 @@ function initializeDiagramModeIntegration() {
             retryCount++;
             if (doInit()) {
                 clearInterval(retryInterval);
-                console.log('专业绘图模式集成已延迟初始化');
+                console.log('科研图示模式集成已延迟初始化');
             } else if (retryCount >= maxRetries) {
                 clearInterval(retryInterval);
-                console.warn('DiagramModeIntegration模块加载超时，专业绘图功能可能不可用');
+                console.warn('DiagramModeIntegration模块加载超时，科研图示功能可能不可用');
             }
         }, 100);
     }
@@ -6210,14 +7138,14 @@ function bootstrapDiagramMode() {
  */
 function handleModeChange(mode, config) {
     console.log(`模式已切换到: ${mode}`);
-    
+    resetInteractionState({ clearSelection: true });
+
     // 更新UI显示
     updateModeSpecificUI(mode);
     updateUndoRedoUI();
-    
-    // 触发重绘
+
+    // 触发重绘（多次延迟重绘确保异步图标加载完成后也能刷新）
     needsRetrace = true;
-    // 延迟重绘确保异步图标加载完成
     setTimeout(() => { needsRetrace = true; }, 300);
     setTimeout(() => { needsRetrace = true; }, 800);
 }
@@ -6241,10 +7169,402 @@ function updateModeSpecificUI(mode) {
     
     // 更新模式提示
     if (modeHintElement) {
-        const modeText = mode === 'simulation' ? '模拟模式' : '绘图模式';
+        const modeText = mode === 'simulation' ? '模拟模式' : '科研图示模式';
         // 可以在这里显示模式提示，但不覆盖现有的操作提示
     }
 }
+
+// --- 自动恢复管理器初始化 ---
+let _autoRecoveryManager = null;
+let _autoRecoveryWarned = false;
+
+function _initAutoRecovery() {
+    if (typeof AutoRecoveryManager === 'undefined') {
+        if (!_autoRecoveryWarned) {
+            console.warn('AutoRecoveryManager not available, skipping auto-save setup.');
+            _autoRecoveryWarned = true;
+        }
+        return;
+    }
+    try {
+        _autoRecoveryManager = new AutoRecoveryManager();
+        _autoRecoveryManager.setSceneDataCallback(() => generateSceneDataObject());
+        _autoRecoveryManager.setCurrentScene('default', '默认场景');
+
+        // 启动时检查是否有恢复数据
+        if (_autoRecoveryManager.shouldPromptRecovery()) {
+            const summary = _autoRecoveryManager.getRecoverySummary();
+            if (summary && confirm(`发现自动保存的场景 "${summary.sceneName}"（${summary.age}）。是否恢复？`)) {
+                _autoRecoveryManager.recoverScene().then(result => {
+                    if (result?.sceneData) {
+                        loadSceneFromData(result.sceneData);
+                        console.log('场景已从自动保存恢复。');
+                    }
+                });
+            } else {
+                _autoRecoveryManager.clearRecoveryData();
+            }
+        }
+
+        _autoRecoveryManager.startAutoSave();
+        _autoRecoveryManager.on('autoSaved', (info) => {
+            console.log(`自动保存完成: ${info.timestamp}`);
+        });
+        _autoRecoveryManager.on('storageQuotaExceeded', () => {
+            console.warn('localStorage 配额已满，自动保存失败。');
+            alert('浏览器存储空间已满，自动保存失败。请导出场景文件作为备份。');
+        });
+
+        window._autoRecoveryManager = _autoRecoveryManager;
+        console.log('AutoRecoveryManager 已初始化，自动保存已启动。');
+    } catch (e) {
+        console.error('AutoRecoveryManager 初始化失败:', e);
+    }
+}
+
+// --- 全局错误处理 ---
+let _globalErrorCount = 0;
+const _MAX_GLOBAL_ERRORS = 20;
+
+function _initGlobalErrorHandler() {
+    window.onerror = function(message, source, lineno, colno, error) {
+        _globalErrorCount++;
+        console.error(`[GlobalError ${_globalErrorCount}] ${message} at ${source}:${lineno}:${colno}`);
+        if (_globalErrorCount === _MAX_GLOBAL_ERRORS) {
+            console.error(`已达到 ${_MAX_GLOBAL_ERRORS} 个全局错误，后续错误将仅记录到控制台。`);
+        }
+        return true; // 阻止默认错误弹窗
+    };
+
+    window.onunhandledrejection = function(event) {
+        _globalErrorCount++;
+        console.error(`[UnhandledRejection ${_globalErrorCount}]`, event.reason);
+        event.preventDefault();
+    };
+
+    // 监听 GameLoop 错误事件
+    window.addEventListener('gameloop-error', (e) => {
+        const { errorCount, lastError } = e.detail;
+        console.error(`GameLoop 因连续 ${errorCount} 次错误已暂停: ${lastError}`);
+        alert(`光线追踪引擎因连续错误已暂停。请检查场景中的组件配置。\n错误信息: ${lastError}`);
+    });
+}
+
+// --- License Feature Gates ---
+function checkFeatureAccess(featureName, showUpgradeModal = true) {
+    if (!licenseValidator) {
+        console.warn('LicenseValidator not initialized, allowing feature access');
+        return true;
+    }
+
+    const hasAccess = licenseValidator.hasFeature(featureName);
+    if (!hasAccess && showUpgradeModal) {
+        showUpgradePrompt(featureName);
+    }
+    return hasAccess;
+}
+
+// --- Cloud Storage Functions ---
+async function saveSceneToCloud() {
+    // Check license
+    if (!checkFeatureAccess('cloud_sync')) {
+        return;
+    }
+
+    // Check authentication
+    if (!githubAuth || !githubAuth.isLoggedIn()) {
+        if (confirm('需要登录 GitHub 才能使用云端同步功能。是否现在登录？')) {
+            githubAuth.login();
+        }
+        return;
+    }
+
+    try {
+        const sceneName = prompt('请输入场景名称:', currentSceneName || 'untitled');
+        if (!sceneName) return;
+
+        const sceneData = generateSceneDataObject();
+
+        await cloudStorage.saveScene(sceneName, sceneData);
+
+        alert(`场景 "${sceneName}" 已保存到云端`);
+        console.log(`Scene saved to cloud: ${sceneName}`);
+
+    } catch (error) {
+        console.error('Failed to save to cloud:', error);
+        alert(`保存失败: ${error.message}`);
+    }
+}
+
+async function loadSceneFromCloud() {
+    // Check license
+    if (!checkFeatureAccess('cloud_sync')) {
+        return;
+    }
+
+    // Check authentication
+    if (!githubAuth || !githubAuth.isLoggedIn()) {
+        if (confirm('需要登录 GitHub 才能使用云端同步功能。是否现在登录？')) {
+            githubAuth.login();
+        }
+        return;
+    }
+
+    try {
+        const scenes = await cloudStorage.listScenes();
+
+        if (scenes.length === 0) {
+            alert('云端没有保存的场景');
+            return;
+        }
+
+        // Show scene selection modal
+        showCloudSceneListModal(scenes, 'load');
+
+    } catch (error) {
+        console.error('Failed to load from cloud:', error);
+        alert(`加载失败: ${error.message}`);
+    }
+}
+
+function showCloudSceneListModal(scenes, action = 'load') {
+    const modal = document.createElement('div');
+    modal.className = 'cloud-scene-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-color, #fff);
+        border: 2px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        min-width: 400px;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+    `;
+
+    const actionText = action === 'load' ? '加载场景' : '管理场景';
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: var(--text-color, #333);">${actionText}</h3>
+        <div id="cloud-scene-list" style="margin-bottom: 16px;">
+            ${scenes.map(scene => `
+                <div class="cloud-scene-item" data-scene-name="${scene.name}" style="
+                    padding: 12px;
+                    border: 1px solid var(--border-color, #ddd);
+                    border-radius: 4px;
+                    margin-bottom: 8px;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                ">
+                    <div style="font-weight: bold; margin-bottom: 4px;">${scene.name}</div>
+                    <div style="font-size: 12px; color: var(--text-color, #666);">
+                        大小: ${(scene.size / 1024).toFixed(2)} KB |
+                        更新: ${new Date(scene.updated).toLocaleString()}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="cloud-modal-cancel" style="
+                padding: 8px 16px;
+                border: 1px solid var(--border-color, #ccc);
+                background: transparent;
+                border-radius: 4px;
+                cursor: pointer;
+            ">取消</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'cloud-modal-backdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(backdrop);
+
+    // Event handlers
+    const closeModal = () => {
+        modal.remove();
+        backdrop.remove();
+    };
+
+    document.getElementById('cloud-modal-cancel').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+
+    // Scene item click handlers
+    document.querySelectorAll('.cloud-scene-item').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.background = 'rgba(0,0,0,0.05)';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.background = 'transparent';
+        });
+        item.addEventListener('click', async () => {
+            const sceneName = item.dataset.sceneName;
+            if (action === 'load') {
+                try {
+                    const sceneData = await cloudStorage.loadScene(sceneName);
+                    loadSceneDataObject(sceneData);
+                    currentSceneName = sceneName;
+                    alert(`场景 "${sceneName}" 已加载`);
+                    closeModal();
+                } catch (error) {
+                    alert(`加载失败: ${error.message}`);
+                }
+            }
+        });
+    });
+}
+
+function showUpgradePrompt(featureName) {
+    const featureNames = {
+        'cloud_sync': '云端同步',
+        'hd_export': '高分辨率导出',
+        'advanced_presets': '高级预设场景',
+        'batch_export': '批量导出',
+        'paper_templates': '论文模板',
+        'no_watermark': '去除水印',
+        'team_sharing': '团队共享',
+        'collaboration': '协作编辑'
+    };
+
+    const displayName = featureNames[featureName] || featureName;
+    const currentPlan = licenseValidator ? licenseValidator.getPlanDisplayName() : 'Free';
+
+    const modal = document.createElement('div');
+    modal.className = 'upgrade-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-color, #fff);
+        border: 2px solid var(--border-color, #ccc);
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        min-width: 320px;
+        max-width: 480px;
+    `;
+
+    modal.innerHTML = `
+        <h3 style="margin: 0 0 16px 0; color: var(--text-color, #333);">升级到专业版</h3>
+        <p style="margin: 0 0 16px 0; color: var(--text-color, #666);">
+            <strong>${displayName}</strong> 功能需要专业版或更高版本。
+        </p>
+        <p style="margin: 0 0 20px 0; font-size: 14px; color: var(--text-color, #888);">
+            当前计划: <strong>${currentPlan}</strong>
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button id="upgrade-cancel-btn" style="
+                padding: 8px 16px;
+                border: 1px solid var(--border-color, #ccc);
+                background: transparent;
+                border-radius: 4px;
+                cursor: pointer;
+            ">取消</button>
+            <button id="upgrade-view-pricing-btn" style="
+                padding: 8px 16px;
+                border: none;
+                background: #007bff;
+                color: white;
+                border-radius: 4px;
+                cursor: pointer;
+            ">查看定价</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'upgrade-modal-backdrop';
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(backdrop);
+
+    // Event handlers
+    const closeModal = () => {
+        modal.remove();
+        backdrop.remove();
+    };
+
+    document.getElementById('upgrade-cancel-btn').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+
+    document.getElementById('upgrade-view-pricing-btn').addEventListener('click', () => {
+        const upgradeUrl = licenseValidator ? licenseValidator.getUpgradeUrl() : 'https://opticslab.app/pricing';
+        window.open(upgradeUrl, '_blank');
+        closeModal();
+    });
+}
+
+// --- localStorage 安全保存工具 ---
+function safeLocalStorageSave(key, data) {
+    const jsonString = typeof data === 'string' ? data : JSON.stringify(data);
+    // 保存前备份旧数据
+    try {
+        const existing = localStorage.getItem(key);
+        if (existing) {
+            localStorage.setItem(key + '_backup', existing);
+        }
+    } catch (e) {
+        // 备份失败不阻塞保存
+    }
+    try {
+        localStorage.setItem(key, jsonString);
+        return true;
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            console.warn('localStorage 配额已满，尝试清理备份后重试...');
+            // 清理所有备份 key 后重试
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && k.endsWith('_backup')) {
+                    localStorage.removeItem(k);
+                }
+            }
+            try {
+                localStorage.setItem(key, jsonString);
+                return true;
+            } catch (e2) {
+                alert('浏览器存储空间已满，无法保存。请导出场景文件作为备份。');
+                return false;
+            }
+        }
+        console.error('localStorage 保存失败:', e);
+        return false;
+    }
+}
+
+// --- License Validator Instance ---
+let licenseValidator = null;
+
+// --- Cloud Storage Instances ---
+let githubAuth = null;
+let cloudStorage = null;
 
 // --- REPLACEMENT for initialize function (V4 - Includes History Init & UI Update) ---
 function initialize() {
@@ -6261,6 +7581,54 @@ function initialize() {
     if (!historyManager && typeof HistoryManager !== 'undefined') {
         historyManager = new HistoryManager();
         window.historyManager = historyManager;
+    }
+
+    // --- 初始化 LicenseValidator ---
+    if (!licenseValidator && typeof LicenseValidator !== 'undefined') {
+        licenseValidator = new LicenseValidator();
+        window.licenseValidator = licenseValidator;
+        console.log(`License plan: ${licenseValidator.getPlanDisplayName()}`);
+
+        // Check for expiring license
+        if (licenseValidator.isExpiringSoon()) {
+            const days = licenseValidator.getDaysUntilExpiry();
+            console.warn(`License expiring in ${days} days`);
+        }
+    }
+
+    // --- 初始化 Cloud Storage ---
+    if (!githubAuth && typeof GitHubAuth !== 'undefined') {
+        githubAuth = new GitHubAuth();
+        window.githubAuth = githubAuth;
+
+        if (githubAuth.isLoggedIn()) {
+            console.log(`GitHub user: ${githubAuth.getUser()?.login || 'Loading...'}`);
+        }
+    }
+
+    if (!cloudStorage && typeof GistSceneStorage !== 'undefined' && githubAuth) {
+        cloudStorage = new GistSceneStorage(githubAuth);
+        window.cloudStorage = cloudStorage;
+        console.log('Cloud storage initialized');
+    }
+
+    // --- Handle OAuth callback ---
+    if (GitHubAuth.isCallbackPage()) {
+        const params = GitHubAuth.getCallbackParams();
+        if (params && githubAuth) {
+            githubAuth.handleCallback(params.code, params.state)
+                .then(() => {
+                    console.log('GitHub authentication successful');
+                    // Redirect back to main page
+                    window.location.href = window.location.origin + window.location.pathname;
+                })
+                .catch(error => {
+                    console.error('GitHub authentication failed:', error);
+                    alert(`GitHub 登录失败: ${error.message}`);
+                    window.location.href = window.location.origin + window.location.pathname;
+                });
+            return; // Don't continue initialization during callback
+        }
     }
 
      // --- 加载主题和设置 ---
@@ -6321,12 +7689,21 @@ function initialize() {
     updateInspector();       // Update inspector content (shows placeholder if nothing selected)
 
     // --- 初始化模式切换器 + 专业绘图模式集成 ---
-    bootstrapDiagramMode();
+    initializeSchematicWorkspace();
+
+    // --- 初始化自动恢复管理器 ---
+    _initAutoRecovery();
+
+    // --- 初始化全局错误处理 ---
+    _initGlobalErrorHandler();
 
     updateUndoRedoUI();      // <<<--- Update undo/redo button initial state
     needsRetrace = true;       // Mark for initial ray trace
     lastTimestamp = performance.now(); // Get starting time
     requestAnimationFrame(gameLoop); // Start the main loop
+
+    document.body.dataset.opticslabReady = 'true';
+    document.body.dataset.documentSchemaVersion = '3.0.0';
 
     console.log("初始化完成，主循环已启动。");
 }
